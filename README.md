@@ -2,92 +2,230 @@
 
 Backtester per fondi comuni ed ETF: cerca gli strumenti, definisci i pesi del
 portafoglio, scegli il periodo e vedi quanto sarebbe diventato il tuo capitale —
-con l'impatto dei costi (TER) evidenziato.
+con l'impatto dei costi (TER) evidenziato. Include anche il confronto con i
+fondi pensione italiani (negoziali, aperti, PIP).
 
-## Avvio
+---
+
+## Guida rapida
+
+### 1. Installazione (una volta sola)
+
+Serve Python 3.13+ e [`uv`](https://docs.astral.sh/uv/) come gestore del
+progetto. Se `uv` non è già installato:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Poi, dalla cartella del progetto, installa le dipendenze:
+
+```bash
+uv sync
+```
+
+Questo crea l'ambiente virtuale in `.venv/` e installa tutto quello che serve
+(Streamlit, pandas, yfinance, openpyxl, ecc.) leggendo `pyproject.toml`.
+
+### 2. Avvio
 
 ```bash
 uv run streamlit run app.py
 ```
 
-Si apre su <http://localhost:8501>.
+Si apre automaticamente il browser su <http://localhost:8501>. Per fermarla,
+`Ctrl+C` nel terminale.
 
-## Cosa fa
+### 3. Aggiungere un fondo
 
-- **Ricerca** per nome, ticker o **ISIN** (es. `IE00B3XXRP09`).
-- **Backtest** da data X a data Y con pesi percentuali e capitale iniziale,
-  con pulsanti rapidi di periodo (1a / 5a / 10a / 20a / Max).
-- **Ribilanciamento** opzionale: nessuno (buy & hold), mensile, trimestrale, annuale.
-- **Confronto**: curva del portafoglio + curva di ogni fondo preso singolarmente
-  a parità di capitale.
-- **Più fonti dati** con ripiego automatico, e possibilità di forzare la fonte
-  per singolo fondo.
-- **Conversione valutaria** ai cambi ufficiali BCE.
-- **Storico esteso**: ricostruzione del periodo precedente alla nascita del fondo.
-- **Rimozione di un fondo** dalla tabella, con l'icona del cestino sulla riga.
-- **Metriche**: rendimento totale, CAGR, volatilità, Sharpe, Sortino, max
-  drawdown, Calmar, miglior/peggior anno, rendimenti per anno solare.
-- **Export CSV** di tutte le serie.
+1. Apri il pannello **🔎 Cerca fondi ed ETF** in cima alla pagina.
+2. Digita un nome (`Vanguard S&P 500`), un ticker (`VUSA.AS`) o un **ISIN**
+   (`IE00B3XXRP09`) — l'ISIN è il modo più affidabile, soprattutto per i fondi
+   europei.
+3. Nei risultati, premi **Aggiungi** sulla riga giusta.
+4. Ripeti per ogni fondo del portafoglio.
 
-## Fonti dati
+Il fondo compare nella tabella **Composizione del portafoglio**, dove puoi
+modificare:
 
-Nessuna fonte, da sola, copre tutti i casi. L'app le prova in ordine e si ferma
-alla prima che risponde, dicendo sempre quale ha usato.
+- **Peso %** — quota del capitale assegnata (il pulsante **⚖️ Pesi uguali** li
+  ridistribuisce in automatico);
+- **TER %** — precompilato quando la fonte lo espone, ma verifica sempre sul
+  KID del fondo e correggilo se serve;
+- **Costi extra %** — per costi non già inclusi nel NAV (custodia, consulenza);
+- **ISIN** — compilalo se manca: sblocca justETF, che copre molti ETF europei
+  meglio di Yahoo;
+- **Fonte** — normalmente su "Automatica"; forzala solo se vuoi diagnosticare
+  da dove arrivano i dati di un fondo specifico;
+- **Proxy storico** — vedi [Storico esteso](#storico-esteso).
 
-| Ordine | Fonte | Copre | Chiave |
+### 4. Rimuovere un fondo
+
+Ogni riga della tabella ha un'icona 🗑️ a sinistra: clicca e conferma per
+toglierla. **🗑️ Svuota**, sotto la tabella, azzera tutto il portafoglio.
+
+### 5. Impostare periodo, valuta e capitale
+
+Tutto nella barra laterale a sinistra:
+
+- **Periodo**: pulsanti rapidi `1a · 5a · 10a · 20a · Max`, oppure le due date
+  a mano.
+- **Valore iniziale del portafoglio** e **Valuta di riferimento**.
+- **Ribilanciamento**: nessuno (buy & hold), mensile, trimestrale, annuale.
+
+Il grafico e le metriche si aggiornano da soli. Se i pesi non sommano a 100%
+l'app li normalizza e te lo segnala.
+
+### 6. Leggere i risultati
+
+Quattro schede sotto il grafico principale:
+
+| Scheda | Cosa mostra |
+|---|---|
+| 📊 Portafoglio | curva del capitale, netta e lorda (senza TER), composizione nel tempo |
+| 🆚 Confronto fondi | ogni fondo preso da solo, a parità di capitale investito |
+| 📉 Drawdown | perdita dal massimo storico, e rendimenti per anno solare |
+| 📋 Dati | tabella numerica scaricabile in CSV |
+
+Il riquadro **💸 Impatto del TER** quantifica in euro quanto i costi correnti
+sono costati rispetto al fondo ipotetico senza commissioni.
+
+---
+
+## Fonti dati e come configurarle
+
+Nessuna fonte, da sola, copre tutti i casi. L'app le prova in ordine e si
+ferma alla prima che risponde, dicendo sempre quale ha usato.
+
+| Ordine | Fonte | Copre | Chiave richiesta |
 |---|---|---|---|
-| 1 | **CSV caricato** | qualsiasi cosa, incluso ciò che nessuno espone | — |
-| 2 | **justETF** | ETF europei, per ISIN | — |
-| 3 | **Yahoo Finance** | fonte generalista, unica con ricerca testuale | — |
+| 1 | **CSV caricato** | qualsiasi cosa, incluso ciò che nessuno espone | no |
+| 2 | **justETF** | ETF europei, per ISIN | no |
+| 3 | **Yahoo Finance** | fonte generalista, unica con ricerca testuale | no |
 | 4 | **EODHD** | fondi comuni ed ETF europei, TER affidabile | sì |
 | 5 | **Twelve Data** | 50+ mercati | sì |
 
-Quando una serie non arriva, l'app mostra cosa ha tentato e come è andata, invece
-di lasciare un grafico vuoto senza spiegazione.
+Le prime tre funzionano già "out of the box", senza fare nulla. Le ultime due
+sono opzionali e si attivano da sole appena configuri una chiave.
 
-**justETF** è la fonte che chiude il buco più fastidioso: interrogata per ISIN
-restituisce la serie total-return già convertita nella valuta richiesta, dalla
-quotazione dell'ETF. Esempio concreto: l'iShares Core S&P 500 (`IE00B5BMR087`)
-su Yahoo con il ticker di Milano non esiste, mentre justETF ne dà lo storico dal
-2010. È però un'**API interna non documentata**: può cambiare senza preavviso,
-per questo non è mai l'unica fonte di un fondo.
+Quando una serie non arriva, l'app mostra cosa ha tentato e come è andata,
+invece di lasciare un grafico vuoto senza spiegazione.
 
-**Morningstar** e **Stooq** sono stati valutati e scartati: il primo ora richiede
-un browser Chrome pilotato via Selenium, il secondo è dietro un controllo
-anti-bot in JavaScript. Nessuno dei due è utilizzabile da un'app Streamlit.
+### Come configurare una chiave API (EODHD / Twelve Data)
 
-### Chiavi API
+Servono solo se vuoi coprire fondi che Yahoo e justETF non hanno — tipicamente
+**fondi collocati dalle reti italiane** (Mediolanum, Fineco, banche). Yahoo ne
+copre solo una parte, con storico fermo al 2018.
 
-Facoltative. Senza chiave le due fonti commerciali si dichiarano non configurate
-e vengono saltate. Da variabile d'ambiente:
+1. Registrati e ottieni una chiave gratuita da:
+   - [eodhd.com](https://eodhd.com) per EODHD;
+   - [twelvedata.com](https://twelvedata.com) per Twelve Data.
+2. Crea il file `.streamlit/secrets.toml` nella cartella del progetto (la
+   cartella `.streamlit/` va creata se non esiste già) con questo contenuto:
+
+   ```toml
+   EODHD_API_KEY = "la-tua-chiave-eodhd"
+   TWELVEDATA_API_KEY = "la-tua-chiave-twelvedata"
+   ```
+
+   Basta compilare le chiavi che hai — se ne manca una, quella fonte resta
+   semplicemente spenta.
+3. Riavvia l'app. Nella barra laterale, sotto **Fonti dati**, un pallino 🟢
+   conferma che la fonte è attiva.
+
+In alternativa alle chiavi in `secrets.toml`, puoi esportarle come variabili
+d'ambiente prima di avviare:
 
 ```bash
-export EODHD_API_KEY="..."
-export TWELVEDATA_API_KEY="..."
+export EODHD_API_KEY="la-tua-chiave-eodhd"
+export TWELVEDATA_API_KEY="la-tua-chiave-twelvedata"
+uv run streamlit run app.py
 ```
 
-oppure in `.streamlit/secrets.toml` (già in `.gitignore`):
+`.streamlit/secrets.toml` è già in `.gitignore`: non finisce mai nel
+repository.
 
-```toml
-EODHD_API_KEY = "..."
-TWELVEDATA_API_KEY = "..."
-```
+### Come caricare una serie da CSV
 
-### Caricare una serie da CSV
+Per i fondi comuni non quotati che nessuna fonte gratuita copre (tipico caso:
+un fondo interno di una banca, senza ISIN pubblico su Yahoo/justETF).
 
-Per i fondi comuni non quotati, che nessuna fonte gratuita copre. Due colonne,
-data e valore della quota; separatore, decimale e formato data vengono
-riconosciuti da soli, compresi i formati italiani (`;` e virgola decimale,
-`GG/MM/AAAA`).
+1. Nella barra laterale, apri **📄 Carica una serie da CSV**.
+2. Indica il **simbolo o ISIN** a cui associarla (deve corrispondere a quello
+   che userai per aggiungere il fondo dalla ricerca, o puoi crearlo tu come
+   codice interno).
+3. Scegli la **valuta** della serie.
+4. Carica il file CSV: due colonne, data e valore della quota. Non serve
+   preoccuparsi del formato esatto — separatore (`;` o `,`), decimale
+   (virgola o punto) e formato data vengono riconosciuti da soli, compresi i
+   formati italiani (`GG/MM/AAAA`, virgola decimale). Esempio valido:
+
+   ```csv
+   Data;NAV
+   02/01/2020;12,3456
+   03/01/2020;12,4010
+   06/01/2020;12,3900
+   ```
+
+Una volta caricata, la serie ha priorità massima: se aggiungi un fondo con
+quello stesso simbolo o ISIN, l'app userà i tuoi dati invece di cercarli
+altrove.
+
+---
+
+## Fondi pensione (negoziali, aperti e PIP)
+
+La scheda **🏦 Fondi pensione**, in fondo alle schede dei risultati, confronta
+il tuo portafoglio con la previdenza complementare italiana: 471 comparti fra
+33 fondi negoziali, 38 aperti e 71 PIP, dati [COVIP](https://www.covip.it/open-data)
+(licenza CC BY 4.0), con rendimenti e **Indicatore Sintetico dei Costi (ISC)**.
+
+### Come usarla
+
+1. Costruisci prima il tuo portafoglio come al solito (fondi, pesi, periodo).
+2. Apri la scheda **🏦 Fondi pensione**.
+3. Filtra per tipo (negoziale / aperto / PIP), categoria (azionario,
+   bilanciato, obbligazionario, garantito) o cerca per nome — es.
+   `mediolanum`, `cometa`, `previgest`.
+4. Seleziona uno o più comparti nel menu **Comparti da confrontare**.
+
+Compaiono una tabella con i rendimenti a 1/3/5/10/20 anni affiancati a quelli
+del tuo portafoglio, un grafico a barre, e una tabella separata sull'impatto
+dell'ISC.
+
+### Cosa può fare e cosa no
+
+COVIP pubblica **rendimenti medi annui su orizzonti fissi**, non le serie
+storiche giorno per giorno. Per questo, per i fondi pensione **non sono
+calcolabili** curva del capitale, drawdown, volatilità, Sharpe o Calmar: non è
+una scelta dell'app, è che il dato non esiste pubblicamente. Chi lo vuole può
+scaricare il valore quota dal sito del proprio fondo e caricarlo con
+l'uploader CSV descritto sopra.
+
+Il confronto usa **le stesse finestre pubblicate da COVIP** (es. `2016-2025`,
+non "ultimi dieci anni da oggi"): se il tuo portafoglio non copre l'intera
+finestra, quella cella mostra `n/d` invece di un numero calcolato su un
+periodo più corto e non realmente confrontabile.
+
+Puoi anche sovrapporre al grafico principale una **curva sintetica** per ogni
+comparto scelto (interruttore in fondo alla scheda, spento di default): è una
+crescita costante ricavata dal rendimento medio, utile per un colpo d'occhio,
+ma non un andamento reale — il percorso vero ha oscillato, e per questo non
+entra nel calcolo delle metriche di rischio.
+
+**Il confronto non considera la fiscalità**: deducibilità dei versamenti,
+tassazione agevolata dei rendimenti e dell'imposta finale sono vantaggi reali
+dei fondi pensione che qui non vengono modellati, quindi i numeri mostrati li
+sottostimano rispetto alla realtà.
+
+---
 
 ## Come vengono trattati i costi
 
-Questo è il punto delicato, e vale la pena leggerlo.
-
-**I NAV pubblicati sono già al netto del TER.** La commissione di gestione viene
-addebitata giorno per giorno dentro il NAV: se un fondo dichiara +10% di
-rendimento, quel +10% è già al netto delle spese correnti. Sottrarre di nuovo il
-TER dalla performance storica significa contarlo due volte.
+**I NAV pubblicati sono già al netto del TER.** La commissione di gestione
+viene addebitata giorno per giorno dentro il NAV: se un fondo dichiara +10% di
+rendimento, quel +10% è già al netto delle spese correnti. Sottrarre di nuovo
+il TER dalla performance storica significa contarlo due volte.
 
 L'app quindi lavora con due curve:
 
@@ -96,12 +234,12 @@ L'app quindi lavora con due curve:
 | **Netta** | La serie così com'è pubblicata: quello che l'investitore ha realmente ottenuto. |
 | **Lorda** | Il TER ri-aggiunto sopra, cioè il fondo ipotetico senza commissioni. |
 
-**La distanza fra le due curve è esattamente il costo del TER**, ed è quello che
-il riquadro "Impatto del TER" quantifica in euro e in percentuale.
+**La distanza fra le due curve è esattamente il costo del TER**, ed è quello
+che il riquadro "Impatto del TER" quantifica in euro e in percentuale.
 
-C'è poi la colonna **Costi extra %** per i costi che il NAV *non* contiene già —
-commissioni di custodia, consulenza, oppure il TER di una classe diversa da
-quella quotata. Questi vengono sottratti dalla performance.
+C'è poi la colonna **Costi extra %** per i costi che il NAV *non* contiene
+già — commissioni di custodia, consulenza, oppure il TER di una classe
+diversa da quella quotata. Questi vengono sottratti dalla performance.
 
 La formula applicata è la capitalizzazione della commissione nel tempo:
 
@@ -109,74 +247,66 @@ La formula applicata è la capitalizzazione della commissione nel tempo:
 fattore(t) = (1 - tasso_annuo) ^ (giorni_trascorsi / 365.25)
 ```
 
-Il TER precompilato arriva dalla fonte quando disponibile, ma **la copertura sui
-fondi europei è scarsa e i valori sono arrotondati** (Yahoo riporta `0.00` per un
-TER reale dello 0,07%). Verifica sempre il TER sul KID e correggilo a mano: il
-campo è editabile.
+Il TER precompilato arriva dalla fonte quando disponibile, ma **la copertura
+sui fondi europei è scarsa e i valori sono arrotondati** (Yahoo riporta `0.00`
+per un TER reale dello 0,07%). Verifica sempre il TER sul KID e correggilo a
+mano: il campo è editabile.
+
+---
 
 ## Cambi valutari
 
 I cambi sono quelli **ufficiali BCE**, disponibili dal **4 gennaio 1999**, con
 ripiego su Yahoo per le valute fuori dal paniere BCE.
 
-Non è un dettaglio estetico. La versione precedente usava le coppie Yahoo e
-riempiva i buchi all'indietro con `bfill()`, ma Yahoo pubblica `EURUSD=X` solo
-dal dicembre 2003: un fondo americano analizzato dal 1990 veniva convertito per
-tredici anni con il cambio del 2003, **senza alcun avviso**. Ora, prima della
-prima data disponibile, non si inventa nulla: il periodo viene accorciato e la
-cosa viene detta esplicitamente.
+Prima della prima data disponibile non si inventa nulla: il periodo viene
+accorciato e l'app lo segnala esplicitamente, invece di usare un cambio
+retro-riempito su anni in cui non è mai stato quotato.
+
+---
 
 ## Storico esteso
 
 Gli ETF UCITS sono giovani: VWCE quota dal 2019, VUSA dal 2012. Attivando
-*Storico esteso* il periodo precedente viene ricostruito con uno strumento più
-anziano, agganciato con continuità al primo dato reale.
+*Storico esteso*, nella barra laterale, il periodo precedente viene
+ricostruito con uno strumento più anziano (il **proxy**), agganciato con
+continuità al primo dato reale del fondo.
 
 I proxy predefiniti sono vecchie classi di fondi, non indici, perché con i
-dividendi reinvestiti sono serie **total return**. La differenza è tutt'altro che
-teorica — misurata sulla stessa finestra 1980-2026:
-
-```
-VFINX (fondo)   CAGR 11,44%    <- dividendi reinvestiti
-^GSPC (indice)  CAGR  9,56%    <- solo prezzo
-                     1,89 punti l'anno di differenza
-```
-
-Su quarant'anni quel divario vale circa un fattore due sul montante finale. Lo
-stesso vale per l'indice MSCI World, che nonostante il nome resta indietro di
-2,01 punti l'anno rispetto a un fondo mondiale total return. Gli indici a storico
-più lungo restano selezionabili, ma segnalati per quello che sono.
-
-L'app propone il proxy in base al nome del fondo e lo lascia **sempre
-correggere** dalla colonna *Proxy storico*; se il nome non è riconosciuto non
-propone nulla, perché accoppiare un settoriale all'indice sbagliato è peggio che
-non ricostruire.
+dividendi reinvestiti sono serie **total return** — un indice di solo prezzo
+sottostimerebbe il rendimento ricostruito di circa 2 punti l'anno. L'app
+propone il proxy in base al nome del fondo (colonna **Proxy storico** nella
+tabella), e lo lascia sempre correggere o disattivare per singolo fondo.
 
 **Il tratto ricostruito è una stima, non un dato reale**: compare tratteggiato
-nei grafici, la tabella delle metriche lo segnala nella colonna *Ricostruito*, e
-l'estensione è spenta di default.
+nei grafici, la tabella delle metriche lo segnala nella colonna *Ricostruito*,
+e l'estensione è spenta di default.
 
 Due limiti da conoscere:
 
 - I proxy sono quotati in dollari, quindi con valuta di riferimento diversa da
-  USD la ricostruzione **non può scendere sotto il 1999** (prima data dei cambi
-  BCE), per quanto profondo sia il proxy. In USD si arriva al 1980.
+  USD la ricostruzione **non può scendere sotto il 1999** (prima data dei
+  cambi BCE), per quanto profondo sia il proxy. In USD si arriva al 1980.
 - Un proxy che ha smesso di quotare prima della nascita del fondo viene
-  rifiutato: l'ancoraggio userebbe un valore vecchio di mesi e traslerebbe
-  l'intera ricostruzione.
+  rifiutato: l'ancoraggio userebbe un valore vecchio di mesi.
+
+---
 
 ## Cache su disco
 
 Le serie scaricate finiscono in `.cache/` in formato parquet. La cache è
 **accumulativa**: ogni file contiene tutto lo storico mai scaricato per quella
 combinazione di fonte, simbolo e valuta, non la singola finestra richiesta.
-Chiedere periodi lunghi diventa quindi progressivamente più economico, e i dati
-restano disponibili anche se una fonte cade o applica un limite di frequenza.
+Chiedere periodi lunghi diventa quindi progressivamente più economico, e i
+dati restano disponibili anche se una fonte cade o applica un limite di
+frequenza.
 
-Si svuota dalla barra laterale. La posizione è sovrascrivibile con
-`COMPARATORE_CACHE_DIR`.
+Si svuota con il pulsante **Svuota cache** nella barra laterale. La posizione
+è sovrascrivibile con la variabile d'ambiente `COMPARATORE_CACHE_DIR`.
 
-## Struttura
+---
+
+## Struttura del progetto
 
 ```
 app.py                    interfaccia Streamlit
@@ -185,17 +315,19 @@ comparatore/
     base.py               interfaccia comune alle fonti
     yahoo.py              ricerca, metadati, prezzi
     justetf.py            ETF europei per ISIN
-    eodhd.py              EOD Historical Data (a chiave)
-    twelvedata.py         Twelve Data (a chiave)
-    csv_source.py         serie caricate dall'utente
-    openfigi.py           risoluzione ISIN -> ticker
-    registry.py           priorità, ripiego, diagnostica
-  fx.py                   cambi BCE con ripiego Yahoo
-  cache.py                cache parquet accumulativa
-  proxies.py              estensione dello storico
-  engine.py               logica commissioni, simulazione, ribilanciamento
-  metrics.py              metriche di performance
-  data.py                 facciata sui nomi storici
+    eodhd.py               EOD Historical Data (a chiave)
+    twelvedata.py          Twelve Data (a chiave)
+    csv_source.py          serie caricate dall'utente
+    openfigi.py            risoluzione ISIN -> ticker
+    registry.py            priorità, ripiego, diagnostica
+  fx.py                    cambi BCE con ripiego Yahoo
+  cache.py                 cache parquet accumulativa
+  proxies.py               estensione dello storico
+  covip.py                 fondi pensione: catalogo, rendimenti, ISC
+  horizons.py              rendimenti sulle finestre COVIP
+  engine.py                logica commissioni, simulazione, ribilanciamento
+  metrics.py               metriche di performance
+  data.py                  facciata sui nomi storici
 ```
 
 I moduli in `comparatore/` non importano Streamlit e sono usabili da script:
@@ -210,13 +342,15 @@ res = reg.resolve("IE00B3XXRP09", dt.date(2010, 1, 1), dt.date.today(),
 print(res.series.source, len(res.series.prices))
 ```
 
+---
+
 ## Note e limiti
 
 - Prezzi **total return**: i dividendi sono reinvestiti, quindi fondi ad
   accumulazione e a distribuzione sono confrontabili.
-- Il backtest parte dalla prima data in cui **tutti** i fondi hanno dati; se un
-  fondo è più giovane del periodo richiesto l'app lo segnala. Lo storico esteso
-  attenua il problema ma non lo elimina.
+- Il backtest parte dalla prima data in cui **tutti** i fondi hanno dati; se
+  un fondo è più giovane del periodo richiesto l'app lo segnala. Lo storico
+  esteso attenua il problema ma non lo elimina.
 - I NAV mancanti vengono riportati in avanti (`ffill`), come è corretto per i
   fondi che non quotano tutti i giorni.
 - **Non** sono considerati: costi di ingresso/uscita, spread denaro-lettera,
@@ -224,5 +358,5 @@ print(res.series.source, len(res.series.prices))
 - Un fondo la cui valuta non è risolvibile viene **escluso** anziché mescolato
   a valute diverse.
 
-Le performance passate non sono indicative di quelle future. Questo strumento è
-di analisi, non una consulenza finanziaria.
+Le performance passate non sono indicative di quelle future. Questo strumento
+è di analisi, non una consulenza finanziaria.

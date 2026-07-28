@@ -9,7 +9,9 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from comparatore import cache as disk_cache
+from comparatore import covip
 from comparatore import fx
+from comparatore import horizons as hz
 from comparatore import metrics as mt
 from comparatore import proxies as px
 from comparatore.engine import FeeMode, Holding, Rebalance, coverage_warnings, run_backtest
@@ -65,6 +67,10 @@ if "end_date" not in st.session_state:
     st.session_state.end_date = dt.date.today()
 if "extend_history" not in st.session_state:
     st.session_state.extend_history = False
+if "comparti_previdenza" not in st.session_state:
+    st.session_state.comparti_previdenza = []
+if "curve_sintetiche" not in st.session_state:
+    st.session_state.curve_sintetiche = False
 
 
 def api_key(name: str) -> str:
@@ -237,6 +243,14 @@ with st.sidebar:
         "Ordine: CSV → justETF (con ISIN) → Yahoo → EODHD → Twelve Data. "
         "Si può forzare la fonte per singolo fondo dalla tabella."
     )
+    if not reg_probe.eodhd.available():
+        st.info(
+            "Per i **fondi collocati in Italia** (Mediolanum, Fineco, banche) "
+            "conviene configurare EODHD: Yahoo ne copre solo una parte e con "
+            "storico dal 2018. Serve una chiave in `.streamlit/secrets.toml` "
+            "o nella variabile `EODHD_API_KEY`.",
+            icon="🇮🇹",
+        )
 
     with st.expander("📄 Carica una serie da CSV"):
         st.caption(
@@ -658,8 +672,19 @@ def split_at(series: pd.Series, splice: pd.Timestamp | None):
     return series.loc[:splice], series.loc[splice:]
 
 
-tab1, tab2, tab3, tab4 = st.tabs(
-    ["📊 Portafoglio", "🆚 Confronto fondi", "📉 Drawdown", "📋 Dati"]
+# I comparti scelti e l'interruttore della curva sintetica vivono nella scheda
+# previdenza, che viene dopo il grafico del portafoglio. Streamlit riporta i
+# valori dei widget con chiave in `session_state` **prima** di eseguire lo
+# script, quindi qui si legge gia' la scelta corrente e non quella precedente.
+_scelte = set(st.session_state.get("comparti_previdenza") or [])
+comparti_scelti = (
+    [c for c in covip.catalogo() if c.chiave in _scelte] if _scelte else []
+)
+mostra_sintetiche = bool(st.session_state.get("curve_sintetiche"))
+
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    ["📊 Portafoglio", "🆚 Confronto fondi", "📉 Drawdown", "📋 Dati",
+     "🏦 Fondi pensione"]
 )
 
 with tab1:
@@ -688,6 +713,28 @@ with tab1:
             x=portfolio_splice, line=dict(color="#6b7280", width=1, dash="dot"),
             annotation_text="inizio dati reali", annotation_position="top left",
         )
+
+    # Curve dei fondi pensione: crescita costante al rendimento COVIP. Non
+    # passano dal motore di backtest, dove una retta perfetta darebbe
+    # volatilita' e drawdown nulli e uno Sharpe senza senso.
+    if mostra_sintetiche and comparti_scelti:
+        orizzonte_curva = st.session_state.get("orizzonte_curva", 10)
+        for i, comparto in enumerate(comparti_scelti):
+            rendimento = comparto.rendimenti.get(orizzonte_curva)
+            if rendimento is None:
+                continue
+            curva = covip.serie_sintetica(
+                rendimento / 100, res.start.date(), res.end.date(), initial_value
+            )
+            fig.add_trace(go.Scatter(
+                x=curva.index, y=curva.values,
+                name=f"{comparto.comparto} (sintetica)",
+                line=dict(color=PALETTE[(i + 4) % len(PALETTE)], width=1.5, dash="dashdot"),
+                opacity=0.8,
+                hovertemplate="%{y:,.0f}<extra>" + comparto.comparto
+                              + " · crescita costante</extra>",
+            ))
+
     fig.add_hline(y=initial_value, line=dict(color="#9ca3af", width=1, dash="dash"),
                   annotation_text="capitale iniziale", annotation_position="bottom right")
     fig.update_layout(
@@ -696,6 +743,14 @@ with tab1:
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
     )
     st.plotly_chart(fig, width="stretch")
+
+    if mostra_sintetiche and comparti_scelti:
+        st.caption(
+            "⚠️ Le curve dei fondi pensione sono **rette a crescita costante**, "
+            "ricavate dal rendimento medio annuo COVIP: mostrano dove si "
+            "sarebbe arrivati, non come ci si è arrivati. Il percorso reale ha "
+            "oscillato, ma COVIP non pubblica le serie storiche."
+        )
 
     st.markdown("**Composizione nel tempo**")
     area = go.Figure()
@@ -832,6 +887,188 @@ with tab4:
         out.to_csv().encode("utf-8"),
         file_name=f"backtest_{res.start.date()}_{res.end.date()}.csv",
         mime="text/csv",
+    )
+
+with tab5:
+    anno_rif = covip.anno_riferimento()
+    st.markdown(
+        f"### Previdenza complementare · dati COVIP al 31/12/{anno_rif}"
+        if anno_rif else "### Previdenza complementare · dati COVIP"
+    )
+
+    st.warning(
+        "**Il confronto non considera la fiscalità.** I fondi pensione godono "
+        "di deducibilità fino a 5.164,57 € l'anno, tassazione dei rendimenti al "
+        "20% invece del 26% e imposta finale che scende dal 15% al 9%. Sono "
+        "vantaggi che giocano a loro favore, quindi i numeri qui sotto li "
+        "**sottostimano**.",
+        icon="⚖️",
+    )
+    st.caption(
+        "COVIP pubblica solo rendimenti medi annui su orizzonti fissi, non le "
+        "serie storiche: per questi strumenti volatilità, drawdown e Sharpe non "
+        "sono calcolabili da nessun dato pubblico. Per averli, carica il valore "
+        "quota del tuo fondo con l'uploader CSV nella barra laterale."
+    )
+
+    catalogo = covip.catalogo()
+    if not catalogo:
+        st.error(
+            "Catalogo COVIP non disponibile: controlla la connessione e riprova."
+        )
+    else:
+        f1, f2, f3 = st.columns([1.2, 1.2, 2.6])
+        tipo_sel = f1.selectbox(
+            "Forma pensionistica", ["Tutte", "negoziale", "aperto", "PIP"],
+            key="tipo_previdenza",
+        )
+        categorie = ["Tutte"] + sorted({c.categoria for c in catalogo if c.categoria})
+        cat_sel = f2.selectbox("Categoria", categorie, key="categoria_previdenza")
+        testo = f3.text_input(
+            "Cerca per nome del fondo o della società",
+            placeholder="es. 'previgest', 'cometa', 'mediolanum'",
+            key="testo_previdenza",
+        )
+
+        trovati = covip.cerca(
+            testo,
+            tipo=None if tipo_sel == "Tutte" else tipo_sel,
+            categoria=None if cat_sel == "Tutte" else cat_sel,
+        )
+        st.caption(f"{len(trovati)} comparti corrispondono ai filtri.")
+
+        # Le opzioni sono le chiavi stabili dei comparti, non le etichette: cosi'
+        # il widget scrive direttamente in `comparti_previdenza` e il grafico del
+        # portafoglio, che viene prima nello script, legge la scelta corrente.
+        etichetta = {
+            c.chiave: f"[{c.tipo}] {c.fondo} · {c.comparto}"
+                      + (f" ({c.categoria})" if c.categoria else "")
+            for c in catalogo
+        }
+        gia_scelti = list(st.session_state.get("comparti_previdenza", []))
+        opzioni = [c.chiave for c in trovati]
+        # I comparti gia' selezionati restano fra le opzioni anche quando i
+        # filtri cambiano, altrimenti Streamlit li scarterebbe in silenzio.
+        opzioni += [k for k in gia_scelti if k not in opzioni]
+
+        st.multiselect(
+            "Comparti da confrontare",
+            options=opzioni,
+            format_func=lambda k: etichetta.get(k, k),
+            key="comparti_previdenza",
+        )
+
+        if not comparti_scelti:
+            st.info(
+                "Seleziona uno o più comparti per confrontarli con il tuo portafoglio."
+            )
+        else:
+            finestre = {a: covip.finestra(a) for a in covip.ORIZZONTI}
+            finestre = {a: w for a, w in finestre.items() if w}
+            rend_port = hz.rendimenti_per_orizzonte(res.portfolio, finestre)
+
+            righe = []
+            for c in comparti_scelti:
+                riga = {"Strumento": f"{c.fondo} · {c.comparto}", "Tipo": c.tipo,
+                        "Categoria": c.categoria}
+                for anni in covip.ORIZZONTI:
+                    valore = c.rendimenti.get(anni)
+                    riga[f"{anni}a"] = "n/d" if valore is None else f"{valore:.2f}%"
+                isc10 = c.isc.get(10)
+                riga["ISC 10a"] = "n/d" if isc10 is None else f"{isc10:.2f}%"
+                righe.append(riga)
+
+            riga_port = {"Strumento": "🎯 IL TUO PORTAFOGLIO", "Tipo": "—",
+                         "Categoria": "—"}
+            for anni in covip.ORIZZONTI:
+                valore = rend_port.get(anni)
+                riga_port[f"{anni}a"] = "n/d" if valore is None else f"{valore * 100:.2f}%"
+            riga_port["ISC 10a"] = "—"
+            righe.append(riga_port)
+
+            st.markdown("**Rendimento medio annuo, sulle stesse finestre COVIP**")
+            st.dataframe(pd.DataFrame(righe), hide_index=True, width="stretch")
+
+            mancanti = [a for a in covip.ORIZZONTI if rend_port.get(a) is None]
+            if mancanti:
+                st.caption(
+                    "Il tuo portafoglio risulta **n/d** su "
+                    + ", ".join(f"{a} anni" for a in mancanti)
+                    + f" perché non copre l'intera finestra ("
+                    + ", ".join(f"{a}a = {covip.periodi().get(a)}" for a in mancanti)
+                    + "). Calcolarlo su un periodo più corto darebbe un numero "
+                      "non confrontabile."
+                )
+
+            # --- grafico a barre ---
+            bars = go.Figure()
+            orizzonti_utili = [a for a in covip.ORIZZONTI if finestre.get(a)]
+            for i, c in enumerate(comparti_scelti):
+                bars.add_trace(go.Bar(
+                    name=f"{c.comparto[:24]}",
+                    x=[f"{a} anni" for a in orizzonti_utili],
+                    y=[c.rendimenti.get(a) for a in orizzonti_utili],
+                    marker_color=PALETTE[(i + 4) % len(PALETTE)],
+                    hovertemplate="%{y:.2f}%<extra>" + c.comparto + "</extra>",
+                ))
+            bars.add_trace(go.Bar(
+                name="Il tuo portafoglio",
+                x=[f"{a} anni" for a in orizzonti_utili],
+                y=[None if rend_port.get(a) is None else rend_port[a] * 100
+                   for a in orizzonti_utili],
+                marker_color=PALETTE[0],
+                hovertemplate="%{y:.2f}%<extra>portafoglio</extra>",
+            ))
+            bars.update_layout(
+                height=360, barmode="group", margin=dict(l=0, r=0, t=30, b=0),
+                yaxis_title="Rendimento medio annuo (%)",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+            )
+            st.plotly_chart(bars, width="stretch")
+
+            # --- impatto dell'ISC ---
+            st.markdown("**Quanto pesano i costi**")
+            costi = []
+            for c in comparti_scelti:
+                isc10 = c.isc.get(10)
+                if isc10 is None:
+                    continue
+                eroso = hz.costo_cumulato(isc10 / 100, 10, initial_value)
+                lordo = c.rendimenti.get(10)
+                costi.append({
+                    "Comparto": f"{c.fondo} · {c.comparto}",
+                    "ISC annuo": f"{isc10:.2f}%",
+                    "Rendimento 10a": "n/d" if lordo is None else f"{lordo:.2f}%",
+                    f"Eroso su {fmt_money(initial_value, base_ccy)} in 10 anni":
+                        fmt_money(eroso, base_ccy),
+                    "Quota del rendimento": "n/d" if not lordo or lordo <= 0
+                        else f"{isc10 / lordo * 100:.0f}%",
+                })
+            if costi:
+                st.dataframe(pd.DataFrame(costi), hide_index=True, width="stretch")
+                st.caption(
+                    "L'ISC è l'equivalente del TER per la previdenza. L'ultima "
+                    "colonna mostra che frazione del rendimento netto ottenuto "
+                    "viene assorbita ogni anno dai costi."
+                )
+
+            st.divider()
+            st.checkbox(
+                "Mostra le curve dei fondi pensione nel grafico del portafoglio",
+                key="curve_sintetiche",
+                help="Rette a crescita costante ricavate dal rendimento medio "
+                     "annuo: mostrano il punto d'arrivo, non il percorso.",
+            )
+            if st.session_state.get("curve_sintetiche"):
+                st.selectbox(
+                    "Orizzonte da cui ricavare il tasso",
+                    covip.ORIZZONTI, index=3, key="orizzonte_curva",
+                    format_func=lambda a: f"{a} anni ({covip.periodi().get(a, '')})",
+                )
+
+    st.caption(
+        "Fonte: [COVIP](https://www.covip.it/open-data), open data con licenza "
+        "CC BY 4.0. I dati si aggiornano una volta l'anno."
     )
 
 st.divider()

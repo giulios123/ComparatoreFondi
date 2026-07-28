@@ -18,7 +18,7 @@ import pandas as pd
 import requests
 
 from .. import cache
-from .base import Instrument, PriceSeries, naive_index
+from .base import Instrument, PriceSeries, is_isin, naive_index
 
 BASE_URL = "https://eodhd.com/api"
 TIMEOUT = 30
@@ -118,6 +118,66 @@ class EodhdSource:
 
     # ---------------------------------------------------------------- prezzi
 
+    # Piazze preferite quando un ISIN e' quotato su piu' mercati: prima quelle
+    # di interesse per un investitore europeo, poi il resto.
+    _EXCHANGE_RANK = ["MI", "XETRA", "F", "AS", "LSE", "PA", "SW", "MC", "US"]
+
+    def resolve_symbol(self, symbol: str, isin: str = "") -> str | None:
+        """Traduce un ISIN nel simbolo EODHD `Codice.Borsa`.
+
+        Senza questo passaggio la fonte era inutilizzabile proprio nel caso per
+        cui serve: partendo da un ISIN si sarebbe chiamato `/eod/IE00BCZNHK63`,
+        che non e' un simbolo valido, e il registry sarebbe passato oltre senza
+        che EODHD avesse avuto una possibilita' reale.
+
+        La corrispondenza fra ISIN e ticker non cambia mai, quindi si conserva
+        in cache senza scadenza, come fa openfigi.py per la stessa ragione.
+        """
+        code = (isin or symbol or "").strip().upper()
+        if not is_isin(code):
+            # Gia' un simbolo di borsa: si usa com'e'.
+            return symbol
+
+        cached = cache.read_meta(f"eodhd-sym/{code}")
+        if cached is not None:
+            trovato = cached.get("symbol") or ""
+            if trovato:
+                return trovato
+            # L'esito negativo si conserva solo per un giorno: una ricerca puo'
+            # essere fallita per una chiave sbagliata, per la quota esaurita o
+            # per un disservizio, e memorizzarla per sempre renderebbe l'ISIN
+            # introvabile anche dopo aver configurato una chiave valida.
+            try:
+                scaduto = dt.datetime.now() - dt.datetime.fromisoformat(
+                    cached["visto"]
+                ) > dt.timedelta(days=1)
+            except Exception:
+                scaduto = True
+            if not scaduto:
+                return None
+
+        hits = self.search(code, limit=10, funds_only=False)
+        resolved = None
+        if hits:
+            def rank(instrument) -> int:
+                exch = (instrument.exchange or "").upper()
+                return (
+                    self._EXCHANGE_RANK.index(exch)
+                    if exch in self._EXCHANGE_RANK
+                    else len(self._EXCHANGE_RANK)
+                )
+
+            resolved = sorted(hits, key=rank)[0].symbol
+
+        cache.write_meta(
+            f"eodhd-sym/{code}",
+            {
+                "symbol": resolved or "",
+                "visto": dt.datetime.now().isoformat(timespec="seconds"),
+            },
+        )
+        return resolved
+
     def prices(
         self,
         symbol: str,
@@ -129,10 +189,14 @@ class EodhdSource:
         if not self.available():
             return None
 
+        eod_symbol = self.resolve_symbol(symbol, isin)
+        if not eod_symbol:
+            return None
+
         def _fetch(s: dt.date, e: dt.date) -> pd.Series | None:
             try:
                 r = requests.get(
-                    f"{BASE_URL}/eod/{symbol}",
+                    f"{BASE_URL}/eod/{eod_symbol}",
                     params={
                         "api_token": self.api_key,
                         "fmt": "json",
@@ -161,19 +225,21 @@ class EodhdSource:
             series.index = naive_index(series.index)
             return series
 
-        series = cache.get_or_fetch(f"eodhd/{symbol}", start, end, _fetch)
+        series = cache.get_or_fetch(f"eodhd/{eod_symbol}", start, end, _fetch)
         if series is None or series.empty:
             return None
 
-        meta = cache.read_meta(f"eodhd-ccy/{symbol}")
+        meta = cache.read_meta(f"eodhd-ccy/{eod_symbol}")
         currency = (meta or {}).get("currency", "")
         if not currency:
-            info = self.metadata(symbol)
+            info = self.metadata(eod_symbol)
             currency = info.currency if info else ""
             if currency:
-                cache.write_meta(f"eodhd-ccy/{symbol}", {"currency": currency})
+                cache.write_meta(f"eodhd-ccy/{eod_symbol}", {"currency": currency})
 
         return PriceSeries(
+            # Verso l'esterno resta il simbolo scelto dall'utente: e' la chiave
+            # con cui il motore identifica la colonna.
             symbol=symbol,
             prices=series,
             currency=currency,

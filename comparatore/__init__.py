@@ -1,6 +1,7 @@
 """Comparatore Fondi - backtester per fondi ed ETF su piu' fonti dati."""
 
-from . import cache, fx
+from . import cache, covip, fx, horizons
+from .covip import Comparto
 from .data import Instrument, convert_currency, get_metadata, get_prices, search
 from .engine import (
     BacktestResult,
@@ -16,6 +17,7 @@ from .sources import CsvParseError, PriceSeries, Registry, is_isin, parse_csv
 
 __all__ = [
     "BacktestResult",
+    "Comparto",
     "CsvParseError",
     "FeeMode",
     "Holding",
@@ -28,8 +30,10 @@ __all__ = [
     "cache",
     "convert_currency",
     "coverage_warnings",
+    "covip",
     "extend_with_proxy",
     "fx",
+    "horizons",
     "get_metadata",
     "get_prices",
     "is_isin",
