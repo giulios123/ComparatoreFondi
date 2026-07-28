@@ -9,5 +9,11 @@ wheels/
 # Virtual environments
 .venv
 
+# Cache su disco delle serie storiche
+.cache/
+
+# Chiavi API: non devono mai finire nel repository
+.streamlit/secrets.toml
+
 # Local machine settings
 .claude/settings.local.json

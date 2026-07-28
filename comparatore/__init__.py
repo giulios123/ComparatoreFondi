@@ -1,5 +1,6 @@
-"""Comparatore Fondi - backtester per fondi ed ETF su dati Yahoo Finance."""
+"""Comparatore Fondi - backtester per fondi ed ETF su piu' fonti dati."""
 
+from . import cache, fx
 from .data import Instrument, convert_currency, get_metadata, get_prices, search
 from .engine import (
     BacktestResult,
@@ -10,18 +11,30 @@ from .engine import (
     coverage_warnings,
     run_backtest,
 )
+from .proxies import ProxyDef, extend_with_proxy, suggest_proxy
+from .sources import CsvParseError, PriceSeries, Registry, is_isin, parse_csv
 
 __all__ = [
     "BacktestResult",
+    "CsvParseError",
     "FeeMode",
     "Holding",
     "Instrument",
+    "PriceSeries",
+    "ProxyDef",
     "Rebalance",
+    "Registry",
     "apply_annual_fee",
+    "cache",
     "convert_currency",
     "coverage_warnings",
+    "extend_with_proxy",
+    "fx",
     "get_metadata",
     "get_prices",
+    "is_isin",
+    "parse_csv",
     "run_backtest",
     "search",
+    "suggest_proxy",
 ]

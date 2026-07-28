@@ -1,7 +1,7 @@
 [project]
 name = "comparatore-fondi"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.0"
+description = "Backtester per fondi ed ETF su più fonti dati, con impatto del TER"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -9,6 +9,10 @@ dependencies = [
     "numpy>=2.5.1",
     "pandas>=3.0.5",
     "plotly>=6.9.0",
+    # Cache su disco delle serie storiche in formato parquet.
+    "pyarrow>=24.0.0",
+    # Usato direttamente da fx.py e dalle fonti non-Yahoo.
+    "requests>=2.32",
     "streamlit>=1.60.0",
     "yfinance>=1.5.2",
 ]

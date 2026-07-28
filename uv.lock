@@ -222,13 +222,15 @@ wheels = [
 
 [[package]]
 name = "comparatore-fondi"
-version = "0.1.0"
+version = "0.2.0"
 source = { virtual = "." }
 dependencies = [
     { name = "curl-cffi" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "plotly" },
+    { name = "pyarrow" },
+    { name = "requests" },
     { name = "streamlit" },
     { name = "yfinance" },
 ]
@@ -239,6 +241,8 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.5.1" },
     { name = "pandas", specifier = ">=3.0.5" },
     { name = "plotly", specifier = ">=6.9.0" },
+    { name = "pyarrow", specifier = ">=24.0.0" },
+    { name = "requests", specifier = ">=2.32" },
     { name = "streamlit", specifier = ">=1.60.0" },
     { name = "yfinance", specifier = ">=1.5.2" },
 ]
