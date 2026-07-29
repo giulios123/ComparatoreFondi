@@ -74,7 +74,7 @@ def main() -> None:
         "run",
         str(app_script),
         "--server.headless=false",
-        "--server.port=8765",
+        "--server.port=" + os.environ.get("COMPARATORE_STREAMLIT_PORT", "8765"),
         "--server.address=localhost",
         # Niente prompt email al primo avvio: nessun terminale e' collegato
         # per rispondere.
