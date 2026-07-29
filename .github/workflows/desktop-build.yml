@@ -1,0 +1,96 @@
+name: Build desktop (macOS + Windows)
+
+# Costruisce il bundle standalone (PyInstaller) su entrambe le piattaforme.
+# Manuale (Actions -> Run workflow) oppure automatico spingendo un tag
+# "v*.*.*". Con un tag, i due archivi vengono anche allegati a una release
+# GitHub creata al volo.
+#
+# Nota: le app prodotte NON sono firmate ne' notarizzate (serve un account
+# sviluppatore Apple a pagamento e un certificato Authenticode per Windows).
+# Su macOS Gatekeeper mostrera' "sviluppatore non identificato" (si apre con
+# click destro -> Apri); su Windows SmartScreen mostrera' un avviso simile
+# (si procede con "Ulteriori informazioni" -> "Esegui comunque").
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    name: Build macOS (.app)
+    runs-on: macos-latest # Apple Silicon (arm64)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installa uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Installa dipendenze (incluso PyInstaller)
+        run: uv sync --group dev --locked
+
+      - name: Costruisci il bundle
+        run: uv run pyinstaller desktop/comparatore.spec --noconfirm --clean
+
+      - name: Comprimi ComparatoreFondi.app
+        # ditto, non zip: preserva permessi e struttura del bundle .app.
+        run: |
+          cd dist
+          ditto -c -k --keepParent ComparatoreFondi.app ComparatoreFondi-macOS.zip
+
+      - name: Carica artefatto
+        uses: actions/upload-artifact@v4
+        with:
+          name: ComparatoreFondi-macOS
+          path: dist/ComparatoreFondi-macOS.zip
+
+  build-windows:
+    name: Build Windows (.exe)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installa uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Installa dipendenze (incluso PyInstaller)
+        run: uv sync --group dev
+
+      - name: Costruisci il bundle
+        run: uv run pyinstaller desktop/comparatore.spec --noconfirm --clean
+
+      - name: Comprimi la cartella ComparatoreFondi
+        run: Compress-Archive -Path dist/ComparatoreFondi -DestinationPath dist/ComparatoreFondi-Windows.zip
+
+      - name: Carica artefatto
+        uses: actions/upload-artifact@v4
+        with:
+          name: ComparatoreFondi-Windows
+          path: dist/ComparatoreFondi-Windows.zip
+
+  release:
+    name: Pubblica release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Scarica gli artefatti di entrambe le piattaforme
+        uses: actions/download-artifact@v4
+        with:
+          path: artefatti
+
+      - name: Pubblica su GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artefatti/ComparatoreFondi-macOS/ComparatoreFondi-macOS.zip
+            artefatti/ComparatoreFondi-Windows/ComparatoreFondi-Windows.zip

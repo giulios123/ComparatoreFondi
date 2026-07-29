@@ -114,7 +114,14 @@ class TwelveDataSource:
             series = pd.concat(chunks)
             return series[~series.index.duplicated(keep="last")].sort_index()
 
-        series = cache.get_or_fetch(f"twelvedata/{symbol}", start, end, _fetch)
+        retention_days = cache.restricted_retention_days()
+        series = cache.get_or_fetch(
+            f"twelvedata/{symbol}",
+            start,
+            end,
+            _fetch,
+            retention_days=retention_days,
+        )
         if series is None or series.empty:
             return None
 
@@ -122,9 +129,9 @@ class TwelveDataSource:
         if currency:
             cache.write_meta(f"twelvedata-ccy/{symbol}", {"currency": currency})
         else:
-            currency = (cache.read_meta(f"twelvedata-ccy/{symbol}") or {}).get(
-                "currency", ""
-            )
+            currency = (
+                cache.read_meta(f"twelvedata-ccy/{symbol}", retention_days) or {}
+            ).get("currency", "")
 
         return PriceSeries(
             symbol=symbol,
