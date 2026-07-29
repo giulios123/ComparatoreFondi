@@ -17,7 +17,7 @@ import os
 import pandas as pd
 import requests
 
-from .. import cache
+from .. import allocazione, cache
 from .base import Instrument, PriceSeries, is_isin, naive_index
 
 BASE_URL = "https://eodhd.com/api"
@@ -105,6 +105,11 @@ class EodhdSource:
                 ter = value / 100.0
                 break
 
+        # Nello stesso payload ci sono `Asset_Allocation`, `World_Regions` e
+        # `Sector_Weights`: e' l'unica fonte che dice *che cosa* e' uno
+        # strumento, e la chiamata e' gia' stata pagata per il TER.
+        alloc = allocazione.classifica_da_eodhd(etf_data)
+
         return Instrument(
             symbol=symbol,
             name=general.get("Name") or symbol,
@@ -112,8 +117,10 @@ class EodhdSource:
             exchange=general.get("Exchange") or "",
             currency=(general.get("CurrencyCode") or "").upper(),
             ter=ter,
-            ter_source="eodhd" if ter else "",
+            ter_source="eodhd" if ter is not None else "",
             isin=(general.get("ISIN") or "").upper(),
+            allocation=alloc,
+            allocation_source="eodhd" if alloc else "",
         )
 
     # ---------------------------------------------------------------- prezzi

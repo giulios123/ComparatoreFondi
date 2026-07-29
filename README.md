@@ -88,11 +88,12 @@ l'app li normalizza e te lo segnala.
 
 ### 6. Leggere i risultati
 
-Quattro schede sotto il grafico principale:
+Cinque schede sotto il grafico principale:
 
 | Scheda | Cosa mostra |
 |---|---|
 | 📊 Portafoglio | curva del capitale, netta e lorda (senza TER), composizione nel tempo |
+| ⚖️ Bilanciamento | ripartizione per classe di attivo, area, settore e valuta |
 | 🆚 Confronto fondi | ogni fondo preso da solo, a parità di capitale investito |
 | 📉 Drawdown | perdita dal massimo storico, e rendimenti per anno solare |
 | 📋 Dati | tabella numerica scaricabile in CSV |
@@ -298,6 +299,50 @@ sottostimano rispetto alla realtà.
 
 ---
 
+## Bilanciamento del portafoglio
+
+La scheda **⚖️ Bilanciamento** risponde a "come è ripartito quello che ho", non
+a "quanto avrei guadagnato": quattro ciambelle con la ripartizione per **classe
+di attivo**, **area geografica**, **settore** e **valuta di quotazione**,
+calcolate sui pesi impostati nella tabella di composizione.
+
+### Da dove viene la classificazione
+
+Nessuna fonte di prezzo dice che cosa sia uno strumento, quindi il dato viene
+ricostruito da due sorgenti, in quest'ordine:
+
+| Sorgente | Quando interviene | Che qualità ha |
+|---|---|---|
+| **EODHD** | se hai configurato la chiave | percentuali vere e granulari: un ETF mondiale risulta ripartito su più aree e più settori |
+| **nome del fondo** | sempre, per le dimensioni che EODHD non copre | un'etichetta sola per dimensione, dedotta da parole chiave ("Eurozone Government Bond" → obbligazionario, Europa) |
+
+Le due si sommano invece di escludersi: EODHD non restituisce i settori di un
+obbligazionario, e su quelle dimensioni la deduzione dal nome resta meglio di un
+buco. La provenienza è dichiarata sopra i grafici.
+
+### Correggere a mano
+
+La tabella **Classificazione** sotto i grafici ha una tendina per dimensione.
+Il valore `(automatica)` conserva la classificazione dedotta, che può ripartirsi
+su più voci; scegliendo una voce esplicita le si attribuisce l'intero strumento.
+L'expander **🔍 Dettaglio per strumento** mostra la ripartizione effettiva riga
+per riga, comprese quelle su più voci.
+
+### Limiti
+
+- La classificazione automatica è **indicativa**: va verificata sul KID. Senza
+  chiave EODHD si basa solo sul nome, che spesso non basta — uno strumento non
+  riconosciuto finisce in "Non classificato", visibile in grigio nel grafico
+  invece di sparire da un totale che non chiuderebbe.
+- La **valuta** è quella di quotazione, non l'esposizione valutaria: un ETF sul
+  mercato mondiale quotato in euro resta esposto al dollaro.
+- Il perimetro sono i fondi e gli ETF della tabella di composizione. I comparti
+  COVIP della scheda 🏦 restano un confronto e non entrano nella ripartizione.
+- I pesi usati sono quelli **impostati**, normalizzati a 100% come nel backtest,
+  non quelli derivati a fine periodo.
+
+---
+
 ## Come vengono trattati i costi
 
 **I NAV pubblicati sono già al netto del TER.** La commissione di gestione
@@ -488,6 +533,7 @@ comparatore/
     openfigi.py            risoluzione ISIN -> ticker
     registry.py            priorità, ripiego, diagnostica
   fx.py                    cambi BCE con ripiego Yahoo
+  allocazione.py           classe di attivo, area e settore per il bilanciamento
   cache.py                 cache parquet accumulativa
   keys.py                  chiavi API salvate dall'interfaccia
   proxies.py               estensione dello storico

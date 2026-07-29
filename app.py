@@ -9,6 +9,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from comparatore import allocazione as al
 from comparatore import cache as disk_cache
 from comparatore import covip
 from comparatore import fx
@@ -219,6 +220,34 @@ def metric_help(risk_free: float, initial_value: float, ccy: str) -> dict[str, s
     }
 
 
+def classifica(nome: str, symbol: str, meta: dict) -> tuple[dict, str]:
+    """Classificazione dello strumento e provenienza del dato.
+
+    Le due sorgenti si sommano invece di escludersi: EODHD non restituisce i
+    settori di un obbligazionario e le regioni di un monetario, e su quelle
+    dimensioni la deduzione dal nome resta meglio di un buco.
+    """
+    da_nome = al.classifica_da_nome(nome, symbol, meta.get("quote_type") or "")
+    da_fonte = meta.get("allocation") or {}
+    if not da_fonte:
+        return da_nome, "nome"
+    return al.unisci(da_fonte, da_nome), meta.get("allocation_source") or "eodhd"
+
+
+def assicura_alloc(fund: dict) -> dict:
+    """Completa i fondi rimasti nello stato da prima della classificazione."""
+    if not fund.get("alloc"):
+        fund["alloc"] = al.classifica_da_nome(fund.get("name", ""), fund["symbol"])
+        fund["alloc_fonte"] = "nome"
+    manuale = fund.get("alloc_manuale")
+    if not isinstance(manuale, dict):
+        manuale = {}
+        fund["alloc_manuale"] = manuale
+    for dimensione in al.DIMENSIONI:
+        manuale.setdefault(dimensione, "")
+    return fund
+
+
 def add_fund(symbol: str, name: str, isin: str = ""):
     if any(f["symbol"] == symbol for f in st.session_state.selected):
         st.toast(f"{symbol} è già nel portafoglio", icon="⚠️")
@@ -226,6 +255,7 @@ def add_fund(symbol: str, name: str, isin: str = ""):
     meta = cached_metadata(symbol, isin, api_key("EODHD_API_KEY"))
     fund_name = meta.get("name") or name
     proxy = px.suggest_proxy(fund_name, symbol)
+    alloc, alloc_fonte = classifica(fund_name, symbol, meta)
     st.session_state.selected.append({
         "symbol": symbol,
         "name": fund_name,
@@ -237,6 +267,9 @@ def add_fund(symbol: str, name: str, isin: str = ""):
         "extra": 0.0,
         "source": AUTO,
         "proxy": proxy.symbol if proxy else NO_PROXY,
+        "alloc": alloc,  # {dimensione: {bucket: quota}}, dedotta
+        "alloc_fonte": alloc_fonte,  # "eodhd" | "nome"
+        "alloc_manuale": {d: "" for d in al.DIMENSIONI},  # "" = usa la dedotta
     })
     equalize_weights()
     st.toast(f"Aggiunto {symbol}", icon="✅")
@@ -852,6 +885,34 @@ def split_at(series: pd.Series, splice: pd.Timestamp | None):
     return series.loc[:splice], series.loc[splice:]
 
 
+def ciambella(quote: dict[str, float]) -> go.Figure:
+    """Ciambella di una ripartizione, dalla quota maggiore alla minore.
+
+    "Non classificato" e' sempre grigio e mai colorato con la palette: non e'
+    una categoria come le altre e non deve sembrarlo.
+    """
+    etichette = list(quote)
+    colori = [
+        "#9ca3af" if e == al.NON_CLASSIFICATO else PALETTE[i % len(PALETTE)]
+        for i, e in enumerate(etichette)
+    ]
+    fig = go.Figure(go.Pie(
+        labels=etichette,
+        values=[quote[e] for e in etichette],
+        hole=0.55,
+        sort=False,  # `aggrega` ordina gia' per quota decrescente
+        direction="clockwise",
+        marker=dict(colors=colori),
+        textinfo="percent",
+        hovertemplate="%{label}<br>%{percent}<extra></extra>",
+    ))
+    fig.update_layout(
+        height=300, margin=dict(l=0, r=0, t=10, b=0),
+        legend=dict(orientation="h", yanchor="top", y=-0.02, x=0),
+    )
+    return fig
+
+
 # I comparti scelti e l'interruttore della curva sintetica vivono nella scheda
 # previdenza, che viene dopo il grafico del portafoglio. Streamlit riporta i
 # valori dei widget con chiave in `session_state` **prima** di eseguire lo
@@ -862,9 +923,9 @@ comparti_scelti = (
 )
 mostra_sintetiche = bool(st.session_state.get("curve_sintetiche"))
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
-    ["📊 Portafoglio", "🆚 Confronto fondi", "📉 Drawdown", "📋 Dati",
-     "🏦 Fondi pensione"]
+tab1, tab_bil, tab2, tab3, tab4, tab5 = st.tabs(
+    ["📊 Portafoglio", "⚖️ Bilanciamento", "🆚 Confronto fondi", "📉 Drawdown",
+     "📋 Dati", "🏦 Fondi pensione"]
 )
 
 with tab1:
@@ -976,6 +1037,145 @@ with tab1:
                 f"Ribilanciamento {label_rebal}: nessun intervento ancora "
                 "scattato, il periodo scelto è più corto della prima scadenza."
             )
+
+with tab_bil:
+    fondi = [assicura_alloc(f) for f in st.session_state.selected]
+    pesi = {f["symbol"]: f["weight"] for f in fondi}
+
+    # I grafici stanno sopra la tabella ma vanno calcolati dopo, altrimenti
+    # mostrerebbero la classificazione precedente alla correzione appena fatta:
+    # il contenitore si dichiara qui e si riempie in fondo.
+    grafici = st.container()
+
+    st.markdown("**Classificazione**")
+    class_df = pd.DataFrame([
+        {
+            "Fondo": f["name"],
+            "Simbolo": f["symbol"],
+            "Peso %": f["weight"],
+            "Classe": f["alloc_manuale"].get("classe") or al.AUTOMATICA,
+            "Area": f["alloc_manuale"].get("area") or al.AUTOMATICA,
+            "Settore": f["alloc_manuale"].get("settore") or al.AUTOMATICA,
+        }
+        for f in fondi
+    ])
+
+    tendina_help = (
+        f"**{al.AUTOMATICA}** conserva la classificazione dedotta, che può "
+        "ripartirsi su più voci (un fondo mondiale non è tutto su un'area "
+        "sola). Scegliendo una voce le si attribuisce l'intero strumento."
+    )
+    class_edited = st.data_editor(
+        class_df,
+        hide_index=True,
+        width="stretch",
+        disabled=["Fondo", "Simbolo", "Peso %"],
+        column_config={
+            "Simbolo": st.column_config.TextColumn("Simbolo", width="small"),
+            "Peso %": st.column_config.NumberColumn(
+                "Peso %", format="%.2f", width="small",
+                help="Si modifica nella tabella di composizione, in cima alla pagina.",
+            ),
+            "Classe": st.column_config.SelectboxColumn(
+                "Classe", options=al.OPZIONI["classe"], help=tendina_help,
+            ),
+            "Area": st.column_config.SelectboxColumn(
+                "Area", options=al.OPZIONI["area"], help=tendina_help,
+            ),
+            "Settore": st.column_config.SelectboxColumn(
+                "Settore", options=al.OPZIONI["settore"], help=tendina_help,
+            ),
+        },
+        key="classificazione_" + "|".join(f["symbol"] for f in fondi),
+    )
+
+    # Stesso accorgimento della tabella di composizione: le modifiche si
+    # riportano nello stato **per simbolo**, mai per posizione.
+    per_simbolo = {f["symbol"]: f for f in fondi}
+    for _, row in class_edited.iterrows():
+        fondo = per_simbolo.get(row["Simbolo"])
+        if fondo is None:
+            continue
+        for dimensione, colonna in zip(al.DIMENSIONI, ("Classe", "Area", "Settore")):
+            scelta = row[colonna]
+            fondo["alloc_manuale"][dimensione] = (
+                "" if scelta == al.AUTOMATICA else scelta
+            )
+
+    # Distribuzione effettiva: la scelta manuale prevale su quella dedotta.
+    effettive = {
+        dimensione: {
+            f["symbol"]: al.risolvi(
+                f["alloc"].get(dimensione), f["alloc_manuale"].get(dimensione, "")
+            )
+            for f in fondi
+        }
+        for dimensione in al.DIMENSIONI
+    }
+    # La valuta e' gia' nello stato: nessuna deduzione, nessuna correzione.
+    valute = {
+        f["symbol"]: {f["currency"] or al.NON_CLASSIFICATO: 1.0} for f in fondi
+    }
+
+    with grafici:
+        da_eodhd = sum(1 for f in fondi if f.get("alloc_fonte") == "eodhd")
+        corretti = sum(
+            1 for f in fondi
+            if any(f["alloc_manuale"].get(d) for d in al.DIMENSIONI)
+        )
+        provenienza = []
+        if da_eodhd:
+            provenienza.append(f"**{da_eodhd}** da EODHD")
+        if len(fondi) - da_eodhd:
+            provenienza.append(f"**{len(fondi) - da_eodhd}** dedotti dal nome")
+        if corretti:
+            provenienza.append(f"**{corretti}** con correzioni manuali")
+        st.caption("🏷️ Classificazione: " + ", ".join(provenienza) + ".")
+
+        ripartizioni = [
+            ("Classe di attivo", al.aggrega(pesi, effettive["classe"])),
+            ("Area geografica", al.aggrega(pesi, effettive["area"])),
+            ("Settore", al.aggrega(pesi, effettive["settore"])),
+            ("Valuta di quotazione", al.aggrega(pesi, valute)),
+        ]
+        for riga in range(0, len(ripartizioni), 2):
+            colonne = st.columns(2)
+            for colonna, (titolo, quote) in zip(colonne, ripartizioni[riga:riga + 2]):
+                with colonna:
+                    st.markdown(f"**{titolo}**")
+                    st.plotly_chart(ciambella(quote), width="stretch")
+
+    with st.expander("🔍 Dettaglio per strumento"):
+        st.dataframe(
+            pd.DataFrame([
+                {
+                    "Strumento": f["name"],
+                    "Peso %": f"{f['weight']:.2f}",
+                    "Classe": al.descrivi(effettive["classe"][f["symbol"]]),
+                    "Area": al.descrivi(effettive["area"][f["symbol"]]),
+                    "Settore": al.descrivi(effettive["settore"][f["symbol"]]),
+                    "Valuta": f["currency"] or "n/d",
+                }
+                for f in fondi
+            ]),
+            hide_index=True,
+            width="stretch",
+        )
+
+    esclusi = [f["symbol"] for f in fondi if f["symbol"] not in prices.columns]
+    if esclusi:
+        st.caption(
+            f"ℹ️ {', '.join(esclusi)}: {'conta' if len(esclusi) == 1 else 'contano'} "
+            "nella ripartizione ma non nel backtest, per mancanza di prezzi."
+        )
+
+    st.caption(
+        "⚠️ La classificazione automatica è **indicativa** e va verificata sul "
+        "KID: senza chiave EODHD viene dedotta dal nome del fondo, che spesso "
+        "non basta. La **valuta** è quella di quotazione, non l'esposizione "
+        "valutaria: un ETF sul mercato mondiale quotato in euro resta esposto "
+        "al dollaro."
+    )
 
 with tab2:
     st.caption(

@@ -1,6 +1,6 @@
 """Comparatore Fondi - backtester per fondi ed ETF su piu' fonti dati."""
 
-from . import cache, covip, fx, horizons
+from . import allocazione, cache, covip, fx, horizons
 from .covip import Comparto
 from .data import Instrument, convert_currency, get_metadata, get_prices, search
 from .engine import (
@@ -26,6 +26,7 @@ __all__ = [
     "ProxyDef",
     "Rebalance",
     "Registry",
+    "allocazione",
     "apply_annual_fee",
     "cache",
     "convert_currency",
