@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import os
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -12,9 +13,17 @@ from comparatore import cache as disk_cache
 from comparatore import covip
 from comparatore import fx
 from comparatore import horizons as hz
+from comparatore import keys as api_keys_store
 from comparatore import metrics as mt
 from comparatore import proxies as px
-from comparatore.engine import FeeMode, Holding, Rebalance, coverage_warnings, run_backtest
+from comparatore.engine import (
+    FeeMode,
+    Holding,
+    Rebalance,
+    coverage_warnings,
+    rebalance_dates,
+    run_backtest,
+)
 from comparatore.sources import AUTO, CsvParseError, Registry, is_isin, parse_csv
 
 st.set_page_config(page_title="Comparatore Fondi", page_icon="📈", layout="wide")
@@ -28,6 +37,19 @@ REBALANCE_LABELS = {
     "Trimestrale": Rebalance.QUARTERLY,
     "Annuale": Rebalance.YEARLY,
 }
+
+REBALANCE_HELP = (
+    "Riporta periodicamente i pesi a quelli impostati, vendendo ciò che è "
+    "cresciuto di più per ricomprare ciò che è rimasto indietro.\n\n"
+    "- **Nessuno (buy & hold)**: si compra una volta sola e non si tocca più "
+    "nulla. I pesi derivano: il fondo che rende di più finisce per pesare "
+    "sempre di più, e il portafoglio diventa via via più concentrato.\n"
+    "- **Mensile / Trimestrale / Annuale**: al primo giorno di borsa di ogni "
+    "periodo i pesi tornano ai valori impostati.\n\n"
+    "Il backtest non applica commissioni di negoziazione né tassazione sulle "
+    "plusvalenze realizzate: ribilanciare spesso risulta quindi più "
+    "conveniente di quanto sarebbe nella realtà."
+)
 
 # Etichetta mostrata nella tabella -> nome interno della fonte.
 SOURCE_LABELS = {
@@ -71,18 +93,28 @@ if "comparti_previdenza" not in st.session_state:
     st.session_state.comparti_previdenza = []
 if "curve_sintetiche" not in st.session_state:
     st.session_state.curve_sintetiche = False
+if "api_keys" not in st.session_state:
+    # Chiavi salvate dall'interfaccia in un run precedente (vedi comparatore.keys).
+    st.session_state.api_keys = api_keys_store.load()
 
 
 def api_key(name: str) -> str:
-    """Chiave API da st.secrets, con ripiego sull'ambiente.
+    """Chiave API: prima quella inserita nell'interfaccia, poi st.secrets,
+    poi la variabile d'ambiente.
 
     Non deve mai finire nel codice ne' nel repository.
     """
+    from_ui = str(st.session_state.get("api_keys", {}).get(name, "") or "").strip()
+    if from_ui:
+        return from_ui
     try:
         value = st.secrets.get(name, "")
     except Exception:
         value = ""
-    return str(value or "").strip()
+    value = str(value or "").strip()
+    if value:
+        return value
+    return str(os.environ.get(name, "") or "").strip()
 
 
 def build_registry() -> Registry:
@@ -118,6 +150,68 @@ def fmt_money(v: float, ccy: str) -> str:
 
 def fmt_pct(v: float, decimals: int = 2) -> str:
     return "n/d" if pd.isna(v) else f"{v * 100:.{decimals}f}%"
+
+
+def metric_help(risk_free: float, initial_value: float, ccy: str) -> dict[str, str]:
+    """Spiegazione di ogni metrica, riusata da tooltip e legenda.
+
+    E' una funzione e non una costante perche' i testi citano i valori
+    correnti (il risk-free impostato, il capitale iniziale): un glossario
+    che dice "il risk-free impostato è il 2,0%" insegna più di uno generico.
+    """
+    capitale = fmt_money(initial_value, ccy)
+    rf_pct = fmt_pct(risk_free)
+    return {
+        "Valore finale": (
+            f"Quanto sarebbero diventati i {capitale} iniziali a fine periodo, "
+            "al netto del TER."
+        ),
+        "Rendimento totale": (
+            "Variazione complessiva sull'intero periodo, **non** annualizzata."
+        ),
+        "CAGR": (
+            "Rendimento medio annuo composto: il tasso costante che, applicato "
+            "ogni anno, porta dal valore iniziale a quello finale nello stesso "
+            "tempo impiegato realmente."
+        ),
+        "Volatilita": (
+            "Oscillazione annualizzata dei rendimenti giornalieri (deviazione "
+            "standard × √252). Dice quanto si è mosso il percorso, non quanto "
+            "si è guadagnato: due curve con lo stesso CAGR possono avere "
+            "volatilità molto diverse."
+        ),
+        "Sharpe": (
+            f"Rendimento in eccesso sul tasso risk-free (oggi impostato al "
+            f"{rf_pct}) per unità di volatilità sopportata. Sopra 1 è "
+            "generalmente considerato un buon risultato."
+        ),
+        "Sortino": (
+            f"Come lo Sharpe (risk-free al {rf_pct}), ma al denominatore conta "
+            "solo l'oscillazione al ribasso: non penalizza i rialzi bruschi, "
+            "solo le discese."
+        ),
+        "Max drawdown": (
+            "La peggior discesa dal massimo storico precedente al minimo "
+            "successivo: la perdita più profonda che si sarebbe dovuta "
+            "sopportare restando investiti."
+        ),
+        "Calmar": (
+            "CAGR diviso il max drawdown in valore assoluto: rendimento "
+            "ottenuto per unità di perdita massima subita."
+        ),
+        "Miglior anno": "Il miglior rendimento su anno solare nel periodo.",
+        "Peggior anno": "Il peggior rendimento su anno solare nel periodo.",
+        "Costo TER": (
+            f"Differenza, in {ccy}, a fine periodo fra il montante senza "
+            "commissioni (curva lorda) e quello realmente ottenuto (curva "
+            "netta)."
+        ),
+        "Ricostruito": (
+            "La riga include un tratto stimato con uno strumento proxy, non "
+            "dati reali del fondo: le sue metriche vanno lette come "
+            "indicative."
+        ),
+    }
 
 
 def add_fund(symbol: str, name: str, isin: str = ""):
@@ -199,9 +293,17 @@ with st.sidebar:
     )
     rebalance = REBALANCE_LABELS[
         st.selectbox(
-            "Ribilanciamento", list(REBALANCE_LABELS), index=0, key="rebalance"
+            "Ribilanciamento", list(REBALANCE_LABELS), index=0, key="rebalance",
+            help=REBALANCE_HELP,
         )
     ]
+    st.caption(
+        "I pesi impostati sono un punto di partenza: senza ribilanciamento "
+        "derivano nel tempo con i rendimenti relativi dei fondi."
+        if rebalance is Rebalance.NONE else
+        "I pesi tornano a quelli impostati al primo giorno di borsa di ogni "
+        "periodo (nessun costo di negoziazione applicato)."
+    )
 
     st.divider()
     st.subheader("Costi")
@@ -234,6 +336,38 @@ with st.sidebar:
 
     st.divider()
     st.subheader("Fonti dati")
+
+    with st.expander("🔑 Chiavi API (EODHD, Twelve Data)"):
+        st.caption(
+            "Restano solo su questo computer, in `.streamlit/api_keys.json` "
+            "(permessi riservati al tuo utente, già escluso dal repository). "
+            "Sopravvivono al riavvio e a **Svuota cache**, qui sotto."
+        )
+        with st.form("api_keys_form"):
+            eodhd_input = st.text_input(
+                "Chiave EODHD", value=st.session_state.api_keys.get("EODHD_API_KEY", ""),
+                type="password", key="eodhd_key_input",
+            )
+            td_input = st.text_input(
+                "Chiave Twelve Data",
+                value=st.session_state.api_keys.get("TWELVEDATA_API_KEY", ""),
+                type="password", key="td_key_input",
+            )
+            if st.form_submit_button("Salva", width="stretch"):
+                st.session_state.api_keys = {
+                    "EODHD_API_KEY": eodhd_input.strip(),
+                    "TWELVEDATA_API_KEY": td_input.strip(),
+                }
+                api_keys_store.save(st.session_state.api_keys)
+                st.toast("Chiavi salvate", icon="🔑")
+                st.rerun()
+        if st.session_state.api_keys:
+            if st.button("Dimentica le chiavi salvate", width="stretch"):
+                st.session_state.api_keys = {}
+                api_keys_store.clear()
+                st.toast("Chiavi rimosse", icon="🗑️")
+                st.rerun()
+
     reg_probe = build_registry()
     for source in reg_probe.all_sources:
         ready = source.available()
@@ -247,8 +381,8 @@ with st.sidebar:
         st.info(
             "Per i **fondi collocati in Italia** (Mediolanum, Fineco, banche) "
             "conviene configurare EODHD: Yahoo ne copre solo una parte e con "
-            "storico dal 2018. Serve una chiave in `.streamlit/secrets.toml` "
-            "o nella variabile `EODHD_API_KEY`.",
+            "storico dal 2018. Inserisci la chiave qui sopra, in "
+            "**🔑 Chiavi API**.",
             icon="🇮🇹",
         )
 
@@ -633,13 +767,15 @@ portfolio_splice = max(label_splice.values()) if label_splice else None
 summary = mt.summarize(res.portfolio, risk_free)
 years = (res.end - res.start).days / 365.25
 
+mhelp = metric_help(risk_free, initial_value, base_ccy)
+
 k = st.columns(5)
 k[0].metric("Valore finale", fmt_money(summary["Valore finale"], base_ccy),
-            fmt_pct(summary["Rendimento totale"]))
-k[1].metric("CAGR", fmt_pct(summary["CAGR"]))
-k[2].metric("Volatilità", fmt_pct(summary["Volatilita"]))
-k[3].metric("Max drawdown", fmt_pct(summary["Max drawdown"]))
-k[4].metric("Sharpe", f"{summary['Sharpe']:.2f}")
+            fmt_pct(summary["Rendimento totale"]), help=mhelp["Valore finale"])
+k[1].metric("CAGR", fmt_pct(summary["CAGR"]), help=mhelp["CAGR"])
+k[2].metric("Volatilità", fmt_pct(summary["Volatilita"]), help=mhelp["Volatilita"])
+k[3].metric("Max drawdown", fmt_pct(summary["Max drawdown"]), help=mhelp["Max drawdown"])
+k[4].metric("Sharpe", f"{summary['Sharpe']:.2f}", help=mhelp["Sharpe"])
 
 if portfolio_splice is not None and portfolio_splice > res.start:
     st.info(
@@ -648,6 +784,13 @@ if portfolio_splice is not None and portfolio_splice > res.start:
         "sono indicative, non la performance realmente ottenuta dai fondi.",
         icon="🧩",
     )
+
+with st.expander("❓ Come si leggono queste metriche"):
+    for nome in ["Valore finale", "Rendimento totale", "CAGR", "Volatilita",
+                 "Sharpe", "Sortino", "Max drawdown", "Calmar",
+                 "Miglior anno", "Peggior anno", "Costo TER", "Ricostruito"]:
+        etichetta = "Volatilità" if nome == "Volatilita" else nome
+        st.markdown(f"- **{etichetta}** — {mhelp[nome]}")
 
 # --- Impatto dei costi -----------------------------------------------------
 
@@ -767,6 +910,36 @@ with tab1:
     )
     st.plotly_chart(area, width="stretch")
 
+    # Effetto tangibile della scelta di ribilanciamento: senza, i pesi
+    # derivano con i rendimenti; con, si può contare quante volte sono
+    # stati riportati a quelli impostati.
+    set_weights = " · ".join(f"{h.label} {h.weight * 100:.0f}%" for h in holdings)
+    final_alloc = res.contributions.iloc[-1]
+    final_total = final_alloc.sum()
+    if rebalance is Rebalance.NONE:
+        if final_total > 0:
+            final_weights = " · ".join(
+                f"{label} {value / final_total * 100:.0f}%"
+                for label, value in final_alloc.items()
+            )
+            st.caption(
+                f"Pesi impostati: {set_weights} → a fine periodo: {final_weights}."
+            )
+    else:
+        rb_dates = sorted(rebalance_dates(res.prices.index, rebalance))
+        label_rebal = st.session_state.rebalance.lower()
+        if rb_dates:
+            st.caption(
+                f"Ribilanciamento {label_rebal}: {len(rb_dates)} interventi nel "
+                f"periodo, l'ultimo il {rb_dates[-1].strftime('%d/%m/%Y')} "
+                f"(pesi impostati: {set_weights})."
+            )
+        else:
+            st.caption(
+                f"Ribilanciamento {label_rebal}: nessun intervento ancora "
+                "scattato, il periodo scelto è più corto della prima scadenza."
+            )
+
 with tab2:
     st.caption(
         f"Andamento di {fmt_money(initial_value, base_ccy)} investiti interamente "
@@ -824,7 +997,36 @@ with tab2:
         styled[c] = styled[c].map(lambda v: fmt_pct(v))
     for c in ["Sharpe", "Sortino", "Calmar"]:
         styled[c] = styled[c].map(lambda v: "n/d" if pd.isna(v) else f"{v:.2f}")
-    st.dataframe(styled, width="stretch")
+    styled.index.name = "Strumento"
+
+    capitale_confronto = fmt_money(initial_value, base_ccy)
+    st.caption(
+        f"Tutte le righe partono dallo stesso capitale: **{capitale_confronto}** "
+        "investiti al 100% in un solo fondo, e gli stessi "
+        f"**{capitale_confronto}** investiti nel portafoglio con i pesi "
+        "impostati e il ribilanciamento scelto. I valori finali sono quindi "
+        "confrontabili direttamente riga per riga."
+    )
+    st.dataframe(
+        styled, width="stretch",
+        column_config={
+            "Valore finale": st.column_config.TextColumn(
+                f"Valore finale (da {capitale_confronto})",
+                help=mhelp["Valore finale"],
+            ),
+            "Volatilita": st.column_config.TextColumn(
+                "Volatilità", help=mhelp["Volatilita"]
+            ),
+            **{
+                nome: st.column_config.TextColumn(nome, help=mhelp[nome])
+                for nome in [
+                    "Rendimento totale", "CAGR", "Sharpe", "Sortino",
+                    "Max drawdown", "Calmar", "Miglior anno", "Peggior anno",
+                    "Costo TER", "Ricostruito",
+                ]
+            },
+        },
+    )
     if label_splice:
         st.caption(
             "La colonna *Ricostruito* segnala le righe le cui metriche "
@@ -987,7 +1189,23 @@ with tab5:
             righe.append(riga_port)
 
             st.markdown("**Rendimento medio annuo, sulle stesse finestre COVIP**")
-            st.dataframe(pd.DataFrame(righe), hide_index=True, width="stretch")
+            covip_column_config = {
+                f"{anni}a": st.column_config.TextColumn(
+                    f"{anni}a",
+                    help=f"Rendimento medio annuo COVIP sulla finestra a {anni} anni "
+                         f"({covip.periodi().get(anni, '')}).",
+                )
+                for anni in covip.ORIZZONTI
+            }
+            covip_column_config["ISC 10a"] = st.column_config.TextColumn(
+                "ISC 10a",
+                help="L'equivalente del TER per la previdenza: incidenza annua "
+                     "dei costi sull'orizzonte a 10 anni.",
+            )
+            st.dataframe(
+                pd.DataFrame(righe), hide_index=True, width="stretch",
+                column_config=covip_column_config,
+            )
 
             mancanti = [a for a in covip.ORIZZONTI if rend_port.get(a) is None]
             if mancanti:
