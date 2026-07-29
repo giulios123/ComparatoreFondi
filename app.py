@@ -361,7 +361,7 @@ with st.sidebar:
                 api_keys_store.save(st.session_state.api_keys)
                 st.toast("Chiavi salvate", icon="🔑")
                 st.rerun()
-        if st.session_state.api_keys:
+        if any((v or "").strip() for v in st.session_state.api_keys.values()):
             if st.button("Dimentica le chiavi salvate", width="stretch"):
                 st.session_state.api_keys = {}
                 api_keys_store.clear()
