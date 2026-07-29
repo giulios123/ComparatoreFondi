@@ -1,0 +1,5 @@
+[client]
+# La barra in alto a destra è di Streamlit, non dell'app: Deploy, Rerun e
+# Clear cache non servono a chi usa il comparatore. La cache si svuota dal
+# pulsante nella barra laterale.
+toolbarMode = "viewer"

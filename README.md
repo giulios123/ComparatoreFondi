@@ -71,7 +71,17 @@ Tutto nella barra laterale a sinistra:
 - **Periodo**: pulsanti rapidi `1a · 5a · 10a · 20a · Max`, oppure le due date
   a mano.
 - **Valore iniziale del portafoglio** e **Valuta di riferimento**.
-- **Ribilanciamento**: nessuno (buy & hold), mensile, trimestrale, annuale.
+- **Ribilanciamento**: nessuno (buy & hold), mensile, trimestrale, annuale —
+  vedi il tooltip ⓘ accanto al menu per la spiegazione completa. In breve:
+  senza ribilanciamento i pesi impostati sono solo il punto di partenza e
+  derivano nel tempo con i rendimenti relativi dei fondi (chi cresce di più
+  finisce per pesare di più); con un ribilanciamento periodico, i pesi
+  tornano a quelli impostati a ogni inizio periodo. Il backtest non applica
+  commissioni di negoziazione né tassazione sulle plusvalenze, quindi
+  ribilanciare spesso qui risulta più conveniente di quanto sarebbe nella
+  realtà. Nella scheda 📊 Portafoglio, sotto **Composizione nel tempo**, una
+  riga di testo mostra l'effetto concreto: quanto sono derivati i pesi (buy &
+  hold) oppure quanti ribilanciamenti sono scattati nel periodo.
 
 Il grafico e le metriche si aggiornano da soli. Se i pesi non sommano a 100%
 l'app li normalizza e te lo segnala.
@@ -86,6 +96,14 @@ Quattro schede sotto il grafico principale:
 | 🆚 Confronto fondi | ogni fondo preso da solo, a parità di capitale investito |
 | 📉 Drawdown | perdita dal massimo storico, e rendimenti per anno solare |
 | 📋 Dati | tabella numerica scaricabile in CSV |
+
+Ogni metrica in alto (Valore finale, CAGR, Volatilità, Max drawdown, Sharpe)
+ha un tooltip ⓘ con la spiegazione; l'expander **❓ Come si leggono queste
+metriche**, subito sotto, elenca anche Sortino e Calmar. Nella scheda 🆚
+Confronto fondi, la tabella confronta ogni fondo preso da solo con il
+portafoglio: una didascalia sopra ricorda che tutte le righe partono dallo
+stesso capitale, quindi i valori finali sono confrontabili direttamente riga
+per riga.
 
 Il riquadro **💸 Impatto del TER** quantifica in euro quanto i costi correnti
 sono costati rispetto al fondo ipotetico senza commissioni.
@@ -120,30 +138,44 @@ copre solo una parte, con storico fermo al 2018.
 1. Registrati e ottieni una chiave gratuita da:
    - [eodhd.com](https://eodhd.com) per EODHD;
    - [twelvedata.com](https://twelvedata.com) per Twelve Data.
-2. Crea il file `.streamlit/secrets.toml` nella cartella del progetto (la
-   cartella `.streamlit/` va creata se non esiste già) con questo contenuto:
+2. Nella barra laterale, sotto **Fonti dati**, apri **🔑 Chiavi API (EODHD,
+   Twelve Data)**, incolla la chiave e premi **Salva**. Non serve riavviare:
+   il pallino accanto alla fonte passa da ⚪ a 🟢 subito. Basta compilare le
+   chiavi che hai — se ne manca una, quella fonte resta semplicemente spenta.
 
-   ```toml
-   EODHD_API_KEY = "la-tua-chiave-eodhd"
-   TWELVEDATA_API_KEY = "la-tua-chiave-twelvedata"
-   ```
+   La chiave viene scritta in `.streamlit/api_keys.json`, con permessi
+   riservati al tuo utente (`chmod 600`), e resta lì fra un avvio e l'altro
+   dell'app — **Svuota cache** non la tocca. È pensato per un uso in locale,
+   a utente singolo: se l'app viene deployata ed è raggiungibile da più
+   persone, quel file sarebbe condiviso da tutti i visitatori, quindi in
+   quel caso conviene la via alternativa qui sotto. Il file è già in
+   `.gitignore`: non finisce mai nel repository. Il pulsante **Dimentica le
+   chiavi salvate**, nello stesso pannello, lo rimuove.
 
-   Basta compilare le chiavi che hai — se ne manca una, quella fonte resta
-   semplicemente spenta.
-3. Riavvia l'app. Nella barra laterale, sotto **Fonti dati**, un pallino 🟢
-   conferma che la fonte è attiva.
+In alternativa (o se preferisci non salvare nulla su disco), le chiavi si
+possono impostare anche fuori dall'interfaccia — e in tal caso hanno la
+**precedenza più bassa**, cioè valgono solo finché non ne inserisci una
+dall'interfaccia:
 
-In alternativa alle chiavi in `secrets.toml`, puoi esportarle come variabili
-d'ambiente prima di avviare:
+- **`.streamlit/secrets.toml`** nella cartella del progetto (la cartella
+  `.streamlit/` va creata se non esiste già):
 
-```bash
-export EODHD_API_KEY="la-tua-chiave-eodhd"
-export TWELVEDATA_API_KEY="la-tua-chiave-twelvedata"
-uv run streamlit run app.py
-```
+  ```toml
+  EODHD_API_KEY = "la-tua-chiave-eodhd"
+  TWELVEDATA_API_KEY = "la-tua-chiave-twelvedata"
+  ```
 
-`.streamlit/secrets.toml` è già in `.gitignore`: non finisce mai nel
-repository.
+  Anche questo file è già in `.gitignore`.
+
+- **Variabili d'ambiente**, prima di avviare:
+
+  ```bash
+  export EODHD_API_KEY="la-tua-chiave-eodhd"
+  export TWELVEDATA_API_KEY="la-tua-chiave-twelvedata"
+  uv run streamlit run app.py
+  ```
+
+Ordine di precedenza: interfaccia → `secrets.toml` → variabile d'ambiente.
 
 ### Come caricare una serie da CSV
 
@@ -302,7 +334,10 @@ dati restano disponibili anche se una fonte cade o applica un limite di
 frequenza.
 
 Si svuota con il pulsante **Svuota cache** nella barra laterale. La posizione
-è sovrascrivibile con la variabile d'ambiente `COMPARATORE_CACHE_DIR`.
+è sovrascrivibile con la variabile d'ambiente `COMPARATORE_CACHE_DIR`. Le
+chiavi API salvate dall'interfaccia vivono altrove
+(`.streamlit/api_keys.json`, vedi sopra) e non vengono toccate da questo
+pulsante.
 
 ---
 
@@ -310,6 +345,10 @@ Si svuota con il pulsante **Svuota cache** nella barra laterale. La posizione
 
 ```
 app.py                    interfaccia Streamlit
+.streamlit/
+  config.toml              barra Streamlit senza Deploy/Rerun (committato)
+  secrets.toml             chiavi API, alternativa al pannello (gitignored)
+  api_keys.json            chiavi API salvate dal pannello (gitignored)
 comparatore/
   sources/
     base.py               interfaccia comune alle fonti
@@ -322,6 +361,7 @@ comparatore/
     registry.py            priorità, ripiego, diagnostica
   fx.py                    cambi BCE con ripiego Yahoo
   cache.py                 cache parquet accumulativa
+  keys.py                  chiavi API salvate dall'interfaccia
   proxies.py               estensione dello storico
   covip.py                 fondi pensione: catalogo, rendimenti, ISC
   horizons.py              rendimenti sulle finestre COVIP
