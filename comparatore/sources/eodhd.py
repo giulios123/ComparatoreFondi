@@ -117,7 +117,7 @@ class EodhdSource:
             exchange=general.get("Exchange") or "",
             currency=(general.get("CurrencyCode") or "").upper(),
             ter=ter,
-            ter_source="eodhd" if ter else "",
+            ter_source="eodhd" if ter is not None else "",
             isin=(general.get("ISIN") or "").upper(),
             allocation=alloc,
             allocation_source="eodhd" if alloc else "",
