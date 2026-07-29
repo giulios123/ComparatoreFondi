@@ -96,6 +96,8 @@ if "curve_sintetiche" not in st.session_state:
 if "api_keys" not in st.session_state:
     # Chiavi salvate dall'interfaccia in un run precedente (vedi comparatore.keys).
     st.session_state.api_keys = api_keys_store.load()
+if "enable_justetf" not in st.session_state:
+    st.session_state.enable_justetf = False
 
 
 def api_key(name: str) -> str:
@@ -123,9 +125,12 @@ def build_registry() -> Registry:
     E' un oggetto leggero: le serie stanno nella cache su disco, non qui
     dentro, quindi ricrearlo non costa nulla e non c'e' stato da invalidare.
     """
+    retention_days = disk_cache.restricted_retention_days()
+    disk_cache.purge_expired(("eodhd", "twelvedata"), retention_days)
     reg = Registry(
         eodhd_key=api_key("EODHD_API_KEY"),
         twelvedata_key=api_key("TWELVEDATA_API_KEY"),
+        enable_justetf=bool(st.session_state.get("enable_justetf", False)),
     )
     for key, (series, currency) in st.session_state.csv_series.items():
         reg.csv.add(key, series, currency)
@@ -337,6 +342,30 @@ with st.sidebar:
     st.divider()
     st.subheader("Fonti dati")
 
+    st.info(
+        "**Cosa comporta abilitare justETF**\n\n"
+        "justETF non offre un'API pubblica documentata per questa funzione. "
+        "Se attivi l'integrazione, per gli ETF identificati da ISIN l'app la "
+        "proverà automaticamente **prima di Yahoo** e invierà dal computer o "
+        "server che esegue l'app:\n\n"
+        "- ISIN dell'ETF, intervallo di date e valuta richiesta;\n"
+        "- indirizzo IP e normali dati tecnici della connessione HTTP.\n\n"
+        "Non vengono inviati capitale, pesi del portafoglio, file CSV o chiavi "
+        "API. Le serie ricevute vengono conservate nella cache locale. "
+        "L'endpoint può cambiare o smettere di funzionare e il suo utilizzo "
+        "resta soggetto alle [condizioni justETF]"
+        "(https://www.justetf.com/it/about/legal-terms.html) e ai diritti dei "
+        "fornitori dei dati. Il consenso vale per questa sessione; lasciando "
+        "la casella spenta, justETF verrà contattato solo se lo scegli "
+        "esplicitamente come fonte di un singolo fondo."
+    )
+    st.checkbox(
+        "Acconsento alle richieste automatiche a justETF",
+        key="enable_justetf",
+        help="Aggiunge justETF prima di Yahoo nell'ordine automatico per gli "
+             "ETF con ISIN. Puoi revocare il consenso deselezionando la casella.",
+    )
+
     with st.expander("🔑 Chiavi API (EODHD, Twelve Data)"):
         st.caption(
             "Restano solo su questo computer, in `.streamlit/api_keys.json` "
@@ -365,17 +394,25 @@ with st.sidebar:
             if st.button("Dimentica le chiavi salvate", width="stretch"):
                 st.session_state.api_keys = {}
                 api_keys_store.clear()
-                st.toast("Chiavi rimosse", icon="🗑️")
+                disk_cache.clear_prefixes(("eodhd", "twelvedata"))
+                st.cache_data.clear()
+                st.toast("Chiavi e relative cache rimosse", icon="🗑️")
                 st.rerun()
 
     reg_probe = build_registry()
     for source in reg_probe.all_sources:
-        ready = source.available()
+        justetf_disabled = source is reg_probe.justetf and not reg_probe.enable_justetf
+        ready = source.available() and not justetf_disabled
         st.caption(f"{'🟢' if ready else '⚪'} {source.label}"
-                   + ("" if ready else " — non configurata"))
+                   + ("" if ready else (
+                       " — opt-in disattivato" if justetf_disabled
+                       else " — non configurata"
+                   )))
     st.caption(
-        "Ordine: CSV → justETF (con ISIN) → Yahoo → EODHD → Twelve Data. "
-        "Si può forzare la fonte per singolo fondo dalla tabella."
+        "Ordine automatico: CSV → Yahoo → EODHD → Twelve Data; justETF entra "
+        "solo con l'opt-in qui sopra. Si può sempre forzare una fonte per "
+        "singolo fondo dalla tabella. Le cache EODHD e Twelve Data scadono "
+        f"dopo {disk_cache.restricted_retention_days()} giorni."
     )
     if not reg_probe.eodhd.available():
         st.info(
@@ -458,8 +495,8 @@ with st.expander("🔎 Cerca fondi ed ETF", expanded=not st.session_state.select
             st.info("Nessun risultato. Prova con l'ISIN o con il ticker completo.")
         elif is_isin(query):
             st.caption(
-                "🔗 Cercando per ISIN si abilita anche justETF, che copre gli "
-                "ETF europei che Yahoo non ha."
+                "🔗 L'ISIN permette di usare justETF solo se hai attivato "
+                "l'opt-in nelle Fonti dati o scegli la fonte sul singolo fondo."
             )
         for r in results:
             cols = st.columns([5, 1.4, 1.4, 1])
@@ -509,8 +546,8 @@ edited = st.data_editor(
     column_config={
         "ISIN": st.column_config.TextColumn(
             "ISIN", width="small",
-            help="Compilalo per abilitare justETF su questo fondo: copre gli "
-                 "ETF europei che Yahoo non ha.",
+              help="Serve per usare justETF quando la fonte è abilitata o "
+                  "selezionata esplicitamente sul fondo.",
         ),
         "Peso %": st.column_config.NumberColumn(
             "Peso %", min_value=0.0, max_value=100.0, step=1.0, format="%.2f",
@@ -625,8 +662,8 @@ if frame.missing:
                 f"**{symbol}** — " + ", ".join(f"`{a.source}` {a.outcome}" for a in attempts)
             )
         st.caption(
-            "Suggerimento: compila l'ISIN per abilitare justETF, oppure carica "
-            "la serie da CSV nella barra laterale."
+            "Suggerimento: carica una serie CSV oppure, dopo aver verificato "
+            "le condizioni del servizio, abilita justETF e compila l'ISIN."
         )
 
 # Conversione valutaria: le fonti che restituiscono gia' la valuta richiesta
@@ -1286,14 +1323,17 @@ with tab5:
 
     st.caption(
         "Fonte: [COVIP](https://www.covip.it/open-data), open data con licenza "
-        "CC BY 4.0. I dati si aggiornano una volta l'anno."
+        "[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Il progetto "
+        "normalizza e aggrega i dataset e calcola confronti e curve sintetiche; "
+        "queste elaborazioni non sono dati COVIP originali."
     )
 
 st.divider()
 st.caption(
     "Prezzi *total return* (dividendi reinvestiti). I NAV dei fondi sono già al "
     "netto del TER; la curva lorda è una ricostruzione teorica. I cambi sono "
-    "quelli ufficiali BCE dal 1999, con ripiego su Yahoo per le valute fuori "
-    "paniere. Non sono considerati costi di ingresso/uscita, spread né fiscalità. "
-    "Le performance passate non sono indicative di quelle future."
+    "quelli ufficiali BCE dal 1999, ottenuti tramite Frankfurter, con ripiego "
+    "su Yahoo per le valute fuori paniere. Non sono considerati costi di "
+    "ingresso/uscita, spread né fiscalità. Le performance passate non sono "
+    "indicative di quelle future."
 )

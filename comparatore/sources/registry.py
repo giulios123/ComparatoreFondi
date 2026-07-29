@@ -10,10 +10,12 @@ trovarsi un grafico vuoto senza spiegazione.
 Ordine predefinito:
 
   1. CSV caricato   - indicazione esplicita dell'utente, prevale su tutto
-  2. justETF        - se c'e' un ISIN; miglior copertura sugli ETF UCITS
-  3. Yahoo          - fonte generalista, sempre disponibile
-  4. EODHD          - se configurata con chiave
-  5. Twelve Data    - se configurata con chiave
+    2. Yahoo          - fonte generalista, sempre disponibile
+    3. EODHD          - se configurata con chiave
+    4. Twelve Data    - se configurata con chiave
+
+justETF usa un endpoint interno non documentato: entra nell'ordine automatico
+solo con opt-in, oppure quando l'utente la seleziona esplicitamente.
 """
 
 from __future__ import annotations
@@ -67,7 +69,9 @@ class Registry:
         self,
         eodhd_key: str | None = None,
         twelvedata_key: str | None = None,
+        enable_justetf: bool = False,
     ) -> None:
+        self.enable_justetf = enable_justetf
         self.csv = CsvSource()
         self.justetf = JustEtfSource()
         self.yahoo = YahooSource()
@@ -177,13 +181,10 @@ class Registry:
             source = self.source_by_name(preferred)
             candidates = [source] if source else []
         else:
-            candidates = [
-                self.csv,
-                self.justetf,
-                self.yahoo,
-                self.eodhd,
-                self.twelvedata,
-            ]
+            candidates = [self.csv]
+            if self.enable_justetf:
+                candidates.append(self.justetf)
+            candidates.extend([self.yahoo, self.eodhd, self.twelvedata])
 
         for source in candidates:
             if source is None:

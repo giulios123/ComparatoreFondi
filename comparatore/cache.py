@@ -32,8 +32,18 @@ from pathlib import Path
 import pandas as pd
 
 DEFAULT_TTL_HOURS = 24
+MAX_RESTRICTED_RETENTION_DAYS = 30
 
 _SAFE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def restricted_retention_days() -> int:
+    """Retention per fonti con limiti contrattuali, al massimo 30 giorni."""
+    try:
+        configured = int(os.environ.get("COMPARATORE_RESTRICTED_CACHE_DAYS", "30"))
+    except ValueError:
+        configured = MAX_RESTRICTED_RETENTION_DAYS
+    return min(MAX_RESTRICTED_RETENTION_DAYS, max(1, configured))
 
 
 def cache_dir() -> Path:
@@ -110,12 +120,25 @@ def write(key: str, series: pd.Series, req_start: dt.date, req_end: dt.date) -> 
         pass
 
 
+def delete(key: str) -> int:
+    """Rimuove una voce completa dalla cache."""
+    removed = 0
+    for path in _paths(key):
+        try:
+            path.unlink()
+            removed += 1
+        except FileNotFoundError:
+            pass
+    return removed
+
+
 def get_or_fetch(
     key: str,
     start: dt.date,
     end: dt.date,
     fetch,
     ttl_hours: int = DEFAULT_TTL_HOURS,
+    retention_days: int | None = None,
 ) -> pd.Series | None:
     """Serve la finestra [start, end] da cache, scaricando solo se necessario.
 
@@ -124,6 +147,12 @@ def get_or_fetch(
     file cresca invece di essere sostituito.
     """
     entry = read(key)
+
+    if entry is not None and retention_days is not None:
+        age = dt.datetime.now() - entry.fetched_at
+        if age >= dt.timedelta(days=retention_days):
+            delete(key)
+            entry = None
 
     if entry is not None:
         covered = entry.req_start <= start and end <= entry.req_end
@@ -167,13 +196,25 @@ def _slice(series: pd.Series, start: dt.date, end: dt.date) -> pd.Series:
 # --------------------------------------------------------------------------
 
 
-def read_meta(key: str) -> dict | None:
+def read_meta(key: str, retention_days: int | None = None) -> dict | None:
     """Rilegge un dizionario di metadati, o None se assente o scaduto."""
     path = cache_dir() / f"meta-{_paths(key)[1].stem}.json"
     if not path.exists():
         return None
     try:
-        return json.loads(path.read_text())
+        value = json.loads(path.read_text())
+        if retention_days is not None:
+            cached_at = value.get("_cached_at")
+            timestamp = (
+                dt.datetime.fromisoformat(cached_at)
+                if cached_at
+                else dt.datetime.fromtimestamp(path.stat().st_mtime)
+            )
+            if dt.datetime.now() - timestamp >= dt.timedelta(days=retention_days):
+                path.unlink(missing_ok=True)
+                return None
+        value.pop("_cached_at", None)
+        return value
     except Exception:
         return None
 
@@ -182,9 +223,56 @@ def write_meta(key: str, value: dict) -> None:
     """Salva un dizionario di metadati accanto alle serie."""
     path = cache_dir() / f"meta-{_paths(key)[1].stem}.json"
     try:
-        path.write_text(json.dumps(value))
+        stored = dict(value)
+        stored["_cached_at"] = dt.datetime.now().isoformat(timespec="seconds")
+        path.write_text(json.dumps(stored))
     except Exception:
         pass
+
+
+def purge_expired(
+    prefixes: tuple[str, ...],
+    retention_days: int,
+    now: dt.datetime | None = None,
+) -> int:
+    """Elimina serie e metadati scaduti per le fonti indicate."""
+    cutoff = (now or dt.datetime.now()) - dt.timedelta(days=retention_days)
+    removed = 0
+    for meta_path in cache_dir().glob("*.json"):
+        stem = meta_path.stem.removeprefix("meta-")
+        if not any(stem.startswith(prefix) for prefix in prefixes):
+            continue
+        try:
+            payload = json.loads(meta_path.read_text())
+            raw_timestamp = payload.get("fetched_at") or payload.get("_cached_at")
+            timestamp = (
+                dt.datetime.fromisoformat(raw_timestamp)
+                if raw_timestamp
+                else dt.datetime.fromtimestamp(meta_path.stat().st_mtime)
+            )
+        except Exception:
+            timestamp = dt.datetime.fromtimestamp(meta_path.stat().st_mtime)
+        if timestamp >= cutoff:
+            continue
+        meta_path.unlink(missing_ok=True)
+        if not meta_path.name.startswith("meta-"):
+            meta_path.with_suffix(".parquet").unlink(missing_ok=True)
+        removed += 1
+    return removed
+
+
+def clear_prefixes(prefixes: tuple[str, ...]) -> int:
+    """Elimina serie e metadati delle sole fonti indicate."""
+    removed = 0
+    for path in cache_dir().iterdir():
+        if path.suffix not in {".json", ".parquet"}:
+            continue
+        stem = path.stem.removeprefix("meta-")
+        if not any(stem.startswith(prefix) for prefix in prefixes):
+            continue
+        path.unlink(missing_ok=True)
+        removed += 1
+    return removed
 
 
 def clear() -> int:

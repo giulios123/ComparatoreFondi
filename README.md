@@ -53,8 +53,8 @@ modificare:
 - **TER %** — precompilato quando la fonte lo espone, ma verifica sempre sul
   KID del fondo e correggilo se serve;
 - **Costi extra %** — per costi non già inclusi nel NAV (custodia, consulenza);
-- **ISIN** — compilalo se manca: sblocca justETF, che copre molti ETF europei
-  meglio di Yahoo;
+- **ISIN** — compilalo se manca: permette di usare justETF dopo l'opt-in nelle
+  fonti dati o selezionandolo esplicitamente sul singolo fondo;
 - **Fonte** — normalmente su "Automatica"; forzala solo se vuoi diagnosticare
   da dove arrivano i dati di un fondo specifico;
 - **Proxy storico** — vedi [Storico esteso](#storico-esteso).
@@ -112,22 +112,58 @@ sono costati rispetto al fondo ipotetico senza commissioni.
 
 ## Fonti dati e come configurarle
 
-Nessuna fonte, da sola, copre tutti i casi. L'app le prova in ordine e si
-ferma alla prima che risponde, dicendo sempre quale ha usato.
+Nessuna fonte, da sola, copre tutti i casi. In modalità automatica l'app le
+prova in ordine e si ferma alla prima che risponde, dicendo sempre quale ha
+usato.
 
-| Ordine | Fonte | Copre | Chiave richiesta |
+| Ordine | Fonte | Copre | Attivazione |
 |---|---|---|---|
-| 1 | **CSV caricato** | qualsiasi cosa, incluso ciò che nessuno espone | no |
-| 2 | **justETF** | ETF europei, per ISIN | no |
-| 3 | **Yahoo Finance** | fonte generalista, unica con ricerca testuale | no |
-| 4 | **EODHD** | fondi comuni ed ETF europei, TER affidabile | sì |
-| 5 | **Twelve Data** | 50+ mercati | sì |
+| 1 | **CSV caricato** | qualsiasi cosa, incluso ciò che nessuno espone | caricamento locale |
+| 2 | **Yahoo Finance** | fonte generalista, unica con ricerca testuale | automatica |
+| 3 | **EODHD** | fondi comuni ed ETF europei, TER affidabile | chiave personale |
+| 4 | **Twelve Data** | 50+ mercati | chiave personale |
 
-Le prime tre funzionano già "out of the box", senza fare nulla. Le ultime due
-sono opzionali e si attivano da sole appena configuri una chiave.
+**justETF non fa parte dell'ordine automatico predefinito**: usa un endpoint
+interno e non documentato. È disponibile solo attivando il relativo opt-in
+nella barra laterale oppure scegliendo esplicitamente `justETF` come fonte del
+singolo fondo. Prima del consenso, l'interfaccia indica esattamente cosa viene
+inviato: ISIN, intervallo, valuta, indirizzo IP e normali metadati HTTP; non
+vengono trasmessi capitale, pesi, CSV o chiavi API. Il consenso automatico vale
+per la sessione corrente ed è revocabile in qualsiasi momento. Yahoo funziona
+senza configurazione; EODHD e Twelve Data si attivano quando configuri una
+chiave personale.
 
 Quando una serie non arriva, l'app mostra cosa ha tentato e come è andata,
 invece di lasciare un grafico vuoto senza spiegazione.
+
+### Licenza del codice e termini dei dati
+
+La licenza Apache-2.0 di questo repository copre il **codice del progetto**, non
+concede diritti aggiuntivi sui dati ottenuti dai servizi esterni. Ogni utente è
+responsabile di usare la propria chiave e un piano compatibile con il proprio
+caso d'uso:
+
+- [yfinance](https://ranaroussi.github.io/yfinance/) è Apache-2.0, ma ricorda
+  che i dati Yahoo Finance sono destinati all'uso personale; valgono anche i
+  [termini Yahoo API](https://legal.yahoo.com/us/en/yahoo/terms/product-atos/apiforydn/index.html);
+- justETF non espone un'API pubblica per questa funzione: l'integrazione è
+  sperimentale, opt-in e soggetta alle
+  [condizioni justETF](https://www.justetf.com/it/about/legal-terms.html) e ai
+  diritti dei fornitori dei dati;
+- i piani ordinari EODHD sono per uso personale e vietano redistribuzione o
+  display a terzi senza approvazione: consulta i
+  [termini EODHD](https://eodhd.com/financial-apis/terms-conditions);
+- il free tier Twelve Data non consente uso commerciale e redistribuzione o
+  display esterno richiedono diritti specifici: consulta i
+  [termini Twelve Data](https://twelvedata.com/terms);
+- gli identificatori OpenFIGI sono dedicati al pubblico dominio secondo i
+  [termini OpenFIGI](https://www.openfigi.com/docs/terms-of-service);
+- i dataset COVIP sono CC BY 4.0 e i cambi BCE richiedono attribuzione della
+  fonte; i dettagli delle elaborazioni sono indicati nelle sezioni dedicate.
+
+Pubblicare, ospitare o monetizzare un'istanza multiutente può quindi richiedere
+piani commerciali o autorizzazioni separate, anche se il codice resta open
+source.
 
 ### Come configurare una chiave API (EODHD / Twelve Data)
 
@@ -150,7 +186,9 @@ copre solo una parte, con storico fermo al 2018.
    persone, quel file sarebbe condiviso da tutti i visitatori, quindi in
    quel caso conviene la via alternativa qui sotto. Il file è già in
    `.gitignore`: non finisce mai nel repository. Il pulsante **Dimentica le
-   chiavi salvate**, nello stesso pannello, lo rimuove.
+  chiavi salvate**, nello stesso pannello, rimuove le credenziali e cancella
+  immediatamente anche le cache EODHD e Twelve Data, senza toccare le altre
+  fonti.
 
 In alternativa (o se preferisci non salvare nulla su disco), le chiavi si
 possono impostare anche fuori dall'interfaccia — e in tal caso hanno la
@@ -176,6 +214,11 @@ dall'interfaccia:
   ```
 
 Ordine di precedenza: interfaccia → `secrets.toml` → variabile d'ambiente.
+Le serie e i metadati EODHD/Twelve Data vengono eliminati automaticamente dopo
+al massimo 30 giorni. La retention può solo essere ridotta, impostando
+`COMPARATORE_RESTRICTED_CACHE_DAYS` a un valore fra 1 e 30. Alla cessazione di
+un abbonamento resta responsabilità dell'utente rispettare gli eventuali
+obblighi di cancellazione previsti dal provider.
 
 ### Come caricare una serie da CSV
 
@@ -210,7 +253,10 @@ altrove.
 La scheda **🏦 Fondi pensione**, in fondo alle schede dei risultati, confronta
 il tuo portafoglio con la previdenza complementare italiana: 471 comparti fra
 33 fondi negoziali, 38 aperti e 71 PIP, dati [COVIP](https://www.covip.it/open-data)
-(licenza CC BY 4.0), con rendimenti e **Indicatore Sintetico dei Costi (ISC)**.
+([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), con rendimenti e
+**Indicatore Sintetico dei Costi (ISC)**. Il progetto modifica la
+rappresentazione originale: normalizza nomi e categorie, unisce albo,
+rendimenti e ISC e calcola confronti, impatto dei costi e curve sintetiche.
 
 ### Come usarla
 
@@ -288,8 +334,12 @@ mano: il campo è editabile.
 
 ## Cambi valutari
 
-I cambi sono quelli **ufficiali BCE**, disponibili dal **4 gennaio 1999**, con
-ripiego su Yahoo per le valute fuori dal paniere BCE.
+I cambi sono quelli **ufficiali BCE**, disponibili dal **4 gennaio 1999** e
+ottenuti tramite l'API open source
+[Frankfurter](https://frankfurter.dev/), con ripiego su Yahoo per le valute
+fuori dal paniere BCE. Le serie vengono riallineate ai giorni del portafoglio e
+riportate in avanti nei giorni senza nuova rilevazione; la BCE resta la fonte
+dei tassi e richiede che venga citata quando i dati sono riprodotti.
 
 Prima della prima data disponibile non si inventa nulla: il periodo viene
 accorciato e l'app lo segnala esplicitamente, invece di usare un cambio
@@ -326,12 +376,12 @@ Due limiti da conoscere:
 
 ## Cache su disco
 
-Le serie scaricate finiscono in `.cache/` in formato parquet. La cache è
-**accumulativa**: ogni file contiene tutto lo storico mai scaricato per quella
-combinazione di fonte, simbolo e valuta, non la singola finestra richiesta.
-Chiedere periodi lunghi diventa quindi progressivamente più economico, e i
-dati restano disponibili anche se una fonte cade o applica un limite di
-frequenza.
+Le serie scaricate finiscono in `.cache/` in formato parquet. Per Yahoo,
+justETF, cambi e CSV la cache è **accumulativa**: ogni file contiene tutto lo
+storico mai scaricato per quella combinazione di fonte, simbolo e valuta, non
+la singola finestra richiesta. EODHD e Twelve Data seguono invece una policy
+ristretta: serie e metadati vengono eliminati dopo al massimo 30 giorni e un
+dato scaduto non viene usato neppure come ripiego offline.
 
 Si svuota con il pulsante **Svuota cache** nella barra laterale. La posizione
 è sovrascrivibile con la variabile d'ambiente `COMPARATORE_CACHE_DIR`. Le
@@ -355,7 +405,9 @@ tramite [PyInstaller](https://pyinstaller.org/). I file coinvolti sono in
   Windows), perche' dentro un bundle installato la cartella del codice e' di
   sola lettura.
 - [`desktop/comparatore.spec`](desktop/comparatore.spec) — configurazione del
-  build. Un solo file serve entrambe le piattaforme.
+  build. Un solo file serve entrambe le piattaforme; rigenera e include
+  `LICENSE` e `THIRD_PARTY_NOTICES.txt` per le dipendenze effettive della
+  piattaforma.
 
 ### Build locale
 
@@ -381,6 +433,12 @@ builda entrambe le piattaforme su GitHub Actions:
   *Run workflow*; gli archivi si scaricano come artefatti della run;
 - **su tag** — `git tag v0.3.0 && git push origin v0.3.0` builda entrambe le
   piattaforme e pubblica una GitHub Release con i due `.zip` allegati.
+
+Il workflow `License audit` esegue inoltre la scansione a ogni push su `main` e
+su ogni pull request, su Linux, macOS e Windows. Ogni licenza non inclusa
+nell'allowlist verificata viene bloccata e richiede revisione; PyInstaller è
+ammesso per la specifica Bootloader Exception, che non impone GPL al programma
+impacchettato.
 
 ### Firma del codice (non ancora fatta)
 
@@ -470,3 +528,16 @@ print(res.series.source, len(res.series.prices))
 
 Le performance passate non sono indicative di quelle future. Questo strumento
 è di analisi, non una consulenza finanziaria.
+
+---
+
+## Licenza
+
+Copyright 2026 Giulio Sciarappa.
+
+Il codice di Comparatore Fondi è distribuito sotto
+[Apache License 2.0](LICENSE). Le licenze, gli avvisi e i collegamenti al codice
+sorgente delle dipendenze distribuite nel bundle sono raccolti in
+[THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt). I dati recuperati dai
+provider restano soggetti ai rispettivi termini e non sono relicenziati da
+Apache-2.0.

@@ -138,7 +138,8 @@ class EodhdSource:
             # Gia' un simbolo di borsa: si usa com'e'.
             return symbol
 
-        cached = cache.read_meta(f"eodhd-sym/{code}")
+        retention_days = cache.restricted_retention_days()
+        cached = cache.read_meta(f"eodhd-sym/{code}", retention_days)
         if cached is not None:
             trovato = cached.get("symbol") or ""
             if trovato:
@@ -225,11 +226,18 @@ class EodhdSource:
             series.index = naive_index(series.index)
             return series
 
-        series = cache.get_or_fetch(f"eodhd/{eod_symbol}", start, end, _fetch)
+        retention_days = cache.restricted_retention_days()
+        series = cache.get_or_fetch(
+            f"eodhd/{eod_symbol}",
+            start,
+            end,
+            _fetch,
+            retention_days=retention_days,
+        )
         if series is None or series.empty:
             return None
 
-        meta = cache.read_meta(f"eodhd-ccy/{eod_symbol}")
+        meta = cache.read_meta(f"eodhd-ccy/{eod_symbol}", retention_days)
         currency = (meta or {}).get("currency", "")
         if not currency:
             info = self.metadata(eod_symbol)

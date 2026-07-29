@@ -20,10 +20,19 @@ raccolti) ma resta il launcher, non app.py, l'eseguibile che parte.
 """
 
 from pathlib import Path
+import subprocess
+import sys
 
 from PyInstaller.utils.hooks import collect_all
 
 PROJECT_ROOT = Path(SPECPATH).resolve().parent
+
+# Il notice riflette le distribuzioni effettivamente installate sulla
+# piattaforma di build (incluse le dipendenze native o condizionali).
+subprocess.run(
+    [sys.executable, str(PROJECT_ROOT / "scripts" / "generate_third_party_notices.py")],
+    check=True,
+)
 
 block_cipher = None
 
@@ -34,6 +43,8 @@ _COLLECT_ALL = ["streamlit", "plotly", "pyarrow", "curl_cffi", "yfinance"]
 
 datas = [
     (str(PROJECT_ROOT / "app.py"), "."),
+    (str(PROJECT_ROOT / "LICENSE"), "."),
+    (str(PROJECT_ROOT / "THIRD_PARTY_NOTICES.txt"), "."),
     (str(PROJECT_ROOT / ".streamlit" / "config.toml"), ".streamlit"),
 ]
 binaries = []
