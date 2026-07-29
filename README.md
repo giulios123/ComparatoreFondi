@@ -341,6 +341,76 @@ pulsante.
 
 ---
 
+## Pacchetto standalone (macOS / Windows)
+
+Oltre all'uso da sorgente con `uv run streamlit run app.py`, il progetto puo'
+essere impacchettato in un eseguibile che non richiede Python installato,
+tramite [PyInstaller](https://pyinstaller.org/). I file coinvolti sono in
+`desktop/`:
+
+- [`desktop/launcher.py`](desktop/launcher.py) — entry point del bundle: avvia il
+  server Streamlit e apre il browser, come farebbe `streamlit run app.py`.
+  Reindirizza anche cache e chiavi API dentro la cartella dati dell'utente
+  (`~/Library/Application Support/ComparatoreFondi` su macOS, `%APPDATA%` su
+  Windows), perche' dentro un bundle installato la cartella del codice e' di
+  sola lettura.
+- [`desktop/comparatore.spec`](desktop/comparatore.spec) — configurazione del
+  build. Un solo file serve entrambe le piattaforme.
+
+### Build locale
+
+```bash
+uv sync --group dev
+uv run pyinstaller desktop/comparatore.spec --noconfirm --clean
+```
+
+Risultato in `dist/`: `ComparatoreFondi.app` su macOS, la cartella
+`ComparatoreFondi/` (con `ComparatoreFondi.exe`) su Windows. Il bundle pesa
+circa 280 MB: pandas, pyarrow, plotly e il frontend di Streamlit sono
+inclusi per intero.
+
+Se l'app non parte da Finder/Esplora risorse, il log dell'ultimo avvio e' in
+`comparatore.log` nella stessa cartella dati utente citata sopra.
+
+### Build automatica (CI)
+
+Il workflow [`.github/workflows/desktop-build.yml`](.github/workflows/desktop-build.yml)
+builda entrambe le piattaforme su GitHub Actions:
+
+- **manuale** — tab *Actions* del repo -> *Build desktop (macOS + Windows)* ->
+  *Run workflow*; gli archivi si scaricano come artefatti della run;
+- **su tag** — `git tag v0.3.0 && git push origin v0.3.0` builda entrambe le
+  piattaforme e pubblica una GitHub Release con i due `.zip` allegati.
+
+### Firma del codice (non ancora fatta)
+
+Le app prodotte oggi **non sono firmate**: su macOS Gatekeeper mostra
+"sviluppatore non identificato" (si apre comunque con click destro -> Apri),
+su Windows SmartScreen mostra un avviso simile ("Ulteriori informazioni" ->
+"Esegui comunque"). Per uso personale o con pochi utenti fidati e' un
+fastidio, non un blocco reale.
+
+Per togliere questi avvisi servono due iscrizioni distinte e a pagamento,
+indipendenti fra loro:
+
+- **macOS**: [Apple Developer Program](https://developer.apple.com/programs/),
+  **99 $/anno**. Serve sia per firmare che per *notarizzare* (Apple scansiona
+  il binario e rilascia un ticket che Gatekeeper controlla); senza
+  notarizzazione l'avviso resta anche con un certificato valido.
+- **Windows**: un certificato di *code signing* (OV o EV) da una CA
+  riconosciuta (DigiCert, SSL.com, ecc.), tipicamente **70-250 $/anno**. Con
+  un certificato OV normale, SmartScreen continua comunque a mostrare
+  l'avviso finche' l'eseguibile non accumula una "reputazione" (download e
+  utilizzo nel tempo); un certificato **EV** aggira questo periodo di
+  attesa ma costa di piu'.
+
+Nessuno dei due e' legato all'altro: puoi firmare solo macOS, solo Windows,
+o nessuno dei due, senza cambiare nulla nel workflow di build oltre ad
+aggiungere le credenziali come segreti del repository quando/se deciderai di
+procedere.
+
+---
+
 ## Struttura del progetto
 
 ```

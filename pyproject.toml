@@ -17,3 +17,8 @@ dependencies = [
     "streamlit>=1.60.0",
     "yfinance>=1.5.2",
 ]
+
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.11",
+]
