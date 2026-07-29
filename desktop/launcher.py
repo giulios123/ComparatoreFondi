@@ -48,7 +48,7 @@ def _redirect_output_to_log(data_dir: Path) -> None:
 
 def main() -> None:
     data_dir = _user_data_dir()
-    if getattr(sys, "frozen", False):
+    if getattr(sys, "frozen", False) and (sys.stdout is None or sys.stderr is None):
         _redirect_output_to_log(data_dir)
 
     # setdefault: chi lancia da sorgente con le env var già impostate non
