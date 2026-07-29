@@ -417,9 +417,9 @@ uv run pyinstaller desktop/comparatore.spec --noconfirm --clean
 ```
 
 Risultato in `dist/`: `ComparatoreFondi.app` su macOS, la cartella
-`ComparatoreFondi/` (con `ComparatoreFondi.exe`) su Windows. Il bundle pesa
-circa 280 MB: pandas, pyarrow, plotly e il frontend di Streamlit sono
-inclusi per intero.
+`ComparatoreFondi/` (con `ComparatoreFondi.exe`) su Windows. La build CI su
+`macos-latest` produce un `.app` **arm64 (Apple Silicon)**; per Intel/universal
+serve adattare il workflow.
 
 Se l'app non parte da Finder/Esplora risorse, il log dell'ultimo avvio e' in
 `comparatore.log` nella stessa cartella dati utente citata sopra.

@@ -48,7 +48,7 @@ def _redirect_output_to_log(data_dir: Path) -> None:
 
 def main() -> None:
     data_dir = _user_data_dir()
-    if getattr(sys, "frozen", False):
+    if getattr(sys, "frozen", False) and (sys.stdout is None or sys.stderr is None):
         _redirect_output_to_log(data_dir)
 
     # setdefault: chi lancia da sorgente con le env var già impostate non
@@ -74,7 +74,7 @@ def main() -> None:
         "run",
         str(app_script),
         "--server.headless=false",
-        "--server.port=8765",
+        "--server.port=" + os.environ.get("COMPARATORE_STREAMLIT_PORT", "8765"),
         "--server.address=localhost",
         # Niente prompt email al primo avvio: nessun terminale e' collegato
         # per rispondere.
