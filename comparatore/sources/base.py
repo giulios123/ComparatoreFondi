@@ -40,9 +40,17 @@ class Instrument:
     isin: str = ""
     # Ripartizione dello strumento: {dimensione: {bucket: quota}}, con le quote
     # di ogni dimensione che sommano a 1. Vuota quando la fonte non la espone -
-    # oggi solo EODHD lo fa. Le chiavi sono quelle di `comparatore.allocazione`.
+    # oggi EODHD e Yahoo (via `funds_data`). Le chiavi sono quelle di
+    # `comparatore.allocazione`.
     allocation: dict[str, dict[str, float]] = field(default_factory=dict)
-    allocation_source: str = ""  # "eodhd" | ""
+    allocation_source: str = ""  # "eodhd" | "yahoo" | ""
+    # Prime posizioni del fondo: [{"symbol", "name", "quota"}, ...], quota una
+    # frazione di 1. Non e' una ripartizione - non copre l'intero strumento e
+    # non ha senso forzarla nella forma {bucket: quota} di `allocation` - ma e'
+    # il punto di partenza per una stima geografica quando nessuna fonte da'
+    # la ripartizione per paese (vedi `comparatore.allocazione.paesi_da_posizioni`).
+    holdings: list[dict] = field(default_factory=list)
+    holdings_source: str = ""  # "yahoo" | ""
 
     @property
     def label(self) -> str:
