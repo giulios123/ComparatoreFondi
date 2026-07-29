@@ -38,7 +38,14 @@ def load() -> dict[str, str]:
         data = json.loads(path.read_text())
     except Exception:
         return {}
-    return {k: str(data.get(k, "") or "").strip() for k in KEYS if data.get(k)}
+    if not isinstance(data, dict):
+        return {}
+    out: dict[str, str] = {}
+    for k in KEYS:
+        v = str(data.get(k, "") or "").strip()
+        if v:
+            out[k] = v
+    return out
 
 
 def save(values: dict[str, str]) -> None:
