@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
 import pandas as pd
@@ -38,6 +38,11 @@ class Instrument:
     ter: float | None = None  # frazione annua, es. 0.0022 == 0,22%
     ter_source: str = ""
     isin: str = ""
+    # Ripartizione dello strumento: {dimensione: {bucket: quota}}, con le quote
+    # di ogni dimensione che sommano a 1. Vuota quando la fonte non la espone -
+    # oggi solo EODHD lo fa. Le chiavi sono quelle di `comparatore.allocazione`.
+    allocation: dict[str, dict[str, float]] = field(default_factory=dict)
+    allocation_source: str = ""  # "eodhd" | ""
 
     @property
     def label(self) -> str:

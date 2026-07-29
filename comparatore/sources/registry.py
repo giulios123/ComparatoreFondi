@@ -151,16 +151,30 @@ class Registry:
     # --------------------------------------------------------------- metadati
 
     def metadata(self, symbol: str, isin: str = "") -> Instrument:
-        """Metadati del fondo, integrando il TER dalle fonti che lo espongono."""
+        """Metadati del fondo, integrando TER e classificazione da EODHD."""
         info = self.yahoo.metadata(symbol) or Instrument(
             symbol=symbol, name=symbol, quote_type=""
         )
-        if info.ter is None and self.eodhd.available():
-            richer = self.eodhd.metadata(symbol)
-            if richer is not None and richer.ter is not None:
-                info.ter, info.ter_source = richer.ter, richer.ter_source
         if isin and not info.isin:
             info.isin = isin
+
+        # La classificazione (classe di attivo, area, settore) la espone solo
+        # EODHD, quindi la fonte si interroga anche quando il TER e' gia'
+        # arrivato da Yahoo. Senza chiave `available()` e' False e non parte
+        # nessuna chiamata.
+        if (info.ter is None or not info.allocation) and self.eodhd.available():
+            # Il simbolo di Yahoo non e' quello di EODHD (VWCE.DE contro
+            # VWCE.XETRA): senza la traduzione la richiesta cadrebbe nel vuoto
+            # proprio nei casi in cui la fonte servirebbe. La corrispondenza
+            # resta in cache, quindi si paga una volta sola per strumento.
+            eod_symbol = self.eodhd.resolve_symbol(symbol, info.isin) or symbol
+            richer = self.eodhd.metadata(eod_symbol)
+            if richer is not None:
+                if info.ter is None and richer.ter is not None:
+                    info.ter, info.ter_source = richer.ter, richer.ter_source
+                if not info.allocation and richer.allocation:
+                    info.allocation = richer.allocation
+                    info.allocation_source = richer.allocation_source
         return info
 
     # ---------------------------------------------------------------- prezzi
