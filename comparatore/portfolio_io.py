@@ -28,7 +28,8 @@ class PortfolioError(Exception):
 def assicura_alloc(fund: dict) -> dict:
     """Completa i fondi rimasti nello stato - o importati da file - da prima
     della classificazione, o con campi mancanti."""
-    if not fund.get("alloc"):
+    alloc = fund.get("alloc")
+    if not isinstance(alloc, dict) or not alloc:
         fund["alloc"] = al.classifica_da_nome(fund.get("name", ""), fund["symbol"])
         fund["alloc_fonte"] = "nome"
     manuale = fund.get("alloc_manuale")
@@ -37,8 +38,11 @@ def assicura_alloc(fund: dict) -> dict:
         fund["alloc_manuale"] = manuale
     for dimensione in al.DIMENSIONI:
         manuale.setdefault(dimensione, "")
-    fund.setdefault("holdings", [])
-    fund["alloc"].setdefault("paese", al.paesi_da_posizioni(fund["holdings"]))
+    holdings = fund.get("holdings")
+    if not isinstance(holdings, list):
+        holdings = []
+        fund["holdings"] = holdings
+    fund["alloc"].setdefault("paese", al.paesi_da_posizioni(holdings))
     fund.setdefault("currency", "")
     fund.setdefault("isin", "")
     fund.setdefault("ter", 0.0)
