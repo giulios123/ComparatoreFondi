@@ -36,6 +36,8 @@ from comparatore.sources import AUTO, CsvParseError, Registry, is_isin, parse_cs
 # Stato e accesso ai dati
 # --------------------------------------------------------------------------
 
+saved_prefs = prefs.load()
+
 if "selected" not in st.session_state:
     st.session_state.selected = []  # dizionari: symbol, name, isin, weight, ...
 if "csv_series" not in st.session_state:
@@ -59,7 +61,7 @@ if "api_keys" not in st.session_state:
     # Chiavi salvate dall'interfaccia in un run precedente (vedi comparatore.keys).
     st.session_state.api_keys = api_keys_store.load()
 if "enable_justetf" not in st.session_state:
-    st.session_state.enable_justetf = False
+    st.session_state.enable_justetf = bool(saved_prefs.get("enable_justetf", False))
 if "initial_value" not in st.session_state:
     st.session_state.initial_value = 10_000.0
 if "base_ccy" not in st.session_state:
@@ -100,7 +102,7 @@ _applica_pending()
 # `set_page_config` perche' il titolo della pagina e' traducibile; leggere
 # `st.context` non accoda nulla, quindi e' lecito farlo qui.
 if "lang" not in st.session_state:
-    pref = prefs.load().get("lingua", "")
+    pref = str(saved_prefs.get("lingua", "") or "")
     if pref in i18n.LINGUE:
         st.session_state.lang = pref
     else:
@@ -300,6 +302,13 @@ def set_period(years: int | None):
     st.session_state.end_date = today
 
 
+def _salva_preferenze() -> None:
+    prefs.save({
+        "lingua": str(st.session_state.get("lang", "") or ""),
+        "enable_justetf": bool(st.session_state.get("enable_justetf", False)),
+    })
+
+
 def _cambia_lingua() -> None:
     """`on_change` del selettore di lingua: gira prima che il resto dello
     script rilegga i widget, quindi qui `st.session_state.rebalance` e'
@@ -312,10 +321,15 @@ def _cambia_lingua() -> None:
     `session_state.rebalance` - una stringa che non e' piu' un valore valido
     di `Rebalance`. Rimetterlo in coda per `_applica_pending()` lo previene.
     """
-    prefs.save({"lingua": st.session_state["lang"]})
+    _salva_preferenze()
     st.session_state._pending_state["rebalance"] = st.session_state.get(
         "rebalance", Rebalance.NONE.value
     )
+
+
+def _cambia_justetf() -> None:
+    """Ricorda l'opt-in (o la sua revoca) fra un avvio e l'altro."""
+    _salva_preferenze()
 
 
 # --------------------------------------------------------------------------
@@ -405,6 +419,7 @@ with st.sidebar:
         t("sources.justetf_checkbox"),
         key="enable_justetf",
         help=t("sources.justetf_help"),
+        on_change=_cambia_justetf,
     )
 
     with st.expander(t("api_keys.expander")):
@@ -427,6 +442,16 @@ with st.sidebar:
                 api_keys_store.save(st.session_state.api_keys)
                 st.toast(t("api_keys.saved_toast"), icon="🔑")
                 st.rerun()
+        saved_keys = []
+        for key, label in (
+            ("EODHD_API_KEY", t("api_keys.eodhd_label")),
+            ("TWELVEDATA_API_KEY", t("api_keys.td_label")),
+        ):
+            value = st.session_state.api_keys.get(key, "")
+            if value:
+                saved_keys.append(f"{label}: {api_keys_store.masked(value)}")
+        if saved_keys:
+            st.caption(t("api_keys.saved_caption", elenco="; ".join(saved_keys)))
         if any((v or "").strip() for v in st.session_state.api_keys.values()):
             if st.button(t("api_keys.forget_button"), width="stretch"):
                 st.session_state.api_keys = {}

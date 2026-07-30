@@ -71,6 +71,14 @@ class TestSintassiApp(unittest.TestCase):
             sorgente.index("res = run_backtest("),
         )
 
+    def test_preferenza_justetf_e_riepilogo_chiavi_sono_collegati(self):
+        sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+
+        self.assertIn('"enable_justetf": bool(', sorgente)
+        self.assertIn("on_change=_cambia_justetf", sorgente)
+        self.assertIn("api_keys_store.masked(value)", sorgente)
+        self.assertIn('t("api_keys.saved_caption",', sorgente)
+
 
 if __name__ == "__main__":
     unittest.main()

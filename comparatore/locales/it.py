@@ -87,8 +87,9 @@ MESSAGGI: dict[str, str] = {
         "L'endpoint può cambiare o smettere di funzionare e il suo utilizzo "
         "resta soggetto alle [condizioni justETF]"
         "(https://www.justetf.com/it/about/legal-terms.html) e ai diritti dei "
-        "fornitori dei dati. Il consenso vale per questa sessione; lasciando "
-        "la casella spenta, justETF verrà contattato solo se lo scegli "
+        "fornitori dei dati. Il consenso viene ricordato su questo computer "
+        "finché non lo revochi; lasciando la casella spenta, justETF verrà "
+        "contattato solo se lo scegli "
         "esplicitamente come fonte di un singolo fondo."
     ),
     "sources.justetf_checkbox": "Acconsento alle richieste automatiche a justETF",
@@ -123,6 +124,7 @@ MESSAGGI: dict[str, str] = {
     "api_keys.td_label": "Chiave Twelve Data",
     "api_keys.save_button": "Salva",
     "api_keys.saved_toast": "Chiavi salvate",
+    "api_keys.saved_caption": "Chiavi salvate: {elenco}",
     "api_keys.forget_button": "Dimentica le chiavi salvate",
     "api_keys.forgotten_toast": "Chiavi e relative cache rimosse",
 

@@ -134,8 +134,9 @@ interno e non documentato. È disponibile solo attivando il relativo opt-in
 nella barra laterale oppure scegliendo esplicitamente `justETF` come fonte del
 singolo fondo. Prima del consenso, l'interfaccia indica esattamente cosa viene
 inviato: ISIN, intervallo, valuta, indirizzo IP e normali metadati HTTP; non
-vengono trasmessi capitale, pesi, CSV o chiavi API. Il consenso automatico vale
-per la sessione corrente ed è revocabile in qualsiasi momento. Yahoo funziona
+vengono trasmessi capitale, pesi, CSV o chiavi API. Il consenso automatico è
+ricordato su questo computer fra i riavvii ed è revocabile in qualsiasi momento
+deselezionando la casella. Yahoo funziona
 senza configurazione; EODHD e Twelve Data si attivano quando configuri una
 chiave personale.
 
@@ -200,6 +201,8 @@ copre solo una parte, con storico fermo al 2018.
    Twelve Data)**, incolla la chiave e premi **Salva**. Non serve riavviare:
    il pallino accanto alla fonte passa da ⚪ a 🟢 subito. Basta compilare le
    chiavi che hai — se ne manca una, quella fonte resta semplicemente spenta.
+  Sotto il form compare un riepilogo con il provider e solo gli ultimi quattro
+  caratteri di ogni chiave salvata.
 
    La chiave viene scritta in `.streamlit/api_keys.json`, con permessi
    riservati al tuo utente (`chmod 600`), e resta lì fra un avvio e l'altro
@@ -567,7 +570,7 @@ app.py                    interfaccia Streamlit
   config.toml              barra Streamlit senza Deploy/Rerun (committato)
   secrets.toml             chiavi API, alternativa al pannello (gitignored)
   api_keys.json            chiavi API salvate dal pannello (gitignored)
-  prefs.json               preferenze di interfaccia, es. lingua (gitignored)
+  prefs.json               preferenze di interfaccia, es. lingua e opt-in justETF (gitignored)
 comparatore/
   sources/
     base.py               interfaccia comune alle fonti
@@ -581,7 +584,7 @@ comparatore/
   locales/
     it.py, en.py, fr.py, de.py   cataloghi di traduzione (it è il riferimento)
   i18n.py                  rilevamento lingua, traduzione, etichette di dominio
-  prefs.py                 preferenze salvate dall'interfaccia (lingua)
+  prefs.py                 preferenze salvate dall'interfaccia (lingua e opt-in justETF)
   licenses.py              accesso a LICENSE / THIRD_PARTY_NOTICES.txt
   portfolio_io.py          export/import di un portafoglio in JSON
   fx.py                    cambi BCE con ripiego Yahoo
