@@ -1,5 +1,5 @@
-"""Preferenze di interfaccia (lingua) scelte dall'utente, ricordate fra un
-avvio e l'altro.
+"""Preferenze di interfaccia scelte dall'utente, ricordate fra un avvio e
+l'altro.
 
 Stesso trattamento di `comparatore.keys`: un file a parte, fuori da
 `.cache/`, cosi' "Svuota cache" non le cancella. Degrada in silenzio - un
@@ -13,7 +13,8 @@ import json
 import os
 from pathlib import Path
 
-CHIAVI = ("lingua",)
+CHIAVI_TESTUALI = ("lingua",)
+CHIAVI_BOOLEANE = ("enable_justetf",)
 
 
 def prefs_file() -> Path:
@@ -24,7 +25,7 @@ def prefs_file() -> Path:
     return Path(__file__).resolve().parent.parent / ".streamlit" / "prefs.json"
 
 
-def load() -> dict[str, str]:
+def load() -> dict[str, str | bool]:
     """Rilegge le preferenze salvate, o {} se assenti/illeggibili."""
     path = prefs_file()
     if not path.exists():
@@ -35,21 +36,33 @@ def load() -> dict[str, str]:
         return {}
     if not isinstance(data, dict):
         return {}
-    out: dict[str, str] = {}
-    for k in CHIAVI:
+    out: dict[str, str | bool] = {}
+    for k in CHIAVI_TESTUALI:
         v = str(data.get(k, "") or "").strip()
         if v:
+            out[k] = v
+    for k in CHIAVI_BOOLEANE:
+        v = data.get(k)
+        if isinstance(v, bool):
             out[k] = v
     return out
 
 
-def save(values: dict[str, str]) -> None:
+def save(values: dict[str, str | bool]) -> None:
     """Scrive le preferenze su disco."""
     path = prefs_file()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        cleaned = {k: v.strip() for k, v in values.items() if k in CHIAVI and v.strip()}
-        path.write_text(json.dumps(cleaned))
+        cleaned: dict[str, str | bool] = {}
+        for k in CHIAVI_TESTUALI:
+            v = values.get(k, "")
+            if isinstance(v, str) and v.strip():
+                cleaned[k] = v.strip()
+        for k in CHIAVI_BOOLEANE:
+            v = values.get(k)
+            if isinstance(v, bool):
+                cleaned[k] = v
+        path.write_text(json.dumps(cleaned), encoding="utf-8")
     except Exception:
         # Disco pieno o di sola lettura: la preferenza resta valida solo per
         # questa sessione, ma l'app non deve interrompersi per questo.

@@ -29,6 +29,16 @@ def keys_file() -> Path:
     return Path(__file__).resolve().parent.parent / ".streamlit" / "api_keys.json"
 
 
+def masked(value: str) -> str:
+    """Restituisce una rappresentazione sicura della chiave per la UI."""
+    value = value.strip()
+    if not value:
+        return ""
+    if len(value) <= 4:
+        return "*" * len(value)
+    return "****" + value[-4:]
+
+
 def load() -> dict[str, str]:
     """Rilegge le chiavi salvate, o {} se assenti/illeggibili."""
     path = keys_file()

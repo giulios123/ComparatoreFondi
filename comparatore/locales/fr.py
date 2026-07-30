@@ -89,9 +89,10 @@ MESSAGGI: dict[str, str] = {
         "Le point d'accès peut changer ou cesser de fonctionner, et son "
         "utilisation reste soumise aux [conditions de justETF]"
         "(https://www.justetf.com/it/about/legal-terms.html) et aux droits "
-        "des fournisseurs de données. Le consentement ne vaut que pour "
-        "cette session ; en laissant la case décochée, justETF ne sera "
-        "contacté que si vous le choisissez explicitement comme source "
+        "des fournisseurs de données. Le consentement est mémorisé sur cet "
+        "ordinateur jusqu'à sa révocation ; en laissant la case décochée, "
+        "justETF ne sera contacté que si vous le choisissez explicitement "
+        "comme source "
         "pour un fonds particulier."
     ),
     "sources.justetf_checkbox": "J'accepte les requêtes automatiques vers justETF",
@@ -128,6 +129,7 @@ MESSAGGI: dict[str, str] = {
     "api_keys.td_label": "Clé Twelve Data",
     "api_keys.save_button": "Enregistrer",
     "api_keys.saved_toast": "Clés enregistrées",
+    "api_keys.saved_caption": "Clés enregistrées : {elenco}",
     "api_keys.forget_button": "Oublier les clés enregistrées",
     "api_keys.forgotten_toast": "Clés et cache associé supprimés",
 

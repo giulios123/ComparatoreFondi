@@ -94,9 +94,9 @@ MESSAGGI: dict[str, str] = {
         "seinen Dienst einstellen, seine Nutzung unterliegt den "
         "[justETF-Bedingungen]"
         "(https://www.justetf.com/it/about/legal-terms.html) und den "
-        "Rechten der Datenanbieter. Die Zustimmung gilt nur für diese "
-        "Sitzung; bleibt das Kästchen deaktiviert, wird justETF nur "
-        "kontaktiert, wenn Sie es explizit als Quelle für einen "
+        "Rechten der Datenanbieter. Die Zustimmung wird auf diesem Computer "
+        "gespeichert, bis Sie sie widerrufen; bleibt das Kästchen deaktiviert, "
+        "wird justETF nur kontaktiert, wenn Sie es explizit als Quelle für einen "
         "einzelnen Fonds wählen."
     ),
     "sources.justetf_checkbox": "Ich stimme automatischen Anfragen an justETF zu",
@@ -133,6 +133,7 @@ MESSAGGI: dict[str, str] = {
     "api_keys.td_label": "Twelve-Data-Schlüssel",
     "api_keys.save_button": "Speichern",
     "api_keys.saved_toast": "Schlüssel gespeichert",
+    "api_keys.saved_caption": "Gespeicherte Schlüssel: {elenco}",
     "api_keys.forget_button": "Gespeicherte Schlüssel vergessen",
     "api_keys.forgotten_toast": "Schlüssel und zugehöriger Cache entfernt",
 

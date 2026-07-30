@@ -85,8 +85,9 @@ MESSAGGI: dict[str, str] = {
         "change or stop working, and its use remains subject to "
         "[justETF's terms]"
         "(https://www.justetf.com/it/about/legal-terms.html) and the data "
-        "providers' rights. Consent applies to this session only; leaving "
-        "the checkbox off, justETF will only be contacted if you "
+        "providers' rights. Consent is remembered on this computer until "
+        "you revoke it; leaving the checkbox off, justETF will only be "
+        "contacted if you "
         "explicitly choose it as the source for a single fund."
     ),
     "sources.justetf_checkbox": "I consent to automatic requests to justETF",
@@ -120,6 +121,7 @@ MESSAGGI: dict[str, str] = {
     "api_keys.td_label": "Twelve Data key",
     "api_keys.save_button": "Save",
     "api_keys.saved_toast": "Keys saved",
+    "api_keys.saved_caption": "Saved keys: {elenco}",
     "api_keys.forget_button": "Forget saved keys",
     "api_keys.forgotten_toast": "Keys and related cache removed",
 
