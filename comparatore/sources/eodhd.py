@@ -76,7 +76,8 @@ class EodhdSource:
         mancano invece di lasciarlo un mistero: la causa e' contrattuale, non
         uno strumento non coperto.
         """
-        return cache.read_meta("eodhd-fundamentals-blocked", retention_days=1) is not None
+        payload = cache.read_meta("eodhd-fundamentals-blocked", retention_days=1) or {}
+        return bool(payload.get("bloccato"))
 
     # ----------------------------------------------------------------- ricerca
 
