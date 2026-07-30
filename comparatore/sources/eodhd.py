@@ -23,6 +23,41 @@ from .base import Instrument, PriceSeries, is_isin, naive_index
 BASE_URL = "https://eodhd.com/api"
 TIMEOUT = 30
 
+# Suffisso Yahoo per ogni piazza EODHD elencata in `_EXCHANGE_RANK` qui sotto.
+# Un fondo aggiunto da una ricerca EODHD porta il simbolo `Codice.Borsa` di
+# EODHD (`REET.US`, `VWCE.XETRA`), che Yahoo non riconosce cosi' com'e' - si
+# aspetta `REET`, `VWCE.DE`. Senza la traduzione lo strumento resta bloccato
+# su EODHD anche quando Yahoo lo coprirebbe meglio: valuta, TER e
+# classificazione inclusi. Tabella separata da `openfigi.EXCHANGE_SUFFIX`,
+# che parla il vocabolario Bloomberg (`IM`, `GR`, `LN`) e non e' riusabile qui.
+_YAHOO_SUFFIX = {
+    "MI": ".MI",
+    "XETRA": ".DE",
+    "F": ".F",
+    "AS": ".AS",
+    "LSE": ".L",
+    "PA": ".PA",
+    "SW": ".SW",
+    "MC": ".MC",
+    "US": "",
+}
+
+
+def to_yahoo_symbol(symbol: str) -> str:
+    """Equivalente Yahoo di un simbolo EODHD, o "" se non c'e' una traduzione.
+
+    "" quando il simbolo non ha un punto, quando la piazza non e' mappata
+    (es. `EUFUND`, i fondi comuni non quotati) o quando la traduzione
+    coinciderebbe con l'originale.
+    """
+    if "." not in symbol:
+        return ""
+    code, exch = symbol.rsplit(".", 1)
+    if exch not in _YAHOO_SUFFIX:
+        return ""
+    candidate = f"{code}{_YAHOO_SUFFIX[exch]}"
+    return candidate if candidate != symbol else ""
+
 
 class EodhdSource:
     name = "eodhd"
@@ -33,6 +68,16 @@ class EodhdSource:
 
     def available(self) -> bool:
         return bool(self.api_key)
+
+    def fundamentals_blocked(self) -> bool:
+        """True se l'ultima `/fundamentals` e' stata rifiutata dal piano (403).
+
+        Usato dall'interfaccia per spiegare perche' TER e classificazione
+        mancano invece di lasciarlo un mistero: la causa e' contrattuale, non
+        uno strumento non coperto.
+        """
+        payload = cache.read_meta("eodhd-fundamentals-blocked", retention_days=1) or {}
+        return bool(payload.get("bloccato"))
 
     # ----------------------------------------------------------------- ricerca
 
@@ -74,6 +119,19 @@ class EodhdSource:
                 break
         return out
 
+    def currency_from_search(self, eod_symbol: str) -> str:
+        """Valuta di un simbolo `Codice.Borsa` dall'endpoint `/search`.
+
+        A differenza di `/fundamentals`, `/search` risponde anche sui piani
+        gratuiti: e' un ripiego piu' povero (niente TER, niente
+        classificazione) ma basta a non perdere lo strumento nella
+        conversione valutaria quando `/fundamentals` e' bloccato (403).
+        """
+        for hit in self.search(eod_symbol, limit=5, funds_only=False):
+            if hit.symbol.upper() == eod_symbol.upper():
+                return hit.currency
+        return ""
+
     # --------------------------------------------------------------- metadati
 
     def metadata(self, symbol: str) -> Instrument | None:
@@ -85,6 +143,15 @@ class EodhdSource:
                 params={"api_token": self.api_key, "fmt": "json"},
                 timeout=TIMEOUT,
             )
+            if r.status_code == 403:
+                # Il piano gratuito vede `/search` e `/eod` ma non
+                # `/fundamentals`: senza questo flag l'errore resta invisibile
+                # dietro il generico "TER non trovato", e l'utente non puo'
+                # distinguere "questo strumento non ha TER" da "la chiave non
+                # puo' vederlo". Riverificato ogni giorno, cosi' un upgrade di
+                # piano si riflette da solo senza bisogno di riavviare l'app.
+                cache.write_meta("eodhd-fundamentals-blocked", {"bloccato": True})
+                return None
             r.raise_for_status()
             payload = r.json() or {}
         except Exception:
@@ -94,14 +161,23 @@ class EodhdSource:
         etf_data = payload.get("ETF_Data") or {}
 
         ter = None
-        for field in ("NetExpenseRatio", "AnnualHoldingsTurnover", "TER"):
+        for field in (
+            "NetExpenseRatio",
+            # Equivalente UCITS di NetExpenseRatio: pensato per il mercato
+            # USA, su un fondo europeo (VWCE compreso) resta spesso a zero,
+            # mentre "Ongoing_Charge" e' la voce che i KID chiamano TER.
+            # `AnnualHoldingsTurnover` non e' un costo ma il tasso di
+            # rotazione del portafoglio: leggerlo come TER sarebbe un dato
+            # sbagliato, non solo mancante.
+            "Ongoing_Charge",
+        ):
             raw = etf_data.get(field)
             try:
                 value = float(raw)
             except (TypeError, ValueError):
                 continue
-            if field == "NetExpenseRatio" and value > 0:
-                # EODHD lo espone in percentuale (0.07 == 0,07%).
+            if value > 0:
+                # EODHD lo espone in percentuale (0.07 == 0,07%), per entrambi i campi.
                 ter = value / 100.0
                 break
 
@@ -249,6 +325,11 @@ class EodhdSource:
         if not currency:
             info = self.metadata(eod_symbol)
             currency = info.currency if info else ""
+            if not currency:
+                # `/fundamentals` puo' essere bloccato dal piano (403):
+                # `/search` e' piu' povero ma resta gratuito, e basta a non
+                # scartare lo strumento dal backtest per valuta sconosciuta.
+                currency = self.currency_from_search(eod_symbol)
             if currency:
                 cache.write_meta(f"eodhd-ccy/{eod_symbol}", {"currency": currency})
 

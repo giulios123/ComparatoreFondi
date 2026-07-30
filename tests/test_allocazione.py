@@ -142,6 +142,98 @@ class ClassificaDaEodhdTests(unittest.TestCase):
         self.assertAlmostEqual(alloc["classe"]["Azionario"], 0.4, places=9)
 
 
+# Estratto di `funds_data.asset_classes` / `sector_weightings` di yfinance per
+# un ETF azionario globale (VWCE.MI): chiavi camelCase per le classi,
+# snake_case per i settori - le due convenzioni che `_traduci` deve reggere
+# insieme a quelle EODHD (parole separate da spazio).
+YAHOO_ASSET_CLASSES = {
+    "cashPosition": 0.0, "stockPosition": 0.9996, "bondPosition": 0.0,
+    "preferredPosition": 0.0002, "convertiblePosition": 0.0, "otherPosition": 0.0003,
+}
+YAHOO_SECTOR_WEIGHTINGS = {
+    "realestate": 0.02, "consumer_cyclical": 0.09, "basic_materials": 0.035,
+    "consumer_defensive": 0.046, "technology": 0.325, "communication_services": 0.079,
+    "financial_services": 0.158, "utilities": 0.025, "industrials": 0.108,
+    "energy": 0.035, "healthcare": 0.081,
+}
+
+
+class ClassificaDaYahooTests(unittest.TestCase):
+    def test_asset_classes_and_sectors_land_in_the_right_buckets(self) -> None:
+        alloc = al.classifica_da_yahoo(YAHOO_ASSET_CLASSES, YAHOO_SECTOR_WEIGHTINGS)
+        self.assertEqual(al.etichetta_prevalente(alloc["classe"]), "Azionario")
+        self.assertAlmostEqual(sum(alloc["classe"].values()), 1.0, places=9)
+        self.assertAlmostEqual(sum(alloc["settore"].values()), 1.0, places=9)
+        self.assertEqual(al.etichetta_prevalente(alloc["settore"]), "Tecnologia")
+
+    def test_snake_case_sector_keys_match_the_eodhd_vocabulary(self) -> None:
+        # Se la normalizzazione dell'underscore si rompe, queste chiavi
+        # finiscono tutte in "Non classificato" invece che nei bucket veri.
+        alloc = al.classifica_da_yahoo({}, YAHOO_SECTOR_WEIGHTINGS)
+        self.assertNotIn(al.NON_CLASSIFICATO, alloc["settore"])
+
+    def test_all_other_position_omits_the_class_instead_of_guessing(self) -> None:
+        # Oro fisico, monetari: yfinance non sa scomporli e mette tutto in
+        # "otherPosition". Restituirlo come classe prevalente sovrascriverebbe
+        # una classe corretta gia' dedotta dal nome, perche' `unisci` fa
+        # vincere la fonte quando non e' vuota.
+        alloc = al.classifica_da_yahoo(
+            {"cashPosition": 0.0, "stockPosition": 0.0, "bondPosition": 0.0,
+             "preferredPosition": 0.0, "convertiblePosition": 0.0, "otherPosition": 1.0},
+            {},
+        )
+        self.assertEqual(alloc, {})
+
+    def test_empty_sector_weightings_omits_the_dimension(self) -> None:
+        alloc = al.classifica_da_yahoo(YAHOO_ASSET_CLASSES, {})
+        self.assertEqual(set(alloc), {"classe"})
+
+    def test_malformed_inputs_never_raise(self) -> None:
+        for asset_classes, sectors in [(None, None), ({}, {}), ([], []), ("", "")]:
+            self.assertEqual(al.classifica_da_yahoo(asset_classes, sectors), {})
+
+
+class PaesiDaPosizioniTests(unittest.TestCase):
+    def test_covered_share_splits_by_suffix_and_the_rest_is_declared(self) -> None:
+        holdings = [
+            {"symbol": "NVDA", "name": "Nvidia", "quota": 0.05},
+            {"symbol": "2330.TW", "name": "TSMC", "quota": 0.02},
+        ]
+        paesi = al.paesi_da_posizioni(holdings)
+        self.assertAlmostEqual(paesi["Stati Uniti"], 0.05, places=9)
+        self.assertAlmostEqual(paesi["Taiwan"], 0.02, places=9)
+        self.assertAlmostEqual(paesi[al.RESTO_FONDO], 0.93, places=9)
+        self.assertAlmostEqual(sum(paesi.values()), 1.0, places=9)
+
+    def test_a_bare_numeric_symbol_is_not_guessed_as_the_united_states(self) -> None:
+        # Samsung e altre azioni asiatiche arrivano da Yahoo senza suffisso di
+        # borsa ma come codice numerico ("005935"): trattarlo come "nessun
+        # suffisso quindi Stati Uniti" darebbe un paese sbagliato invece di
+        # uno mancante.
+        holdings = [{"symbol": "005935", "name": "Samsung pref", "quota": 0.02}]
+        paesi = al.paesi_da_posizioni(holdings)
+        self.assertNotIn("Stati Uniti", paesi)
+        self.assertIn(al.NON_CLASSIFICATO, paesi)
+
+    def test_an_unmapped_suffix_lands_in_non_classificato(self) -> None:
+        holdings = [{"symbol": "XYZ.ZZ", "name": "?", "quota": 0.1}]
+        paesi = al.paesi_da_posizioni(holdings)
+        self.assertAlmostEqual(paesi[al.NON_CLASSIFICATO], 0.1, places=9)
+        self.assertAlmostEqual(paesi[al.RESTO_FONDO], 0.9, places=9)
+
+    def test_no_holdings_gives_an_empty_estimate(self) -> None:
+        self.assertEqual(al.paesi_da_posizioni([]), {})
+        self.assertEqual(al.paesi_da_posizioni(None), {})
+
+    def test_malformed_entries_are_skipped_not_raised(self) -> None:
+        holdings = [
+            {"symbol": "NVDA", "quota": "non un numero"}, {}, None,
+            {"symbol": "AAPL", "quota": 0.1},
+        ]
+        paesi = al.paesi_da_posizioni(holdings)
+        self.assertAlmostEqual(paesi["Stati Uniti"], 0.1, places=9)
+
+
 class RisolviTests(unittest.TestCase):
     def test_manual_choice_collapses_the_distribution(self) -> None:
         auto = {"Nord America": 0.6, "Europa": 0.4}
@@ -254,6 +346,14 @@ class VocabolarioTests(unittest.TestCase):
         ):
             for bucket in mappa.values():
                 self.assertIn(bucket, al.BUCKET[dimensione])
+
+    def test_yahoo_classi_map_only_points_at_known_buckets(self) -> None:
+        for bucket in al._YAHOO_CLASSI.values():
+            self.assertIn(bucket, al.BUCKET["classe"])
+
+    def test_suffisso_paese_map_only_points_at_known_countries(self) -> None:
+        for paese in al._SUFFISSO_PAESE.values():
+            self.assertIn(paese, al.PAESI)
 
     def test_name_patterns_only_point_at_known_buckets(self) -> None:
         for patterns, dimensione in (

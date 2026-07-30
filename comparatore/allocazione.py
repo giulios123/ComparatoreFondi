@@ -311,12 +311,20 @@ def _normalizza(quote: dict[str, float]) -> dict[str, float]:
 
 
 def _traduci(blocco, mappa: dict[str, str]) -> dict[str, float]:
-    """Da un blocco EODHD alla distribuzione sui bucket italiani."""
+    """Da un blocco EODHD o Yahoo alla distribuzione sui bucket italiani.
+
+    Yahoo (`funds_data`) usa chiavi `snake_case` ("consumer_cyclical"), EODHD
+    parole separate da spazio ("consumer cyclical"): normalizzando
+    l'underscore in spazio le due fonti condividono la stessa mappa dei
+    settori invece di doverne mantenere due. Nessuna chiave EODHD contiene un
+    underscore, quindi la normalizzazione non cambia nulla per quella fonte.
+    """
     if not isinstance(blocco, dict):
         return {}
     quote: dict[str, float] = {}
     for chiave, valore in blocco.items():
-        bucket = mappa.get(str(chiave).strip().lower(), NON_CLASSIFICATO)
+        chiave_norm = str(chiave).strip().lower().replace("_", " ")
+        bucket = mappa.get(chiave_norm, NON_CLASSIFICATO)
         quota = _numero(valore)
         if quota > 0:
             quote[bucket] = quote.get(bucket, 0.0) + quota
@@ -338,6 +346,142 @@ def classifica_da_eodhd(etf_data) -> dict[str, dict[str, float]]:
         "settore": _traduci(etf_data.get("Sector_Weights"), _EODHD_SETTORI),
     }
     return {d: q for d, q in trovate.items() if q}
+
+
+# Chiavi di `funds_data.asset_classes` di yfinance, gia' minuscole.
+# "otherposition" e' deliberatamente assente: non e' ne' azionario ne'
+# obbligazionario ne' liquidita', ed e' proprio il bucket che finisce al 100%
+# sui fondi che yfinance non sa scomporre (oro fisico, monetari) - vedi la
+# guardia in `classifica_da_yahoo`.
+_YAHOO_CLASSI = {
+    "stockposition": "Azionario",
+    "preferredposition": "Azionario",
+    "bondposition": "Obbligazionario",
+    "convertibleposition": "Obbligazionario",
+    "cashposition": "Liquidità",
+}
+
+
+def classifica_da_yahoo(
+    asset_classes: dict | None, sector_weightings: dict | None
+) -> dict[str, dict[str, float]]:
+    """Classificazione dal modulo `funds_data` di yfinance (senza chiave).
+
+    Stessa idea di `classifica_da_eodhd`: solo le dimensioni presenti, mai
+    inventate. Una guardia in piu' su `classe`, non necessaria per EODHD: qui
+    "otherPosition" (oro fisico, monetari - vedi `_YAHOO_CLASSI`) puo' arrivare
+    al 100%, e restituirlo come classe prevalente sovrascriverebbe una classe
+    corretta gia' dedotta dal nome, perche' `unisci` fa vincere la fonte non
+    vuota sul ripiego.
+    """
+    classe = _traduci(asset_classes, _YAHOO_CLASSI)
+    settore = _traduci(sector_weightings, _EODHD_SETTORI)
+    trovate: dict[str, dict[str, float]] = {}
+    if classe and etichetta_prevalente(classe) != NON_CLASSIFICATO:
+        trovate["classe"] = classe
+    if settore:
+        trovate["settore"] = settore
+    return trovate
+
+
+# --------------------------------------------------------------------------
+# Stima geografica dalle prime posizioni
+# --------------------------------------------------------------------------
+#
+# Fuori da `DIMENSIONI` di proposito: non e' correggibile a mano (il
+# vocabolario sarebbe una trentina di paesi, non le poche voci di una
+# tendina) e ha sempre un bucket residuo (RESTO_FONDO), che non avrebbe senso
+# in una tendina "scegli il paese esatto". Vive di fianco alle altre tre
+# dimensioni nella scheda Bilanciamento, non dentro `risolvi`/`OPZIONI`.
+
+DIMENSIONE_PAESE = "paese"
+
+PAESI = [
+    "Stati Uniti", "Taiwan", "Cina", "Giappone", "Corea del Sud", "India",
+    "Regno Unito", "Francia", "Germania", "Svizzera", "Italia", "Spagna",
+    "Paesi Bassi", "Canada", "Australia", "Hong Kong", "Brasile", "Messico",
+    "Danimarca", "Svezia", "Norvegia",
+]
+
+# Quota delle prime posizioni non coperta dalla stima: le prime 10 di un
+# fondo ampio (VWCE, EIMI...) coprono un quinto o un quarto del patrimonio, il
+# resto resta sconosciuto e va dichiarato come tale, non rinormalizzato sulle
+# sole 10 - altrimenti le percentuali sarebbero calcolate su un fondo piu'
+# piccolo di quello vero. Stesso principio di NON_CLASSIFICATO in `aggrega`.
+RESTO_FONDO = "Resto del fondo"
+
+# Suffisso di borsa Yahoo -> paese. Copre le piazze osservate nelle prime
+# posizioni degli ETF globali e dei mercati emergenti piu' comuni; un
+# suffisso assente da questa mappa finisce in NON_CLASSIFICATO, mai indovinato.
+_SUFFISSO_PAESE = {
+    "TW": "Taiwan",
+    "HK": "Hong Kong",
+    "KS": "Corea del Sud",
+    "NS": "India",
+    "BO": "India",
+    "L": "Regno Unito",
+    "SW": "Svizzera",
+    "AX": "Australia",
+    "AS": "Paesi Bassi",
+    "DE": "Germania",
+    "MC": "Spagna",
+    "PA": "Francia",
+    "MI": "Italia",
+    "T": "Giappone",
+    "TO": "Canada",
+    "SS": "Cina",
+    "SZ": "Cina",
+    "CO": "Danimarca",
+    "ST": "Svezia",
+    "OL": "Norvegia",
+    "SA": "Brasile",
+    "MX": "Messico",
+}
+
+
+def paesi_da_posizioni(holdings: list[dict] | None) -> dict[str, float]:
+    """Stima geografica dai simboli delle prime posizioni di un fondo.
+
+    E' una stima, non una ripartizione: copre solo le prime posizioni
+    restituite da `funds_data` (un quinto o un quarto del patrimonio sui fondi
+    ampi), il resto finisce dichiaratamente in `RESTO_FONDO` invece di essere
+    spalmato sulle altre voci o ignorato.
+
+    Un simbolo senza suffisso di borsa (`NVDA`, `AAPL`) e' Stati Uniti solo se
+    e' fatto di sole lettere: i codici numerici delle piazze asiatiche
+    (`005935` per una classe di Samsung, `00939` per una banca cinese, come
+    li restituisce Yahoo) non hanno suffisso ma non sono americani, e devono
+    finire in `NON_CLASSIFICATO` invece che erroneamente negli Stati Uniti.
+    """
+    if not holdings:
+        return {}
+
+    quote: dict[str, float] = {}
+    coperto = 0.0
+    for h in holdings:
+        try:
+            quota = float((h or {}).get("quota") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if quota <= 0:
+            continue
+        coperto += quota
+        symbol = str((h or {}).get("symbol") or "")
+        if "." in symbol:
+            suffisso = symbol.rsplit(".", 1)[1].upper()
+            paese = _SUFFISSO_PAESE.get(suffisso, NON_CLASSIFICATO)
+        elif symbol.isalpha():
+            paese = "Stati Uniti"
+        else:
+            paese = NON_CLASSIFICATO
+        quote[paese] = quote.get(paese, 0.0) + quota
+
+    if not quote:
+        return {}
+    resto = max(0.0, 1.0 - coperto)
+    if resto > 0:
+        quote[RESTO_FONDO] = quote.get(RESTO_FONDO, 0.0) + resto
+    return _normalizza(quote)
 
 
 # --------------------------------------------------------------------------

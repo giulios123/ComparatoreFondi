@@ -25,9 +25,10 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+from .. import allocazione
 from .base import Instrument, PriceSeries, is_isin
 from .csv_source import CsvSource
-from .eodhd import EodhdSource
+from .eodhd import EodhdSource, to_yahoo_symbol
 from .justetf import JustEtfSource
 from .twelvedata import TwelveDataSource
 from .yahoo import YahooSource
@@ -158,11 +159,36 @@ class Registry:
         if isin and not info.isin:
             info.isin = isin
 
-        # La classificazione (classe di attivo, area, settore) la espone solo
-        # EODHD, quindi la fonte si interroga anche quando il TER e' gia'
-        # arrivato da Yahoo. Senza chiave `available()` e' False e non parte
-        # nessuna chiamata.
-        if (info.ter is None or not info.allocation) and self.eodhd.available():
+        if not info.currency:
+            # Il simbolo puo' essere nel formato EODHD (`REET.US`,
+            # `VWCE.XETRA`): Yahoo non lo riconosce cosi' com'e' e restituisce
+            # un Instrument vuoto. Il suo equivalente Yahoo spesso esiste e
+            # porta con se' non solo la valuta ma anche nome, TER e
+            # composizione.
+            translated = to_yahoo_symbol(symbol)
+            if translated:
+                alt = self.yahoo.metadata(translated)
+                if alt is not None and alt.currency:
+                    info.currency = alt.currency
+                    if info.name == symbol:
+                        info.name = alt.name
+                    if info.ter is None:
+                        info.ter, info.ter_source = alt.ter, alt.ter_source
+                    if not info.quote_type:
+                        info.quote_type = alt.quote_type
+                    if not info.allocation and alt.allocation:
+                        info.allocation = alt.allocation
+                        info.allocation_source = alt.allocation_source
+                    if not info.holdings and alt.holdings:
+                        info.holdings = alt.holdings
+                        info.holdings_source = alt.holdings_source
+
+        # La ripartizione per area geografica la espone solo EODHD: la fonte
+        # si interroga anche quando TER e composizione sono gia' arrivati da
+        # Yahoo, se manca ancora quella dimensione. Senza chiave `available()`
+        # e' False e non parte nessuna chiamata.
+        manca_area = "area" not in (info.allocation or {})
+        if (info.ter is None or not info.allocation or manca_area) and self.eodhd.available():
             # Il simbolo di Yahoo non e' quello di EODHD (VWCE.DE contro
             # VWCE.XETRA): senza la traduzione la richiesta cadrebbe nel vuoto
             # proprio nei casi in cui la fonte servirebbe. La corrispondenza
@@ -172,9 +198,20 @@ class Registry:
             if richer is not None:
                 if info.ter is None and richer.ter is not None:
                     info.ter, info.ter_source = richer.ter, richer.ter_source
-                if not info.allocation and richer.allocation:
-                    info.allocation = richer.allocation
-                    info.allocation_source = richer.allocation_source
+                if richer.allocation:
+                    # EODHD vince per dimensione quando la copre (percentuali
+                    # vere), Yahoo colma quelle che EODHD non ha - tipicamente
+                    # `area`, che Yahoo non espone mai. Stessa combinazione
+                    # che `app.classifica()` fa poi col nome.
+                    fuso = allocazione.unisci(richer.allocation, info.allocation)
+                    if fuso != info.allocation:
+                        info.allocation = fuso
+                        if fuso == richer.allocation:
+                            info.allocation_source = richer.allocation_source
+            if not info.currency:
+                # Stesso ripiego di `EodhdSource.prices()`: `/fundamentals`
+                # puo' essere bloccato dal piano (403), `/search` no.
+                info.currency = self.eodhd.currency_from_search(eod_symbol)
         return info
 
     # ---------------------------------------------------------------- prezzi
@@ -216,6 +253,23 @@ class Registry:
                 res.attempts.append(Attempt(source.name, "ok"))
                 return res
             res.attempts.append(Attempt(source.name, "nessun dato"))
+
+            if source is self.yahoo:
+                # Un simbolo nel formato EODHD (`REET.US`, `VWCE.XETRA`) non
+                # esiste su Yahoo cosi' com'e': si ritenta col suo equivalente
+                # prima di passare a EODHD, che su un piano gratuito puo' dare
+                # i prezzi ma non la valuta ne' il TER.
+                translated = to_yahoo_symbol(symbol)
+                if translated:
+                    alt = self.yahoo.prices(translated, start, end, base_ccy, isin=isin)
+                    if alt is not None and not alt.empty:
+                        # Verso l'esterno resta il simbolo scelto dall'utente:
+                        # e' la chiave con cui il motore identifica la colonna.
+                        alt.symbol = symbol
+                        res.series = alt
+                        res.attempts.append(Attempt(f"yahoo→{translated}", "ok"))
+                        return res
+                    res.attempts.append(Attempt(f"yahoo→{translated}", "nessun dato"))
 
         return res
 

@@ -223,15 +223,16 @@ def metric_help(risk_free: float, initial_value: float, ccy: str) -> dict[str, s
 def classifica(nome: str, symbol: str, meta: dict) -> tuple[dict, str]:
     """Classificazione dello strumento e provenienza del dato.
 
-    Le due sorgenti si sommano invece di escludersi: EODHD non restituisce i
-    settori di un obbligazionario e le regioni di un monetario, e su quelle
-    dimensioni la deduzione dal nome resta meglio di un buco.
+    Le sorgenti si sommano invece di escludersi: ne' EODHD ne' Yahoo
+    restituiscono i settori di un obbligazionario o le regioni di un
+    monetario, e su quelle dimensioni la deduzione dal nome resta meglio di
+    un buco.
     """
     da_nome = al.classifica_da_nome(nome, symbol, meta.get("quote_type") or "")
     da_fonte = meta.get("allocation") or {}
     if not da_fonte:
         return da_nome, "nome"
-    return al.unisci(da_fonte, da_nome), meta.get("allocation_source") or "eodhd"
+    return al.unisci(da_fonte, da_nome), meta.get("allocation_source") or "nome"
 
 
 def assicura_alloc(fund: dict) -> dict:
@@ -245,6 +246,12 @@ def assicura_alloc(fund: dict) -> dict:
         fund["alloc_manuale"] = manuale
     for dimensione in al.DIMENSIONI:
         manuale.setdefault(dimensione, "")
+    # Fondi aggiunti prima delle prime posizioni: niente rete qui, solo la
+    # struttura minima perche' il resto della scheda non debba controllare
+    # ovunque se le chiavi esistono. La stima geografica resta vuota finche'
+    # il fondo non viene rimosso e riaggiunto.
+    fund.setdefault("holdings", [])
+    fund["alloc"].setdefault("paese", al.paesi_da_posizioni(fund["holdings"]))
     return fund
 
 
@@ -256,6 +263,11 @@ def add_fund(symbol: str, name: str, isin: str = ""):
     fund_name = meta.get("name") or name
     proxy = px.suggest_proxy(fund_name, symbol)
     alloc, alloc_fonte = classifica(fund_name, symbol, meta)
+    holdings = meta.get("holdings") or []
+    # Fuori da `classifica()`: il paese non e' una delle tre dimensioni
+    # corrette a mano (vedi `al.DIMENSIONE_PAESE`), e' solo una stima che
+    # vive nello stesso dizionario per comodita' di lettura.
+    alloc["paese"] = al.paesi_da_posizioni(holdings)
     st.session_state.selected.append({
         "symbol": symbol,
         "name": fund_name,
@@ -267,9 +279,10 @@ def add_fund(symbol: str, name: str, isin: str = ""):
         "extra": 0.0,
         "source": AUTO,
         "proxy": proxy.symbol if proxy else NO_PROXY,
-        "alloc": alloc,  # {dimensione: {bucket: quota}}, dedotta
-        "alloc_fonte": alloc_fonte,  # "eodhd" | "nome"
+        "alloc": alloc,  # {dimensione: {bucket: quota}}, dedotta + "paese" stimato
+        "alloc_fonte": alloc_fonte,  # "eodhd" | "yahoo" | "nome"
         "alloc_manuale": {d: "" for d in al.DIMENSIONI},  # "" = usa la dedotta
+        "holdings": holdings,  # prime posizioni: expander e stima del paese
     })
     equalize_weights()
     st.toast(f"Aggiunto {symbol}", icon="✅")
@@ -649,8 +662,15 @@ b3.metric("Totale pesi", f"{total_weight:.1f}%")
 missing_ter = [f["symbol"] for f in st.session_state.selected
                if f["ter"] == 0 and not f["ter_auto"]]
 if missing_ter:
+    eodhd_probe = Registry(eodhd_key=api_key("EODHD_API_KEY")).eodhd
+        motivo = (
+            "il piano EODHD configurato non include `/fundamentals` (serve un "
+            "piano a pagamento), quindi né TER né classificazione arrivano da lì. "
+        )
+    else:
+        motivo = "nessuna fonte configurata lo espone per questi strumenti. "
     b4.warning(
-        f"TER non trovato per: {', '.join(missing_ter)}. "
+        f"TER non trovato per: {', '.join(missing_ter)}. {motivo}"
         "Inseriscilo a mano dal KID per vedere l'impatto dei costi.",
         icon="ℹ️",
     )
@@ -711,8 +731,17 @@ if prices.empty:
     st.stop()
 
 if fx_res.failed:
+    causa = ""
+    if registry.eodhd.available() and registry.eodhd.fundamentals_blocked():
+        causa = (
+            " Il piano EODHD configurato non include `/fundamentals` (serve un "
+            "piano a pagamento): se questi fondi vengono da una ricerca EODHD, "
+            "verifica se esistono anche su Yahoo con un altro simbolo, oppure "
+            "carica una serie CSV indicando tu la valuta."
+        )
     st.error(
-        "Esclusi dal backtest (valuta non risolvibile): " + ", ".join(fx_res.failed),
+        f"Esclusi dal backtest (valuta non risolvibile): {', '.join(fx_res.failed)}."
+        + causa,
         icon="🚫",
     )
 if fx_res.converted:
@@ -888,12 +917,15 @@ def split_at(series: pd.Series, splice: pd.Timestamp | None):
 def ciambella(quote: dict[str, float]) -> go.Figure:
     """Ciambella di una ripartizione, dalla quota maggiore alla minore.
 
-    "Non classificato" e' sempre grigio e mai colorato con la palette: non e'
-    una categoria come le altre e non deve sembrarlo.
+    "Non classificato" e "Resto del fondo" sono sempre grigi e mai colorati
+    con la palette: non sono una categoria come le altre - il primo dice "non
+    so cosa sia", il secondo "non e' fra le prime posizioni lette" - e non
+    devono sembrarlo.
     """
     etichette = list(quote)
+    grigi = {al.NON_CLASSIFICATO, al.RESTO_FONDO}
     colori = [
-        "#9ca3af" if e == al.NON_CLASSIFICATO else PALETTE[i % len(PALETTE)]
+        "#9ca3af" if e in grigi else PALETTE[i % len(PALETTE)]
         for i, e in enumerate(etichette)
     ]
     fig = go.Figure(go.Pie(
@@ -1116,9 +1148,14 @@ with tab_bil:
     valute = {
         f["symbol"]: {f["currency"] or al.NON_CLASSIFICATO: 1.0} for f in fondi
     }
+    # Il paese e' fuori da `DIMENSIONI` (non e' correggibile a mano, vedi
+    # `al.paesi_da_posizioni`), quindi niente `risolvi`: si legge cosi' com'e'.
+    paesi = {f["symbol"]: f["alloc"].get("paese") or {} for f in fondi}
 
     with grafici:
         da_eodhd = sum(1 for f in fondi if f.get("alloc_fonte") == "eodhd")
+        da_yahoo = sum(1 for f in fondi if f.get("alloc_fonte") == "yahoo")
+        da_nome = len(fondi) - da_eodhd - da_yahoo
         corretti = sum(
             1 for f in fondi
             if any(f["alloc_manuale"].get(d) for d in al.DIMENSIONI)
@@ -1126,8 +1163,10 @@ with tab_bil:
         provenienza = []
         if da_eodhd:
             provenienza.append(f"**{da_eodhd}** da EODHD")
-        if len(fondi) - da_eodhd:
-            provenienza.append(f"**{len(fondi) - da_eodhd}** dedotti dal nome")
+        if da_yahoo:
+            provenienza.append(f"**{da_yahoo}** da Yahoo")
+        if da_nome:
+            provenienza.append(f"**{da_nome}** dedotti dal nome")
         if corretti:
             provenienza.append(f"**{corretti}** con correzioni manuali")
         st.caption("🏷️ Classificazione: " + ", ".join(provenienza) + ".")
@@ -1137,6 +1176,7 @@ with tab_bil:
             ("Area geografica", al.aggrega(pesi, effettive["area"])),
             ("Settore", al.aggrega(pesi, effettive["settore"])),
             ("Valuta di quotazione", al.aggrega(pesi, valute)),
+            ("Paesi (stima dalle prime posizioni)", al.aggrega(pesi, paesi)),
         ]
         for riga in range(0, len(ripartizioni), 2):
             colonne = st.columns(2)
@@ -1162,6 +1202,31 @@ with tab_bil:
             width="stretch",
         )
 
+    with st.expander("📌 Principali posizioni"):
+        st.caption(
+            "Le prime posizioni lette da Yahoo per ciascun fondo (ETF e fondi "
+            "comuni riconosciuti come tali): la base della stima geografica "
+            "qui sopra, utile anche per vedere le sovrapposizioni fra fondi "
+            "diversi."
+        )
+        righe_posizioni = [
+            {
+                "Fondo": f["name"],
+                "Titolo": h.get("name") or h.get("symbol") or "",
+                "Simbolo": h.get("symbol") or "",
+                "Peso nel fondo": f"{float(h.get('quota') or 0) * 100:.2f}%",
+            }
+            for f in fondi
+            for h in (f.get("holdings") or [])
+        ]
+        if righe_posizioni:
+            st.dataframe(pd.DataFrame(righe_posizioni), hide_index=True, width="stretch")
+        else:
+            st.caption(
+                "Nessuna posizione disponibile per i fondi in portafoglio: "
+                "servono dati di composizione da Yahoo, non sempre presenti."
+            )
+
     esclusi = [f["symbol"] for f in fondi if f["symbol"] not in prices.columns]
     if esclusi:
         st.caption(
@@ -1171,10 +1236,13 @@ with tab_bil:
 
     st.caption(
         "⚠️ La classificazione automatica è **indicativa** e va verificata sul "
-        "KID: senza chiave EODHD viene dedotta dal nome del fondo, che spesso "
-        "non basta. La **valuta** è quella di quotazione, non l'esposizione "
-        "valutaria: un ETF sul mercato mondiale quotato in euro resta esposto "
-        "al dollaro."
+        "KID: senza EODHD (a chiave) e senza dati di composizione da Yahoo "
+        "viene dedotta dal nome del fondo, che spesso non basta. La "
+        "ciambella **Paesi** è una stima sulle sole prime posizioni lette da "
+        "Yahoo (in genere un quinto o un quarto del fondo): la ripartizione "
+        "geografica completa richiede un piano EODHD a pagamento. La "
+        "**valuta** è quella di quotazione, non l'esposizione valutaria: un "
+        "ETF sul mercato mondiale quotato in euro resta esposto al dollaro."
     )
 
 with tab2:

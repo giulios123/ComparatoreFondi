@@ -93,7 +93,7 @@ Cinque schede sotto il grafico principale:
 | Scheda | Cosa mostra |
 |---|---|
 | 📊 Portafoglio | curva del capitale, netta e lorda (senza TER), composizione nel tempo |
-| ⚖️ Bilanciamento | ripartizione per classe di attivo, area, settore e valuta |
+| ⚖️ Bilanciamento | ripartizione per classe di attivo, area, settore, valuta e paesi (stima) |
 | 🆚 Confronto fondi | ogni fondo preso da solo, a parità di capitale investito |
 | 📉 Drawdown | perdita dal massimo storico, e rendimenti per anno solare |
 | 📋 Dati | tabella numerica scaricabile in CSV |
@@ -302,40 +302,64 @@ sottostimano rispetto alla realtà.
 ## Bilanciamento del portafoglio
 
 La scheda **⚖️ Bilanciamento** risponde a "come è ripartito quello che ho", non
-a "quanto avrei guadagnato": quattro ciambelle con la ripartizione per **classe
-di attivo**, **area geografica**, **settore** e **valuta di quotazione**,
-calcolate sui pesi impostati nella tabella di composizione.
+a "quanto avrei guadagnato": cinque ciambelle con la ripartizione per **classe
+di attivo**, **area geografica**, **settore**, **valuta di quotazione** e
+**paesi** (stima), calcolate sui pesi impostati nella tabella di composizione.
 
 ### Da dove viene la classificazione
 
 Nessuna fonte di prezzo dice che cosa sia uno strumento, quindi il dato viene
-ricostruito da due sorgenti, in quest'ordine:
+ricostruito da tre sorgenti, in quest'ordine:
 
 | Sorgente | Quando interviene | Che qualità ha |
 |---|---|---|
-| **EODHD** | se hai configurato la chiave | percentuali vere e granulari: un ETF mondiale risulta ripartito su più aree e più settori |
-| **nome del fondo** | sempre, per le dimensioni che EODHD non copre | un'etichetta sola per dimensione, dedotta da parole chiave ("Eurozone Government Bond" → obbligazionario, Europa) |
+| **EODHD** | se hai configurato la chiave (serve un piano che includa `/fundamentals`) | percentuali vere e granulari: un ETF mondiale risulta ripartito su più aree e più settori |
+| **Yahoo Finance** | sempre, su ETF e fondi comuni riconosciuti come tali, senza bisogno di chiave | classe di attivo e settori reali, più le prime 10 posizioni — ma mai l'area geografica, che Yahoo non espone |
+| **nome del fondo** | sempre, per le dimensioni che le due sopra non coprono | un'etichetta sola per dimensione, dedotta da parole chiave ("Eurozone Government Bond" → obbligazionario, Europa) |
 
-Le due si sommano invece di escludersi: EODHD non restituisce i settori di un
-obbligazionario, e su quelle dimensioni la deduzione dal nome resta meglio di un
+Le tre si sommano invece di escludersi: EODHD vince quando copre una
+dimensione, Yahoo colma quelle che EODHD non ha (tipicamente l'area), il nome
+completa quel che resta — un obbligazionario non ha settori da nessuna delle
+prime due, e su quella dimensione la deduzione dal nome resta meglio di un
 buco. La provenienza è dichiarata sopra i grafici.
+
+### Prime posizioni e stima per paese
+
+L'expander **📌 Principali posizioni** elenca, per ogni fondo che Yahoo
+riconosce come ETF o fondo comune, le sue prime 10 posizioni con il peso nel
+fondo — utile anche per vedere le sovrapposizioni fra fondi diversi (VWCE e un
+ETF tecnologico condividono spesso gli stessi titoli in testa).
+
+La ciambella **Paesi** nasce da quelle stesse posizioni: il suffisso di borsa
+del simbolo (`.TW` → Taiwan, `.HK` → Hong Kong, nessun suffisso alfabetico →
+Stati Uniti…) stima il paese di ciascuna. È dichiaratamente parziale — le
+prime 10 coprono di solito un quinto o un quarto del fondo — e la quota non
+coperta resta esplicita in **"Resto del fondo"**, in grigio come "Non
+classificato", invece di essere spalmata sulle altre voci o ignorata. Una
+ripartizione geografica completa richiede l'area di EODHD, cioè un piano a
+pagamento.
 
 ### Correggere a mano
 
-La tabella **Classificazione** sotto i grafici ha una tendina per dimensione.
-Il valore `(automatica)` conserva la classificazione dedotta, che può ripartirsi
-su più voci; scegliendo una voce esplicita le si attribuisce l'intero strumento.
-L'expander **🔍 Dettaglio per strumento** mostra la ripartizione effettiva riga
-per riga, comprese quelle su più voci.
+La tabella **Classificazione** sotto i grafici ha una tendina per dimensione
+(classe, area, settore — non il paese, che resta solo una stima e non è
+correggibile a mano). Il valore `(automatica)` conserva la classificazione
+dedotta, che può ripartirsi su più voci; scegliendo una voce esplicita le si
+attribuisce l'intero strumento. L'expander **🔍 Dettaglio per strumento**
+mostra la ripartizione effettiva riga per riga, comprese quelle su più voci.
 
 ### Limiti
 
 - La classificazione automatica è **indicativa**: va verificata sul KID. Senza
-  chiave EODHD si basa solo sul nome, che spesso non basta — uno strumento non
-  riconosciuto finisce in "Non classificato", visibile in grigio nel grafico
-  invece di sparire da un totale che non chiuderebbe.
+  EODHD (a chiave) e senza dati di composizione da Yahoo si basa solo sul
+  nome, che spesso non basta — uno strumento non riconosciuto finisce in "Non
+  classificato", visibile in grigio nel grafico invece di sparire da un totale
+  che non chiuderebbe.
 - La **valuta** è quella di quotazione, non l'esposizione valutaria: un ETF sul
   mercato mondiale quotato in euro resta esposto al dollaro.
+- La ripartizione per **paese** è una stima sulle sole prime posizioni, non una
+  ripartizione geografica vera: non confonderla con quella per **area**, che
+  quando arriva da EODHD copre l'intero fondo.
 - Il perimetro sono i fondi e gli ETF della tabella di composizione. I comparti
   COVIP della scheda 🏦 restano un confronto e non entrano nella ripartizione.
 - I pesi usati sono quelli **impostati**, normalizzati a 100% come nel backtest,
@@ -533,7 +557,7 @@ comparatore/
     openfigi.py            risoluzione ISIN -> ticker
     registry.py            priorità, ripiego, diagnostica
   fx.py                    cambi BCE con ripiego Yahoo
-  allocazione.py           classe di attivo, area e settore per il bilanciamento
+  allocazione.py           classe di attivo, area, settore e stima paesi per il bilanciamento
   cache.py                 cache parquet accumulativa
   keys.py                  chiavi API salvate dall'interfaccia
   proxies.py               estensione dello storico

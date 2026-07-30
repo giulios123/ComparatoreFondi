@@ -16,7 +16,7 @@ import datetime as dt
 import pandas as pd
 import yfinance as yf
 
-from .. import cache
+from .. import allocazione, cache
 from .base import Instrument, PriceSeries, naive_index
 
 # Tipi Yahoo che hanno senso in un comparatore di fondi.
@@ -39,6 +39,39 @@ def _extract_ter(info: dict) -> tuple[float | None, str]:
         return float(val) / 100.0, "netExpenseRatio"
 
     return None, ""
+
+
+def _fund_composition(ticker) -> tuple[dict[str, dict[str, float]], list[dict]]:
+    """Asset class, settori e prime posizioni dal modulo `funds_data`.
+
+    E' l'unica composizione reale disponibile senza chiave: niente paesi ne'
+    ripartizione geografica vera, ma settori e prime posizioni bastano a
+    `allocazione.paesi_da_posizioni` per una stima. Una richiesta di rete in
+    piu' rispetto a `info` - accettabile perche' chiamata solo da
+    `cached_metadata` (un'ora di cache), non a ogni rerun.
+    """
+    try:
+        fd = ticker.funds_data
+        asset_classes = fd.asset_classes or {}
+        sector_weightings = fd.sector_weightings or {}
+        top_holdings = fd.top_holdings
+    except Exception:
+        return {}, []
+
+    alloc = allocazione.classifica_da_yahoo(asset_classes, sector_weightings)
+
+    holdings: list[dict] = []
+    if top_holdings is not None and not top_holdings.empty:
+        for sym, row in top_holdings.iterrows():
+            try:
+                quota = float(row.get("Holding Percent"))
+            except (TypeError, ValueError):
+                continue
+            if quota > 0:
+                holdings.append(
+                    {"symbol": str(sym), "name": str(row.get("Name") or sym), "quota": quota}
+                )
+    return alloc, holdings
 
 
 class YahooSource:
@@ -98,7 +131,7 @@ class YahooSource:
     # --------------------------------------------------------------- metadati
 
     def metadata(self, symbol: str) -> Instrument | None:
-        """Nome, valuta e TER (per quanto possibile) di un simbolo."""
+        """Nome, valuta, TER e composizione (per quanto possibile) di un simbolo."""
         ticker = yf.Ticker(symbol)
         try:
             info = ticker.info or {}
@@ -108,6 +141,7 @@ class YahooSource:
         ter, source = _extract_ter(info)
         name = info.get("longName") or info.get("shortName") or symbol
         currency = info.get("currency") or ""
+        quote_type = (info.get("quoteType") or "").upper()
 
         if not currency:
             # `info` puo' tornare vuoto sulle quotazioni sottili; i metadati di
@@ -118,15 +152,27 @@ class YahooSource:
             except Exception:
                 currency = ""
 
+        allocation: dict[str, dict[str, float]] = {}
+        holdings: list[dict] = []
+        if quote_type in FUND_TYPES:
+            # Solo su ETF/fondi: sui titoli singoli l'endpoint di `funds_data`
+            # risponde 404, e sarebbe una richiesta di rete sprecata a ogni
+            # aggiunta.
+            allocation, holdings = _fund_composition(ticker)
+
         return Instrument(
             symbol=symbol,
             name=name,
-            quote_type=(info.get("quoteType") or "").upper(),
+            quote_type=quote_type,
             exchange=info.get("fullExchangeName") or "",
             # Il maiuscolo/minuscolo conta: Londra e' quotata in "GBp" (penny).
             currency=currency,
             ter=ter,
             ter_source=source,
+            allocation=allocation,
+            allocation_source="yahoo" if allocation else "",
+            holdings=holdings,
+            holdings_source="yahoo" if holdings else "",
         )
 
     # ---------------------------------------------------------------- prezzi
