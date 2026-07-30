@@ -62,7 +62,7 @@ def save(values: dict[str, str | bool]) -> None:
             v = values.get(k)
             if isinstance(v, bool):
                 cleaned[k] = v
-        path.write_text(json.dumps(cleaned))
+        path.write_text(json.dumps(cleaned), encoding="utf-8")
     except Exception:
         # Disco pieno o di sola lettura: la preferenza resta valida solo per
         # questa sessione, ma l'app non deve interrompersi per questo.
