@@ -29,7 +29,19 @@ def testo_notices() -> str | None:
 def manifest() -> list[dict[str, str]]:
     """Elenco {name, version, license, url} per la tabella riassuntiva, o [] se assente."""
     try:
-        data = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+        raw = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     except Exception:
         return []
-    return data if isinstance(data, list) else []
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, str]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "") or "").strip()
+        version = str(item.get("version", "") or "").strip()
+        license_name = str(item.get("license", "") or "").strip()
+        url = str(item.get("url", "") or "").strip()
+        if name and version and license_name:
+            out.append({"name": name, "version": version, "license": license_name, "url": url})
+    return out
