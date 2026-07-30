@@ -531,6 +531,7 @@ with st.sidebar:
         importato = st.file_uploader(
             t("portfolio_io.upload_label"), type=["json"], key="portfolio_upload",
         )
+        portfolio_export = st.empty()
         # `file_uploader` restituisce lo stesso file a ogni rerun finche' resta
         # caricato: senza questo controllo l'import (o l'errore) si ripeterebbe
         # a ogni singolo rerun, non solo quando l'utente carica qualcosa di nuovo.
@@ -622,6 +623,8 @@ with st.expander(t("search.expander"), expanded=not st.session_state.selected):
 st.subheader(t("portfolio.subheader"))
 
 if not st.session_state.selected:
+    with portfolio_export:
+        st.caption(t("portfolio_io.download_empty_hint"))
     st.info(t("portfolio.empty_hint"))
     st.stop()
 
@@ -712,6 +715,24 @@ if len(survivors) != len(st.session_state.selected):
     st.session_state.selected = survivors
     st.toast(t("toast.fund_removed", elenco=", ".join(removed)), icon="🗑️")
     st.rerun()
+
+parametri_correnti = {
+    "start_date": st.session_state.start_date.isoformat(),
+    "end_date": st.session_state.end_date.isoformat(),
+    "initial_value": st.session_state.initial_value,
+    "base_ccy": st.session_state.base_ccy,
+    "rebalance": st.session_state.rebalance,
+    "show_gross": st.session_state.show_gross,
+    "extend_history": st.session_state.extend_history,
+    "risk_free": st.session_state.risk_free,
+}
+payload = portfolio_io.dump(st.session_state.selected, parametri_correnti)
+with portfolio_export:
+    st.download_button(
+        t("portfolio_io.download_button"), payload.encode("utf-8"),
+        file_name=f"portafoglio_{dt.date.today().isoformat()}.json",
+        mime="application/json",
+    )
 
 total_weight = sum(f["weight"] for f in st.session_state.selected)
 
@@ -1438,31 +1459,6 @@ with tab4:
         file_name=f"backtest_{res.start.date()}_{res.end.date()}.csv",
         mime="text/csv",
     )
-
-    st.divider()
-    # Il pulsante sta qui e non in barra laterale: la barra laterale viene
-    # disegnata *prima* della riscrittura dell'editor di composizione qui
-    # sopra, quindi un download li' rifletterebbe lo stato di un run fa. Qui
-    # `st.session_state.selected` e' gia' quello di questo run.
-    if st.session_state.selected:
-        parametri_correnti = {
-            "start_date": st.session_state.start_date.isoformat(),
-            "end_date": st.session_state.end_date.isoformat(),
-            "initial_value": st.session_state.initial_value,
-            "base_ccy": st.session_state.base_ccy,
-            "rebalance": st.session_state.rebalance,
-            "show_gross": st.session_state.show_gross,
-            "extend_history": st.session_state.extend_history,
-            "risk_free": st.session_state.risk_free,
-        }
-        payload = portfolio_io.dump(st.session_state.selected, parametri_correnti)
-        st.download_button(
-            t("portfolio_io.download_button"), payload.encode("utf-8"),
-            file_name=f"portafoglio_{dt.date.today().isoformat()}.json",
-            mime="application/json",
-        )
-    else:
-        st.caption(t("portfolio_io.download_empty_hint"))
 
 with tab5:
     anno_rif = covip.anno_riferimento()

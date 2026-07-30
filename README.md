@@ -178,13 +178,14 @@ generato da `scripts/generate_third_party_notices.py`).
 
 ### Salvare e riaprire un portafoglio
 
-L'expander **💼 Portafoglio: salva e carica** in barra laterale importa un
-file `.json` esportato in precedenza (fondi, pesi, costi, fonte e proxy per
-ognuno). Il download del portafoglio corrente è nella scheda **Dati**, accanto
-al CSV del backtest, con i parametri usati (periodo, valuta, capitale
-iniziale, ribilanciamento, storico esteso, tasso risk-free): riaprendolo si
-ottiene lo stesso backtest, indipendentemente dalla lingua dell'interfaccia in
-cui è stato esportato o viene importato.
+L'expander **💼 Portafoglio: salva e carica** in barra laterale permette sia di
+importare sia di scaricare un file `.json` con fondi, pesi, costi, fonte e
+proxy, oltre ai parametri usati (periodo, valuta, capitale iniziale,
+ribilanciamento, storico esteso, tasso risk-free). Il download resta
+disponibile anche quando il backtest non può essere eseguito: riaprendo il
+file si ottiene lo stesso portafoglio, indipendentemente dalla lingua
+dell'interfaccia in cui è stato esportato o viene importato. Il CSV nella
+scheda **Dati** esporta invece soltanto le serie dei risultati del backtest.
 
 ### Come configurare una chiave API (EODHD / Twelve Data)
 
