@@ -10,6 +10,7 @@ import sysconfig
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = PROJECT_ROOT / "THIRD_PARTY_NOTICES.txt"
+MANIFEST = PROJECT_ROOT / "THIRD_PARTY_LICENSES.json"
 
 ALLOWED_LICENSES = {
     "3-Clause BSD License",
@@ -125,6 +126,21 @@ def render(packages: list[dict[str, str]]) -> str:
     return "\n".join(parts) + "\n"
 
 
+def render_manifest(packages: list[dict[str, str]]) -> str:
+    """Manifest compatto per la tabella nell'interfaccia: niente testo di
+    licenza, solo cio' che serve a mostrare pacchetto -> licenza -> URL."""
+    manifest = [
+        {
+            "name": package["Name"],
+            "version": package["Version"],
+            "license": package["License"],
+            "url": package.get("URL") or "",
+        }
+        for package in packages
+    ]
+    return json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -136,7 +152,8 @@ def main() -> None:
     audit(packages)
     if not args.check:
         OUTPUT.write_text(render(packages), encoding="utf-8")
-        print(f"Wrote {OUTPUT} ({len(packages)} packages)")
+        MANIFEST.write_text(render_manifest(packages), encoding="utf-8")
+        print(f"Wrote {OUTPUT} and {MANIFEST} ({len(packages)} packages)")
     else:
         print(f"License audit passed ({len(packages)} packages)")
 

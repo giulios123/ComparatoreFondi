@@ -100,17 +100,24 @@ def calendar_year_returns(curve: pd.Series) -> pd.Series:
 
 
 def summarize(curve: pd.Series, risk_free: float = 0.0) -> dict:
-    """Full metric set for one equity curve."""
+    """Full metric set for one equity curve.
+
+    Keys are stable English identifiers: they become DataFrame column names
+    and lookup keys into the UI's translated labels/help text, so renaming
+    them would ripple into every caller and any exported file that embeds
+    them (see `comparatore.portfolio_io`, which does not - these values are
+    computed fresh each run, never persisted).
+    """
     best, worst = best_worst_year(curve)
     return {
-        "Valore finale": curve.iloc[-1],
-        "Rendimento totale": total_return(curve),
-        "CAGR": cagr(curve),
-        "Volatilita": volatility(curve),
-        "Sharpe": sharpe(curve, risk_free),
-        "Sortino": sortino(curve, risk_free),
-        "Max drawdown": max_drawdown(curve),
-        "Calmar": calmar(curve),
-        "Miglior anno": best,
-        "Peggior anno": worst,
+        "final_value": curve.iloc[-1],
+        "total_return": total_return(curve),
+        "cagr": cagr(curve),
+        "volatility": volatility(curve),
+        "sharpe": sharpe(curve, risk_free),
+        "sortino": sortino(curve, risk_free),
+        "max_drawdown": max_drawdown(curve),
+        "calmar": calmar(curve),
+        "best_year": best,
+        "worst_year": worst,
     }
