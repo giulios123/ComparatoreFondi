@@ -662,8 +662,7 @@ b3.metric("Totale pesi", f"{total_weight:.1f}%")
 missing_ter = [f["symbol"] for f in st.session_state.selected
                if f["ter"] == 0 and not f["ter_auto"]]
 if missing_ter:
-    eodhd_probe = build_registry().eodhd
-    if eodhd_probe.available() and eodhd_probe.fundamentals_blocked():
+    eodhd_probe = Registry(eodhd_key=api_key("EODHD_API_KEY")).eodhd
         motivo = (
             "il piano EODHD configurato non include `/fundamentals` (serve un "
             "piano a pagamento), quindi né TER né classificazione arrivano da lì. "
