@@ -30,7 +30,7 @@ def load() -> dict[str, str]:
     if not path.exists():
         return {}
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
     if not isinstance(data, dict):
