@@ -66,8 +66,6 @@ class TestSintassiApp(unittest.TestCase):
         self.assertTrue(dump_calls)
         self.assertTrue(backtest_calls)
         self.assertLess(min(dump_calls), min(backtest_calls))
-            sorgente.index("if not st.session_state.selected:"),
-        )
         self.assertLess(
             sorgente.index("payload = portfolio_io.dump("),
             sorgente.index("res = run_backtest("),
