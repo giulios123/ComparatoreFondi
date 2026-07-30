@@ -3,7 +3,7 @@ import unittest
 
 import pandas as pd
 
-from comparatore.sources.base import PriceSeries
+from comparatore.sources.base import Instrument, PriceSeries
 from comparatore.sources.registry import Registry
 
 
@@ -19,6 +19,24 @@ class _Source:
     def prices(self, *args, **kwargs) -> PriceSeries | None:
         self.calls += 1
         return self.result
+
+
+class _MetadataSource:
+    def __init__(self, meta: Instrument | None = None) -> None:
+        self.meta = meta
+        self.name = "stub"
+
+    def available(self) -> bool:
+        return self.meta is not None
+
+    def metadata(self, *args, **kwargs) -> Instrument | None:
+        return self.meta
+
+    def resolve_symbol(self, symbol: str, isin: str = "") -> str:
+        return symbol
+
+    def currency_from_search(self, symbol: str) -> str:
+        return ""
 
 
 def _series(source: str) -> PriceSeries:
@@ -74,6 +92,44 @@ class RegistryJustEtfTests(unittest.TestCase):
 
         self.assertEqual(result.series.source, "justetf")
         self.assertEqual(registry.justetf.calls, 1)
+
+
+class RegistryMetadataTests(unittest.TestCase):
+    def test_mixed_allocation_keeps_the_original_source_label(self) -> None:
+        registry = Registry()
+        registry.yahoo = _MetadataSource(
+            Instrument(
+                symbol="TEST",
+                name="Test Fund",
+                quote_type="ETF",
+                allocation={
+                    "classe": {"Azionario": 1.0},
+                    "settore": {"Tecnologia": 1.0},
+                },
+                allocation_source="yahoo",
+            )
+        )
+        registry.eodhd = _MetadataSource(
+            Instrument(
+                symbol="TEST",
+                name="Test Fund",
+                quote_type="ETF",
+                allocation={"area": {"Globale": 1.0}},
+                allocation_source="eodhd",
+            )
+        )
+
+        info = registry.metadata("TEST")
+
+        self.assertEqual(
+            info.allocation,
+            {
+                "classe": {"Azionario": 1.0},
+                "settore": {"Tecnologia": 1.0},
+                "area": {"Globale": 1.0},
+            },
+        )
+        self.assertEqual(info.allocation_source, "yahoo")
 
 
 if __name__ == "__main__":

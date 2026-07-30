@@ -206,7 +206,8 @@ class Registry:
                     fuso = allocazione.unisci(richer.allocation, info.allocation)
                     if fuso != info.allocation:
                         info.allocation = fuso
-                        info.allocation_source = richer.allocation_source
+                        if fuso == richer.allocation:
+                            info.allocation_source = richer.allocation_source
             if not info.currency:
                 # Stesso ripiego di `EodhdSource.prices()`: `/fundamentals`
                 # puo' essere bloccato dal piano (403), `/search` no.
