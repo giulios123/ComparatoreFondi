@@ -16,6 +16,9 @@ wheels/
 .streamlit/secrets.toml
 .streamlit/api_keys.json
 
+# Preferenze locali (lingua)
+.streamlit/prefs.json
+
 # Local machine settings
 .claude/settings.local.json
 .DS_Store

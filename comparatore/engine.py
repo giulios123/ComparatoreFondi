@@ -205,12 +205,17 @@ def run_backtest(
 
 def coverage_warnings(
     prices: pd.DataFrame, requested_start: dt.date
-) -> list[str]:
-    """Flag funds whose history starts after the requested window."""
-    msgs = []
+) -> list[tuple[str, dt.date]]:
+    """Funds whose history starts after the requested window: (symbol, first date).
+
+    Returns raw data, not a formatted message: the message is user-facing
+    text and belongs in the UI layer, which localizes it (see
+    `comparatore.i18n`).
+    """
+    out = []
     req = pd.Timestamp(requested_start)
     for col in prices.columns:
         first = prices[col].first_valid_index()
         if first is not None and first > req + pd.Timedelta(days=7):
-            msgs.append(f"{col}: dati disponibili solo dal {first.date()}")
-    return msgs
+            out.append((col, first.date()))
+    return out

@@ -39,7 +39,7 @@ AUTO = "auto"
 @dataclass
 class Attempt:
     source: str
-    outcome: str  # "ok" | "nessun dato" | "non configurata" | "serve l'ISIN"
+    outcome: str  # "ok" | "no_data" | "not_configured" | "isin_required" - vedi comparatore.i18n.etichetta_esito
 
 
 @dataclass
@@ -109,24 +109,25 @@ class Registry:
         found: list[Instrument] = []
         seen: set[str] = set()
 
-        def _add(items: list[Instrument]) -> None:
+        def _add(items: list[Instrument], source_name: str) -> None:
             for item in items:
                 if item.symbol.upper() in seen:
                     continue
                 seen.add(item.symbol.upper())
+                item.source = item.source or source_name
                 found.append(item)
 
-        _add(self.yahoo.search(query, limit, funds_only))
+        _add(self.yahoo.search(query, limit, funds_only), self.yahoo.name)
 
         if is_isin(query):
             isin = query.upper()
             for item in found:
                 item.isin = item.isin or isin
-            _add(self._from_isin(isin, seen))
+            _add(self._from_isin(isin, seen), "openfigi")
 
         for source in (self.eodhd, self.twelvedata):
             if source.available() and len(found) < limit:
-                _add(source.search(query, limit - len(found), funds_only))
+                _add(source.search(query, limit - len(found), funds_only), source.name)
 
         return found[:limit]
 
@@ -143,7 +144,7 @@ class Registry:
                     symbol=symbol,
                     name=f"{isin} · {symbol}",
                     quote_type="ETF",
-                    exchange="da ISIN",
+                    exchange="",
                     isin=isin,
                 )
             )
@@ -241,10 +242,10 @@ class Registry:
             if source is None:
                 continue
             if not source.available():
-                res.attempts.append(Attempt(source.name, "non configurata"))
+                res.attempts.append(Attempt(source.name, "not_configured"))
                 continue
             if source is self.justetf and not is_isin(isin or symbol):
-                res.attempts.append(Attempt(source.name, "serve l'ISIN"))
+                res.attempts.append(Attempt(source.name, "isin_required"))
                 continue
 
             series = source.prices(symbol, start, end, base_ccy, isin=isin)
@@ -252,7 +253,7 @@ class Registry:
                 res.series = series
                 res.attempts.append(Attempt(source.name, "ok"))
                 return res
-            res.attempts.append(Attempt(source.name, "nessun dato"))
+            res.attempts.append(Attempt(source.name, "no_data"))
 
             if source is self.yahoo:
                 # Un simbolo nel formato EODHD (`REET.US`, `VWCE.XETRA`) non
@@ -269,7 +270,7 @@ class Registry:
                         res.series = alt
                         res.attempts.append(Attempt(f"yahoo→{translated}", "ok"))
                         return res
-                    res.attempts.append(Attempt(f"yahoo→{translated}", "nessun dato"))
+                    res.attempts.append(Attempt(f"yahoo→{translated}", "no_data"))
 
         return res
 

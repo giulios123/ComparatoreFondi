@@ -36,6 +36,11 @@ uv run streamlit run app.py
 Si apre automaticamente il browser su <http://localhost:8501>. Per fermarla,
 `Ctrl+C` nel terminale.
 
+L'interfaccia è disponibile in **italiano, inglese, francese e tedesco**: alla
+prima apertura viene scelta in base alla lingua del browser (o del sistema
+operativo nell'app desktop), ed è sempre cambiabile dal selettore in cima alla
+barra laterale. La scelta viene ricordata fra un avvio e l'altro.
+
 ### 3. Aggiungere un fondo
 
 1. Apri il pannello **🔎 Cerca fondi ed ETF** in cima alla pagina.
@@ -165,6 +170,21 @@ caso d'uso:
 Pubblicare, ospitare o monetizzare un'istanza multiutente può quindi richiedere
 piani commerciali o autorizzazioni separate, anche se il codice resta open
 source.
+
+L'expander **ℹ️ Informazioni e licenze** in barra laterale mostra la licenza
+del progetto, una tabella di tutte le librerie di terze parti con la loro
+licenza, e il link per scaricare il testo completo (`THIRD_PARTY_NOTICES.txt`,
+generato da `scripts/generate_third_party_notices.py`).
+
+### Salvare e riaprire un portafoglio
+
+L'expander **💼 Portafoglio: salva e carica** in barra laterale importa un
+file `.json` esportato in precedenza (fondi, pesi, costi, fonte e proxy per
+ognuno). Il download del portafoglio corrente è nella scheda **Dati**, accanto
+al CSV del backtest, con i parametri usati (periodo, valuta, capitale
+iniziale, ribilanciamento, storico esteso, tasso risk-free): riaprendolo si
+ottiene lo stesso backtest, indipendentemente dalla lingua dell'interfaccia in
+cui è stato esportato o viene importato.
 
 ### Come configurare una chiave API (EODHD / Twelve Data)
 
@@ -546,6 +566,7 @@ app.py                    interfaccia Streamlit
   config.toml              barra Streamlit senza Deploy/Rerun (committato)
   secrets.toml             chiavi API, alternativa al pannello (gitignored)
   api_keys.json            chiavi API salvate dal pannello (gitignored)
+  prefs.json               preferenze di interfaccia, es. lingua (gitignored)
 comparatore/
   sources/
     base.py               interfaccia comune alle fonti
@@ -556,6 +577,12 @@ comparatore/
     csv_source.py          serie caricate dall'utente
     openfigi.py            risoluzione ISIN -> ticker
     registry.py            priorità, ripiego, diagnostica
+  locales/
+    it.py, en.py, fr.py, de.py   cataloghi di traduzione (it è il riferimento)
+  i18n.py                  rilevamento lingua, traduzione, etichette di dominio
+  prefs.py                 preferenze salvate dall'interfaccia (lingua)
+  licenses.py              accesso a LICENSE / THIRD_PARTY_NOTICES.txt
+  portfolio_io.py          export/import di un portafoglio in JSON
   fx.py                    cambi BCE con ripiego Yahoo
   allocazione.py           classe di attivo, area, settore e stima paesi per il bilanciamento
   cache.py                 cache parquet accumulativa

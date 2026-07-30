@@ -45,6 +45,7 @@ datas = [
     (str(PROJECT_ROOT / "app.py"), "."),
     (str(PROJECT_ROOT / "LICENSE"), "."),
     (str(PROJECT_ROOT / "THIRD_PARTY_NOTICES.txt"), "."),
+    (str(PROJECT_ROOT / "THIRD_PARTY_LICENSES.json"), "."),
     (str(PROJECT_ROOT / ".streamlit" / "config.toml"), ".streamlit"),
 ]
 binaries = []
