@@ -100,20 +100,24 @@ _applica_pending()
 # `set_page_config` perche' il titolo della pagina e' traducibile; leggere
 # `st.context` non accoda nulla, quindi e' lecito farlo qui.
 if "lang" not in st.session_state:
-    try:
-        _browser_locale = st.context.locale or ""
-    except Exception:
-        _browser_locale = ""
-    try:
-        _headers = st.context.headers
-        _accept_language = _headers.get("Accept-Language", "") if _headers else ""
-    except Exception:
-        _accept_language = ""
-    st.session_state.lang = i18n.rileva(
-        browser_locale=_browser_locale,
-        accept_language=_accept_language,
-        locale_sistema=i18n.locale_di_sistema(),
-    )
+    pref = prefs.load().get("lingua", "")
+    if pref in i18n.LINGUE:
+        st.session_state.lang = pref
+    else:
+        try:
+            _browser_locale = st.context.locale or ""
+        except Exception:
+            _browser_locale = ""
+        try:
+            _headers = st.context.headers
+            _accept_language = _headers.get("Accept-Language", "") if _headers else ""
+        except Exception:
+            _accept_language = ""
+        st.session_state.lang = i18n.rileva(
+            browser_locale=_browser_locale,
+            accept_language=_accept_language,
+            locale_sistema=i18n.locale_di_sistema(),
+        )
 
 LINGUA = st.session_state.lang
 
