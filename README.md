@@ -53,8 +53,16 @@ barra laterale. La scelta viene ricordata fra un avvio e l'altro.
 Il fondo compare nella tabella **Composizione del portafoglio**, dove puoi
 modificare:
 
-- **Peso %** — quota del capitale assegnata (il pulsante **⚖️ Pesi uguali** li
-  ridistribuisce in automatico);
+- **Peso %** — quota del capitale assegnata. I pesi sommano *sempre* a 100%:
+  modificandone uno, gli altri si adeguano da soli in proporzione fra loro
+  (il pulsante **⚖️ Pesi uguali** azzera invece tutto a una ripartizione
+  paritaria);
+- **Importo** — lo stesso peso espresso in euro (o nella valuta di
+  riferimento scelta in barra laterale). Modificarlo aggiorna sia i pesi sia
+  il **valore iniziale del portafoglio**: ad esempio, con due fondi al 50% su
+  10.000€, portare il primo importo a 2.000€ dà pesi 22%/78% e un capitale
+  totale di 7.000€, con pesi 28,57%/71,43% — il secondo fondo resta a 5.000€
+  investiti;
 - **TER %** — precompilato quando la fonte lo espone, ma verifica sempre sul
   KID del fondo e correggilo se serve;
 - **Costi extra %** — per costi non già inclusi nel NAV (custodia, consulenza);
@@ -66,8 +74,11 @@ modificare:
 
 ### 4. Rimuovere un fondo
 
-Ogni riga della tabella ha un'icona 🗑️ a sinistra: clicca e conferma per
-toglierla. **🗑️ Svuota**, sotto la tabella, azzera tutto il portafoglio.
+Ogni riga della tabella ha un pulsante **🗑️** nella prima colonna: un clic
+toglie il fondo, nessuna conferma. Il capitale resta investito — i pesi dei
+fondi rimasti si ridistribuiscono mantenendo le loro proporzioni reciproche,
+mentre il valore iniziale del portafoglio non cambia. **🗑️ Svuota**, sotto la
+tabella, azzera invece tutto il portafoglio.
 
 ### 5. Impostare periodo, valuta e capitale
 
@@ -75,7 +86,9 @@ Tutto nella barra laterale a sinistra:
 
 - **Periodo**: pulsanti rapidi `1a · 5a · 10a · 20a · Max`, oppure le due date
   a mano.
-- **Valore iniziale del portafoglio** e **Valuta di riferimento**.
+- **Valore iniziale del portafoglio** e **Valuta di riferimento**: cambiare il
+  capitale qui riscala tutti gli importi per fondo mantenendo i pesi
+  invariati (è l'operazione inversa a quella descritta al punto 3).
 - **Ribilanciamento**: nessuno (buy & hold), mensile, trimestrale, annuale —
   vedi il tooltip ⓘ accanto al menu per la spiegazione completa. In breve:
   senza ribilanciamento i pesi impostati sono solo il punto di partenza e

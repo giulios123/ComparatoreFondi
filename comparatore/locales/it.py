@@ -203,20 +203,33 @@ MESSAGGI: dict[str, str] = {
     "portfolio.subheader": "Composizione del portafoglio",
     "portfolio.empty_hint": "Cerca e aggiungi almeno un fondo per iniziare.",
 
+    "editor.col_rimuovi": "Rimuovi",
     "editor.col_fondo": "Fondo",
     "editor.col_simbolo": "Simbolo",
     "editor.col_isin": "ISIN",
     "editor.col_valuta": "Valuta",
     "editor.col_peso": "Peso %",
+    "editor.col_importo": "Importo ({ccy})",
     "editor.col_ter": "TER %",
     "editor.col_extra": "Costi extra %",
     "editor.col_fonte": "Fonte",
     "editor.col_proxy": "Proxy storico",
+    "editor.rimuovi_help": (
+        "Toglie il fondo dal portafoglio e ridistribuisce il suo peso sugli altri, "
+        "mantenendone le proporzioni."
+    ),
     "editor.isin_help": (
         "Serve per usare justETF quando la fonte è abilitata o "
         "selezionata esplicitamente sul fondo."
     ),
-    "editor.peso_help": "Quota del portafoglio assegnata al fondo.",
+    "editor.peso_help": (
+        "Quota del portafoglio assegnata al fondo. Modificandola, gli altri pesi "
+        "si adeguano da soli in proporzione fra loro, così il totale resta 100%."
+    ),
+    "editor.importo_help": (
+        "Capitale assegnato al fondo in questa valuta. Modificandolo si aggiornano "
+        "i pesi e il valore iniziale del portafoglio."
+    ),
     "editor.ter_help": (
         "Spesa corrente annua. Precompilato quando la fonte lo espone: "
         "verifica sempre sul KID del fondo."
@@ -233,6 +246,7 @@ MESSAGGI: dict[str, str] = {
     "editor.equalize_button": "⚖️ Pesi uguali",
     "editor.clear_button": "🗑️ Svuota",
     "editor.total_weight_metric": "Totale pesi",
+    "editor.total_value_metric": "Capitale investito",
 
     # --- Avvisi su TER, pesi, date -------------------------------------------------
     "ter_warning.reason_eodhd_blocked": (
@@ -246,6 +260,7 @@ MESSAGGI: dict[str, str] = {
     ),
     "weight.error_zero": "Assegna almeno un peso maggiore di zero.",
     "weight.warning_normalized": "I pesi sommano a {tot:.1f}%: verranno normalizzati a 100%.",
+    "weight.error_importo_min": "Il capitale totale del portafoglio non può scendere sotto {minimo}.",
     "dates.error_order": "La data di inizio deve precedere la data di fine.",
 
     # --- Recupero prezzi -----------------------------------------------------------

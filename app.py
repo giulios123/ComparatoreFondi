@@ -18,6 +18,7 @@ from comparatore import i18n
 from comparatore import keys as api_keys_store
 from comparatore import licenses
 from comparatore import metrics as mt
+from comparatore import pesi
 from comparatore import portfolio_io
 from comparatore import prefs
 from comparatore import proxies as px
@@ -76,6 +77,12 @@ if "_pending_state" not in st.session_state:
     st.session_state._pending_state = {}
 if "_import_visto" not in st.session_state:
     st.session_state._import_visto = None  # file_id dell'ultimo portafoglio importato
+if "composizione_rev" not in st.session_state:
+    # Incrementato ad ogni riscrittura *programmatica* di pesi/importi (non
+    # dall'utente): forza il data_editor a rigenerare la chiave, cosi'
+    # Streamlit non riapplica un buffer di modifiche ormai superato (vedi
+    # commento sulla chiave dell'editor di composizione, piu' sotto).
+    st.session_state.composizione_rev = 0
 
 
 def _applica_pending() -> None:
@@ -266,6 +273,11 @@ def add_fund(symbol: str, name: str, isin: str = ""):
     # corrette a mano (vedi `al.DIMENSIONE_PAESE`), e' solo una stima che
     # vive nello stesso dizionario per comodita' di lettura.
     alloc["paese"] = al.paesi_da_posizioni(holdings)
+    n = len(st.session_state.selected) + 1
+    pesi_ridistribuiti = pesi.ridistribuisci(
+        [f["weight"] for f in st.session_state.selected] + [0.0],
+        fissi={n - 1: 100.0 / n},
+    )
     st.session_state.selected.append({
         "symbol": symbol,
         "name": fund_name,
@@ -282,15 +294,37 @@ def add_fund(symbol: str, name: str, isin: str = ""):
         "alloc_manuale": {d: "" for d in al.DIMENSIONI},  # "" = usa la dedotta
         "holdings": holdings,  # prime posizioni: expander e stima del paese
     })
-    equalize_weights()
+    # I fondi gia' presenti mantengono i loro rapporti reciproci: aggiungere
+    # non deve piu' cancellare un'allocazione impostata a mano (era il
+    # comportamento di `equalize_weights()`, chiamata qui in precedenza).
+    for fondo, peso in zip(st.session_state.selected, pesi_ridistribuiti):
+        fondo["weight"] = peso
+    st.session_state.composizione_rev += 1
     st.toast(t("toast.fund_added", symbol=symbol), icon="✅")
 
 
 def equalize_weights():
+    """Reset esplicito a pesi uguali: l'unico modo per perdere volutamente
+    un'allocazione personalizzata (pulsante "⚖️ Pesi uguali")."""
     n = len(st.session_state.selected)
     if n:
-        for f in st.session_state.selected:
-            f["weight"] = round(100 / n, 2)
+        for fondo, peso in zip(st.session_state.selected, pesi.uguali(n)):
+            fondo["weight"] = peso
+        st.session_state.composizione_rev += 1
+
+
+def rimuovi_fondo(indice: int):
+    """Toglie il fondo in posizione `indice` e rinormalizza i pesi dei rimasti
+    mantenendo le proporzioni reciproche; il capitale resta investito (il
+    valore iniziale del portafoglio non cambia)."""
+    if not (0 <= indice < len(st.session_state.selected)):
+        return
+    rimosso = st.session_state.selected.pop(indice)
+    nuovi_pesi = pesi.rinormalizza([f["weight"] for f in st.session_state.selected])
+    for fondo, peso in zip(st.session_state.selected, nuovi_pesi):
+        fondo["weight"] = peso
+    st.session_state.composizione_rev += 1
+    st.toast(t("toast.fund_removed", elenco=rimosso["symbol"]), icon="🗑️")
 
 
 def set_period(years: int | None):
@@ -573,6 +607,15 @@ with st.sidebar:
             except portfolio_io.PortfolioError as exc:
                 st.error(t("portfolio_io.import_error", errore=str(exc)))
             else:
+                # I file salvati da versioni precedenti (o modificati a mano)
+                # possono non sommare a 100: l'invariante dell'editor lo
+                # richiede da subito, non solo alla prima modifica.
+                pesi_normalizzati = pesi.rinormalizza(
+                    [f["weight"] for f in fondi_importati]
+                )
+                for fondo, peso in zip(fondi_importati, pesi_normalizzati):
+                    fondo["weight"] = peso
+                st.session_state.composizione_rev += 1
                 pending = {"selected": fondi_importati}
                 if "start_date" in parametri_importati:
                     try:
@@ -659,13 +702,21 @@ if not st.session_state.selected:
     st.info(t("portfolio.empty_hint"))
     st.stop()
 
+def _click_rimuovi_fondo():
+    click = st.session_state.get("composizione_rimuovi")
+    if click is not None:
+        rimuovi_fondo(click["row"])
+
+
 editor_df = pd.DataFrame([
     {
+        "rimuovi": "🗑️",
         "fondo": f["name"],
         "simbolo": f["symbol"],
         "isin": f.get("isin", ""),
         "valuta": f["currency"],
         "peso": f["weight"],
+        "importo": f["weight"] / 100 * st.session_state.initial_value,
         "ter": f["ter"],
         "extra": f["extra"],
         "source": f.get("source", AUTO),
@@ -678,11 +729,19 @@ edited = st.data_editor(
     editor_df,
     hide_index=True,
     width="stretch",
-    # Solo cancellazione: le righe si aggiungono dalla ricerca, dove il fondo
-    # viene risolto davvero. "dynamic" permetterebbe righe vuote inservibili.
-    num_rows="delete",
+    # Righe fisse: l'unico modo di togliere un fondo e' il pulsante nella
+    # colonna "rimuovi", sempre visibile. Con "delete" la cancellazione era
+    # affidata a una checkbox invisibile a riposo in una colonna vuota e a
+    # un cestino che compariva solo in un overlay al passaggio del mouse.
+    num_rows="fixed",
     disabled=["fondo", "simbolo", "valuta"],
     column_config={
+        "rimuovi": st.column_config.ButtonColumn(
+            t("editor.col_rimuovi"), width="small", pinned=True,
+            alignment="center", type="tertiary",
+            help=t("editor.rimuovi_help"),
+            on_click=_click_rimuovi_fondo, key="composizione_rimuovi",
+        ),
         "fondo": t("editor.col_fondo"),
         "simbolo": t("editor.col_simbolo"),
         "valuta": t("editor.col_valuta"),
@@ -692,6 +751,10 @@ edited = st.data_editor(
         "peso": st.column_config.NumberColumn(
             t("editor.col_peso"), min_value=0.0, max_value=100.0, step=1.0, format="%.2f",
             help=t("editor.peso_help"),
+        ),
+        "importo": st.column_config.NumberColumn(
+            t("editor.col_importo", ccy=base_ccy), min_value=0.0, step=100.0,
+            format="%,.0f", help=t("editor.importo_help"),
         ),
         "ter": st.column_config.NumberColumn(
             t("editor.col_ter"), min_value=0.0, max_value=10.0, step=0.01, format="%.3f",
@@ -715,36 +778,67 @@ edited = st.data_editor(
             help=t("editor.proxy_help"),
         ),
     },
-    # La chiave dipende dai simboli: sostituendo un fondo con un altro a parita'
-    # di righe, Streamlit riapplicherebbe le modifiche della riga vecchia a
-    # quella nuova. Le celle contengono valori interni (mai etichette tradotte:
-    # vedi i `format_func` sopra), quindi non serve includere la lingua qui.
-    key="composition_" + "|".join(f["symbol"] for f in st.session_state.selected),
+    # La chiave include la revisione e il capitale oltre ai simboli: i pesi e
+    # gli importi vengono qui riscritti *a programma* (ridistribuzione,
+    # importo->pesi, valore iniziale->importi). Senza questi due elementi
+    # Streamlit riapplicherebbe il buffer di modifica della cella gia'
+    # committato in un run precedente sopra al nuovo valore calcolato,
+    # annullando silenziosamente la ridistribuzione appena fatta.
+    key=(
+        f"composition_{st.session_state.composizione_rev}_"
+        f"{st.session_state.initial_value:.2f}_"
+        + "|".join(f["symbol"] for f in st.session_state.selected)
+    ),
 )
 
-# Le modifiche si riportano nello stato **per simbolo**, non per posizione:
-# cancellando una riga Streamlit conserva le etichette originali dell'indice
-# lasciando dei buchi (0, 2, 3), e un ciclo posizionale scriverebbe sul fondo
-# sbagliato o solleverebbe IndexError.
-by_symbol = {f["symbol"]: f for f in st.session_state.selected}
-survivors = []
-for _, row in edited.iterrows():
-    fund = by_symbol.get(row["simbolo"])
-    if fund is None:
-        continue
-    fund["weight"] = float(row["peso"])
-    fund["ter"] = float(row["ter"])
-    fund["extra"] = float(row["extra"])
-    fund["isin"] = (row["isin"] or "").strip().upper()
-    fund["source"] = row["source"]
-    fund["proxy"] = row["proxy"]
-    survivors.append(fund)
+# Con righe fisse la posizione nell'editor coincide sempre con quella in
+# `st.session_state.selected`: nessun buco d'indice possibile (la rimozione
+# passa dal pulsante/callback sopra, non da qui).
+# Scritti subito e incondizionatamente: se peso/importo sono cambiati nello
+# stesso batch (vedi sotto), il `st.rerun()` di quel ramo interromperebbe lo
+# script prima di un eventuale secondo passaggio su questi campi.
+for fondo, (_, row) in zip(st.session_state.selected, edited.iterrows()):
+    fondo["ter"] = float(row["ter"])
+    fondo["extra"] = float(row["extra"])
+    fondo["isin"] = (row["isin"] or "").strip().upper()
+    fondo["source"] = row["source"]
+    fondo["proxy"] = row["proxy"]
 
-if len(survivors) != len(st.session_state.selected):
-    kept = {f["symbol"] for f in survivors}
-    removed = [f["symbol"] for f in st.session_state.selected if f["symbol"] not in kept]
-    st.session_state.selected = survivors
-    st.toast(t("toast.fund_removed", elenco=", ".join(removed)), icon="🗑️")
+pesi_originali = editor_df["peso"].tolist()
+pesi_modificati = edited["peso"].tolist()
+importi_originali = editor_df["importo"].tolist()
+importi_modificati = edited["importo"].tolist()
+
+_TOLLERANZA = 0.005
+importo_cambiato = any(
+    abs(nuovo - vecchio) > _TOLLERANZA
+    for nuovo, vecchio in zip(importi_modificati, importi_originali)
+)
+peso_cambiato = any(
+    abs(nuovo - vecchio) > _TOLLERANZA
+    for nuovo, vecchio in zip(pesi_modificati, pesi_originali)
+)
+
+if importo_cambiato:
+    nuovo_totale, nuovi_pesi = pesi.da_importi(importi_modificati)
+    if nuovo_totale < 100.0:
+        st.toast(t("weight.error_importo_min", minimo=fmt_money(100.0, base_ccy)), icon="⚠️")
+    else:
+        for fondo, peso in zip(st.session_state.selected, nuovi_pesi):
+            fondo["weight"] = peso
+        st.session_state._pending_state["initial_value"] = nuovo_totale
+    st.session_state.composizione_rev += 1
+    st.rerun()
+elif peso_cambiato:
+    fissi = {
+        i: nuovo
+        for i, (nuovo, vecchio) in enumerate(zip(pesi_modificati, pesi_originali))
+        if abs(nuovo - vecchio) > _TOLLERANZA
+    }
+    nuovi_pesi = pesi.ridistribuisci(pesi_originali, fissi=fissi)
+    for fondo, peso in zip(st.session_state.selected, nuovi_pesi):
+        fondo["weight"] = peso
+    st.session_state.composizione_rev += 1
     st.rerun()
 
 parametri_correnti = {
@@ -767,12 +861,13 @@ with portfolio_export:
 
 total_weight = sum(f["weight"] for f in st.session_state.selected)
 
-b1, b2, b3, b4 = st.columns([1, 1, 1, 3])
+b1, b2, b3, b4, b5 = st.columns([1, 1, 1, 1, 2])
 b1.button(t("editor.equalize_button"), on_click=equalize_weights, width="stretch")
 if b2.button(t("editor.clear_button"), width="stretch"):
     st.session_state.selected = []
     st.rerun()
 b3.metric(t("editor.total_weight_metric"), f"{total_weight:.1f}%")
+b4.metric(t("editor.total_value_metric"), fmt_money(st.session_state.initial_value, base_ccy))
 
 missing_ter = [f["symbol"] for f in st.session_state.selected
                if f["ter"] == 0 and not f["ter_auto"]]
@@ -782,7 +877,7 @@ if missing_ter:
         motivo = t("ter_warning.reason_eodhd_blocked")
     else:
         motivo = t("ter_warning.reason_none")
-    b4.warning(
+    b5.warning(
         t("ter_warning.message", elenco=", ".join(missing_ter), motivo=motivo),
         icon="ℹ️",
     )
@@ -1173,7 +1268,13 @@ with tab1:
 
 with tab_bil:
     fondi = [assicura_alloc(f) for f in st.session_state.selected]
-    pesi = {f["symbol"]: f["weight"] for f in fondi}
+    # Non chiamarla `pesi`: quel nome e' il modulo `comparatore.pesi` importato
+    # in testa al file, usato dai callback (equalize_weights, rimuovi_fondo)
+    # nella tabella di composizione. Sovrascriverlo qui come variabile locale
+    # rebinderebbe il nome nel namespace globale dello script per il resto
+    # del run, e i callback lo risolvono al momento del click (non alla
+    # definizione), rompendoli con un AttributeError sul dict al posto del modulo.
+    pesi_per_simbolo = {f["symbol"]: f["weight"] for f in fondi}
 
     # I grafici stanno sopra la tabella ma vanno calcolati dopo, altrimenti
     # mostrerebbero la classificazione precedente alla correzione appena fatta:
@@ -1273,11 +1374,11 @@ with tab_bil:
         st.caption(t("bilancio.provenienza_prefix") + ", ".join(provenienza) + ".")
 
         ripartizioni = [
-            ("classe", t("bilancio.titolo_classe"), al.aggrega(pesi, effettive["classe"])),
-            ("area", t("bilancio.titolo_area"), al.aggrega(pesi, effettive["area"])),
-            ("settore", t("bilancio.titolo_settore"), al.aggrega(pesi, effettive["settore"])),
-            ("valuta", t("bilancio.titolo_valuta"), al.aggrega(pesi, valute)),
-            ("paesi", t("bilancio.titolo_paesi"), al.aggrega(pesi, paesi)),
+            ("classe", t("bilancio.titolo_classe"), al.aggrega(pesi_per_simbolo, effettive["classe"])),
+            ("area", t("bilancio.titolo_area"), al.aggrega(pesi_per_simbolo, effettive["area"])),
+            ("settore", t("bilancio.titolo_settore"), al.aggrega(pesi_per_simbolo, effettive["settore"])),
+            ("valuta", t("bilancio.titolo_valuta"), al.aggrega(pesi_per_simbolo, valute)),
+            ("paesi", t("bilancio.titolo_paesi"), al.aggrega(pesi_per_simbolo, paesi)),
         ]
         for riga in range(0, len(ripartizioni), 2):
             colonne = st.columns(2)
