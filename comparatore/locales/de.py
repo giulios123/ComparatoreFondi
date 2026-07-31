@@ -642,13 +642,19 @@ MESSAGGI: dict[str, str] = {
         "über zehn Jahre wiegen."
     ),
     "previdenza.portafoglio_periodo_proprio": (
-        "Über **seinen eigenen** Zeitraum — {inizio} → {fine}, {anni} Jahre — "
-        "hat dein Portfolio **{rendimento}** pro Jahr gebracht. Das ist nicht "
-        "mit den Spalten oben vergleichbar, die abgeschlossene, datierte "
-        "Fenster sind. Für einen gültigen Vergleich den Backtest-Zeitraum "
-        "erweitern (Schaltfläche **20a** in der Seitenleiste): der Backtest "
-        "beginnt ohnehin am ersten Datum, an dem **alle** ausgewählten Fonds "
-        "Daten haben."
+        "Dein Backtest deckt **{inizio} → {fine}** ({anni} Jahre) ab und hat "
+        "**{rendimento}** pro Jahr gebracht: eine Zahl, die mit den Spalten "
+        "oben nicht vergleichbar ist. Die COVIP-Fenster sind **ganze "
+        "Kalenderjahre**, vom 1. Januar bis zum 31. Dezember: ein Zeitraum, der "
+        "mitten im Jahr beginnt oder endet, deckt sie nicht ab, auch wenn die "
+        "Kalenderjahre gleich aussehen."
+    ),
+    "previdenza.allinea_button": "📐 Zeitraum auf {inizio} → {fine} setzen",
+    "previdenza.allinea_caption": (
+        "Ändert die Backtest-Daten so, dass sie die COVIP-Fenster abdecken. Der "
+        "Backtest beginnt ohnehin am ersten Datum, an dem **alle** ausgewählten "
+        "Fonds Daten haben: die längeren Fenster bleiben **n/d**, wenn ein "
+        "Fonds jünger ist."
     ),
     "previdenza.col_help_orizzonte": (
         "Durchschnittliche jährliche COVIP-Rendite über das {anni}-Jahres-Fenster ({periodo})."

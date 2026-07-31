@@ -395,6 +395,16 @@ def set_period(years: int | None):
     st.session_state.end_date = today
 
 
+def allinea_periodo_covip(inizio: dt.date, fine: dt.date):
+    """Porta il periodo del backtest sulle finestre COVIP, che sono anni
+    solari interi. E' la differenza fra un backtest agosto 2021 - luglio 2025
+    e la finestra "5 anni = 2021-2025": gli anni di calendario coincidono, la
+    copertura no, e senza questo pulsante l'unico modo di accorgersene e'
+    leggere le date una per una."""
+    st.session_state.start_date = inizio
+    st.session_state.end_date = fine
+
+
 def _salva_preferenze() -> None:
     prefs.save({
         "lingua": str(st.session_state.get("lang", "") or ""),
@@ -2035,6 +2045,25 @@ with tab5:
                     ),
                     icon="📐",
                 )
+                # La finestra piu' ampia fra quelle pubblicate: coprirla
+                # significa coprire anche tutte le altre, perche' finiscono
+                # tutte lo stesso 31 dicembre.
+                covip_inizio = min(w[0] for w in finestre.values())
+                covip_fine = max(w[1] for w in finestre.values())
+                if (st.session_state.start_date, st.session_state.end_date) != (
+                    covip_inizio, covip_fine
+                ):
+                    st.button(
+                        t(
+                            "previdenza.allinea_button",
+                            inizio=covip_inizio.strftime(FMT_DATA),
+                            fine=covip_fine.strftime(FMT_DATA),
+                        ),
+                        key="allinea_covip",
+                        on_click=allinea_periodo_covip,
+                        args=(covip_inizio, covip_fine),
+                    )
+                    st.caption(t("previdenza.allinea_caption"))
 
             # --- grafico a barre ---
             bars = go.Figure()

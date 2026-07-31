@@ -616,12 +616,19 @@ MESSAGGI: dict[str, str] = {
         "media i costi ogni anno su un orizzonte di dieci anni."
     ),
     "previdenza.portafoglio_periodo_proprio": (
-        "Sul **suo** periodo — {inizio} → {fine}, {anni} anni — il tuo "
-        "portafoglio ha reso il **{rendimento}** medio annuo. Non è "
-        "confrontabile con le colonne qui sopra, che sono finestre chiuse e "
-        "datate. Per un confronto valido allarga il periodo del backtest (il "
-        "pulsante **20a** in barra laterale): il backtest parte comunque dalla "
-        "prima data in cui **tutti** i fondi selezionati hanno dati."
+        "Il tuo backtest copre **{inizio} → {fine}** ({anni} anni) e ha reso il "
+        "**{rendimento}** medio annuo: un numero non confrontabile con le "
+        "colonne qui sopra. Le finestre COVIP sono **anni solari interi**, dal "
+        "1° gennaio al 31 dicembre: un periodo che comincia o finisce a metà "
+        "anno non le copre, anche quando gli anni di calendario sembrano gli "
+        "stessi."
+    ),
+    "previdenza.allinea_button": "📐 Porta il periodo su {inizio} → {fine}",
+    "previdenza.allinea_caption": (
+        "Cambia le date del backtest per coprire le finestre COVIP. Il "
+        "backtest parte comunque dalla prima data in cui **tutti** i fondi "
+        "selezionati hanno dati: le finestre più lunghe restano **n/d** se un "
+        "fondo è più recente."
     ),
     "previdenza.col_help_orizzonte": (
         "Rendimento medio annuo COVIP sulla finestra a {anni} anni ({periodo})."

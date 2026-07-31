@@ -605,12 +605,17 @@ MESSAGGI: dict[str, str] = {
         "average each year over a ten-year horizon."
     ),
     "previdenza.portafoglio_periodo_proprio": (
-        "Over **its own** period — {inizio} → {fine}, {anni} years — your "
-        "portfolio returned **{rendimento}** a year. That is not comparable "
-        "with the columns above, which are closed, dated windows. For a valid "
-        "comparison widen the backtest period (the **20a** button in the "
-        "sidebar): the backtest still starts on the first date where **every** "
-        "selected fund has data."
+        "Your backtest covers **{inizio} → {fine}** ({anni} years) and returned "
+        "**{rendimento}** a year: a number that is not comparable with the "
+        "columns above. COVIP windows are **whole calendar years**, 1 January "
+        "to 31 December: a period starting or ending mid-year does not cover "
+        "them, even when the calendar years look the same."
+    ),
+    "previdenza.allinea_button": "📐 Set the period to {inizio} → {fine}",
+    "previdenza.allinea_caption": (
+        "Changes the backtest dates to cover the COVIP windows. The backtest "
+        "still starts on the first date where **every** selected fund has "
+        "data: the longer windows stay **n/d** if one fund is more recent."
     ),
     "previdenza.col_help_orizzonte": (
         "COVIP average annual return over the {anni}-year window ({periodo})."
