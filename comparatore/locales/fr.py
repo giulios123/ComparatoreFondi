@@ -210,20 +210,34 @@ MESSAGGI: dict[str, str] = {
     "portfolio.subheader": "Composition du portefeuille",
     "portfolio.empty_hint": "Recherchez et ajoutez au moins un fonds pour commencer.",
 
+    "editor.col_rimuovi": "Retirer",
     "editor.col_fondo": "Fonds",
     "editor.col_simbolo": "Symbole",
     "editor.col_isin": "ISIN",
     "editor.col_valuta": "Devise",
     "editor.col_peso": "Poids %",
+    "editor.col_importo": "Montant ({ccy})",
     "editor.col_ter": "TER %",
     "editor.col_extra": "Coûts extra %",
     "editor.col_fonte": "Source",
     "editor.col_proxy": "Proxy historique",
+    "editor.rimuovi_help": (
+        "Retire le fonds du portefeuille et redistribue son poids sur les "
+        "autres, en conservant leurs proportions."
+    ),
     "editor.isin_help": (
         "Nécessaire pour utiliser justETF quand la source est activée ou "
         "explicitement sélectionnée pour le fonds."
     ),
-    "editor.peso_help": "Part du portefeuille attribuée au fonds.",
+    "editor.peso_help": (
+        "Part du portefeuille attribuée au fonds. En le modifiant, les autres "
+        "poids s'ajustent automatiquement entre eux, proportionnellement, pour "
+        "que le total reste à 100%."
+    ),
+    "editor.importo_help": (
+        "Capital attribué au fonds dans cette devise. Le modifier met à jour "
+        "les poids et la valeur initiale du portefeuille."
+    ),
     "editor.ter_help": (
         "Frais courants annuels. Pré-rempli quand la source le fournit : "
         "vérifiez toujours sur le DIC du fonds."
@@ -240,6 +254,7 @@ MESSAGGI: dict[str, str] = {
     "editor.equalize_button": "⚖️ Poids égaux",
     "editor.clear_button": "🗑️ Vider",
     "editor.total_weight_metric": "Poids total",
+    "editor.total_value_metric": "Capital investi",
 
     # --- Avertissements TER, poids, dates -------------------------------------------------
     "ter_warning.reason_eodhd_blocked": (
@@ -254,6 +269,7 @@ MESSAGGI: dict[str, str] = {
     ),
     "weight.error_zero": "Attribuez au moins un poids supérieur à zéro.",
     "weight.warning_normalized": "Les poids totalisent {tot:.1f}% : ils seront normalisés à 100%.",
+    "weight.error_importo_min": "Le capital total du portefeuille ne peut pas descendre sous {minimo}.",
     "dates.error_order": "La date de début doit précéder la date de fin.",
 
     # --- Récupération des prix -----------------------------------------------------------

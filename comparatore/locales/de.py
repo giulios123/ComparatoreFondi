@@ -215,20 +215,34 @@ MESSAGGI: dict[str, str] = {
     "portfolio.subheader": "Portfoliozusammensetzung",
     "portfolio.empty_hint": "Suchen und fügen Sie mindestens einen Fonds hinzu, um zu beginnen.",
 
+    "editor.col_rimuovi": "Entfernen",
     "editor.col_fondo": "Fonds",
     "editor.col_simbolo": "Symbol",
     "editor.col_isin": "ISIN",
     "editor.col_valuta": "Währung",
     "editor.col_peso": "Gewicht %",
+    "editor.col_importo": "Betrag ({ccy})",
     "editor.col_ter": "TER %",
     "editor.col_extra": "Zusatzkosten %",
     "editor.col_fonte": "Quelle",
     "editor.col_proxy": "Historien-Proxy",
+    "editor.rimuovi_help": (
+        "Entfernt den Fonds aus dem Portfolio und verteilt sein Gewicht "
+        "proportional auf die übrigen."
+    ),
     "editor.isin_help": (
         "Wird benötigt, um justETF zu nutzen, wenn die Quelle aktiviert "
         "oder explizit für den Fonds ausgewählt ist."
     ),
-    "editor.peso_help": "Dem Fonds zugewiesener Anteil des Portfolios.",
+    "editor.peso_help": (
+        "Dem Fonds zugewiesener Anteil des Portfolios. Bei Änderung passen "
+        "sich die anderen Gewichte automatisch im Verhältnis zueinander an, "
+        "sodass die Summe bei 100% bleibt."
+    ),
+    "editor.importo_help": (
+        "Dem Fonds zugewiesenes Kapital in dieser Währung. Bei Änderung werden "
+        "die Gewichte und der Anfangswert des Portfolios aktualisiert."
+    ),
     "editor.ter_help": (
         "Laufende jährliche Kosten. Vorausgefüllt, wenn die Quelle sie "
         "liefert: immer im KID des Fonds prüfen."
@@ -245,6 +259,7 @@ MESSAGGI: dict[str, str] = {
     "editor.equalize_button": "⚖️ Gleiche Gewichte",
     "editor.clear_button": "🗑️ Leeren",
     "editor.total_weight_metric": "Gesamtgewicht",
+    "editor.total_value_metric": "Investiertes Kapital",
 
     # --- Warnungen zu TER, Gewichten, Daten -------------------------------------------------
     "ter_warning.reason_eodhd_blocked": (
@@ -259,6 +274,7 @@ MESSAGGI: dict[str, str] = {
     ),
     "weight.error_zero": "Weisen Sie mindestens ein Gewicht größer als null zu.",
     "weight.warning_normalized": "Die Gewichte summieren sich auf {tot:.1f}%: sie werden auf 100% normiert.",
+    "weight.error_importo_min": "Das Gesamtkapital des Portfolios darf nicht unter {minimo} fallen.",
     "dates.error_order": "Das Startdatum muss vor dem Enddatum liegen.",
 
     # --- Kursabruf -----------------------------------------------------------------

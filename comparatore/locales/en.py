@@ -200,20 +200,34 @@ MESSAGGI: dict[str, str] = {
     "portfolio.subheader": "Portfolio composition",
     "portfolio.empty_hint": "Search and add at least one fund to get started.",
 
+    "editor.col_rimuovi": "Remove",
     "editor.col_fondo": "Fund",
     "editor.col_simbolo": "Symbol",
     "editor.col_isin": "ISIN",
     "editor.col_valuta": "Currency",
     "editor.col_peso": "Weight %",
+    "editor.col_importo": "Amount ({ccy})",
     "editor.col_ter": "TER %",
     "editor.col_extra": "Extra costs %",
     "editor.col_fonte": "Source",
     "editor.col_proxy": "History proxy",
+    "editor.rimuovi_help": (
+        "Removes the fund from the portfolio and redistributes its weight to the "
+        "others, keeping their proportions."
+    ),
     "editor.isin_help": (
         "Needed to use justETF when the source is enabled or "
         "explicitly selected for the fund."
     ),
-    "editor.peso_help": "Share of the portfolio assigned to the fund.",
+    "editor.peso_help": (
+        "Share of the portfolio assigned to the fund. Changing it adjusts the "
+        "other weights automatically, in proportion to each other, so the total "
+        "stays at 100%."
+    ),
+    "editor.importo_help": (
+        "Capital assigned to the fund in this currency. Changing it updates the "
+        "weights and the portfolio's initial value."
+    ),
     "editor.ter_help": (
         "Current annual expense. Pre-filled when the source provides it: "
         "always verify against the fund's KID."
@@ -230,6 +244,7 @@ MESSAGGI: dict[str, str] = {
     "editor.equalize_button": "⚖️ Equal weights",
     "editor.clear_button": "🗑️ Clear",
     "editor.total_weight_metric": "Total weight",
+    "editor.total_value_metric": "Invested capital",
 
     # --- TER, weight and date warnings -------------------------------------------------
     "ter_warning.reason_eodhd_blocked": (
@@ -243,6 +258,7 @@ MESSAGGI: dict[str, str] = {
     ),
     "weight.error_zero": "Assign at least one weight greater than zero.",
     "weight.warning_normalized": "Weights add up to {tot:.1f}%: they will be normalized to 100%.",
+    "weight.error_importo_min": "The portfolio's total capital cannot fall below {minimo}.",
     "dates.error_order": "The start date must precede the end date.",
 
     # --- Price retrieval -----------------------------------------------------------
