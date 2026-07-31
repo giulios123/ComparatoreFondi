@@ -113,8 +113,10 @@ comporta esattamente come senza questa sezione.
 Attivandolo si configurano:
 
 - **Importo per versamento** e **Frequenza** (mensile, trimestrale, annuale);
-- **Rivalutazione annua della rata**, per farla crescere di una percentuale
-  fissa ogni anno (ad esempio per seguire l'inflazione o lo stipendio);
+- **Rivalutazione annua della rata (%)**, per farla crescere di una percentuale
+  fissa ogni anno (ad esempio per seguire l'inflazione o lo stipendio). Si
+  scrive in percentuale, come il tasso risk-free e i costi della tabella di
+  composizione: `3` significa +3% all'anno;
 - **Limita i versamenti a un periodo**, per versare solo fra due date invece
   che per tutto l'orizzonte del backtest.
 
@@ -123,22 +125,40 @@ successivo al capitale iniziale: è di fatto un ribilanciamento morbido, quindi
 anche con "Nessuno" il portafoglio deriva un po' meno di quanto farebbe senza
 PAC.
 
-Con il PAC attivo compaiono, accanto ai cinque KPI abituali, tre metriche in
-più:
+Con il PAC attivo compaiono, accanto ai cinque KPI abituali, quattro metriche
+in più:
 
+- **Saldo finale** — quanto vale il portafoglio a fine periodo, versamenti
+  inclusi;
 - **Versato** — capitale iniziale più tutti i versamenti fatti;
-- **Guadagno** — valore finale meno il versato;
+- **Guadagno** — saldo finale meno il versato;
 - **XIRR** — il rendimento annuo del *tuo* denaro, che tiene conto di quando
   è entrato ogni versamento (a differenza del CAGR, che assume un capitale
   unico investito il primo giorno).
 
+Nel grafico del portafoglio compaiono anche la curva del **versato cumulato** e
+la linea **PIC**: lo stesso denaro totale versato tutto in un'unica soluzione il
+primo giorno. È il termine di paragone naturale del PAC — quanto è costato, o
+ha risparmiato, diluire l'ingresso nel tempo — ed è un confronto ipotetico,
+perché presuppone di avere avuto subito tutta la somma.
+
 CAGR, volatilità, Sharpe, Sortino e drawdown restano invece calcolati sul
 rendimento dello strumento al netto dei versamenti: un PAC non falsa queste
-metriche facendo apparire ogni versamento come un guadagno di mercato. Nella
-scheda 🏦 Fondi pensione, per lo stesso motivo, il confronto con i rendimenti
-COVIP usa quel rendimento al netto dei versamenti, e la tabella dei costi ISC
-guadagna una colonna con il montante proiettato a 10 anni versando lo stesso
-PAC.
+metriche facendo apparire ogni versamento come un guadagno di mercato. Vale in
+ogni scheda: nel **Confronto fondi** ogni riga riceve lo stesso capitale e lo
+stesso piano di versamenti, il *valore finale* è il saldo vero e le metriche di
+rischio/rendimento sono al netto delle rate (con l'XIRR come colonna in più);
+nel **Drawdown** valgono le stesse curve depurate, così un versamento non
+risale un drawdown come farebbe un rimbalzo di mercato.
+
+Nella scheda 🏦 Fondi pensione il PAC cambia tre cose, e una didascalia lo
+ricorda: le curve sintetiche dei comparti ricevono lo stesso piano di
+versamenti, il confronto con i rendimenti COVIP usa il rendimento al netto dei
+versamenti (è così che COVIP calcola i propri) e la tabella dei costi ISC
+ragiona sulla tua rata per dieci anni — l'erosione conta ogni rata solo per il
+tempo in cui è davvero investita, e una colonna in più proietta il montante a
+10 anni versando lo stesso PAC. Quella proiezione tiene la rata costante: la
+rivalutazione annua non vi entra.
 
 ### 7. Leggere i risultati
 

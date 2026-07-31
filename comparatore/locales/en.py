@@ -64,7 +64,7 @@ MESSAGGI: dict[str, str] = {
     "pac.amount_label": "Amount per instalment",
     "pac.amount_help": "The instalment paid at each due date, in the base currency.",
     "pac.frequency_label": "Frequency",
-    "pac.step_up_label": "Annual instalment increase",
+    "pac.step_up_label": "Annual instalment increase (%)",
     "pac.step_up_help": (
         "Increases the instalment by this percentage once a year, e.g. to "
         "track inflation or salary growth."
@@ -169,7 +169,7 @@ MESSAGGI: dict[str, str] = {
     "cache.caption": "💾 Disk cache: {n} series, {mb:.1f} MB",
     "cache.clear_button": "Clear cache",
     "cache.cleared_toast": "Cache cleared",
-    "sidebar.risk_free_label": "Annual risk-free rate (for Sharpe)",
+    "sidebar.risk_free_label": "Annual risk-free rate % (for Sharpe)",
 
     # --- Sidebar: about and licenses --------------------------------------
     "about.expander": "ℹ️ About and licenses",
@@ -191,6 +191,7 @@ MESSAGGI: dict[str, str] = {
     "about.col_package": "Package",
     "about.col_version": "Version",
     "about.col_license": "License",
+    "about.credit": "Made with curiosity by [Giulio](https://www.gshake.net)",
 
     # --- Sidebar: portfolio (export/import) ---------------------------------
     "portfolio_io.expander": "💼 Portfolio: save and load",
@@ -391,6 +392,10 @@ MESSAGGI: dict[str, str] = {
         "This row includes a stretch estimated with a proxy instrument, "
         "not real fund data: its metrics should be read as indicative."
     ),
+    "help.pac_saldo": (
+        "What the portfolio is worth at the end, contributions included: "
+        "the sum of what you paid in and the gain."
+    ),
     "help.pac_versato": "Initial capital plus every contribution made so far.",
     "help.pac_guadagno": "Final portfolio value minus the total amount contributed.",
     "help.pac_xirr": (
@@ -406,6 +411,14 @@ MESSAGGI: dict[str, str] = {
     "chart.annotation_real_start": "real data starts",
     "chart.annotation_initial_capital": "initial capital",
     "chart.legend_invested": "Cumulative amount invested",
+    "chart.legend_pic": "Lump sum (all at once)",
+    "chart.pic_caption": (
+        "The **lump sum** line shows how it would have gone paying in, on day "
+        "one and in a single go, the same total the plan pays in over time "
+        "({totale}): **{valore_pic}** against **{valore_pac}** for the plan. "
+        "It is a hypothetical comparison: it assumes you had the whole sum "
+        "available straight away."
+    ),
     "chart.legend_synthetic": "{comparto} (synthetic)",
     "chart.hover_constant_growth": " · constant growth",
     "chart.yaxis_value": "Value ({ccy})",
@@ -493,6 +506,11 @@ MESSAGGI: dict[str, str] = {
         "Trajectory of {capitale} invested entirely in each fund, for a "
         "comparison at equal capital."
     ),
+    "confronto.caption_pac": (
+        "How {capitale} invested entirely in each fund would have gone, with "
+        "the same contribution plan as the portfolio: the comparison stays "
+        "like for like on both capital and instalments."
+    ),
     "confronto.legend_reconstructed": "{col} (reconstructed)",
     "confronto.legend_gross": "{col} (gross)",
     "confronto.col_valore_finale": "Final value (from {capitale})",
@@ -501,6 +519,15 @@ MESSAGGI: dict[str, str] = {
         "100% in a single fund, and the same **{capitale}** invested in "
         "the portfolio with the set weights and chosen rebalancing. Final "
         "values are therefore directly comparable row by row."
+    ),
+    "confronto.col_valore_finale_pac": "Final value (from {capitale} + contributions)",
+    "confronto.stesso_capitale_caption_pac": (
+        "Every row receives the same initial capital (**{capitale}**) and the "
+        "same contribution plan. *Final value* is the actual balance at the "
+        "end, contributions included, and *XIRR* is the return on your money, "
+        "which accounts for when each instalment went in. Every other metric "
+        "is computed **net of the contributions**: a contribution is not a "
+        "market gain."
     ),
     "confronto.footnote": (
         "The *Reconstructed* column flags rows whose metrics include a "
@@ -514,6 +541,11 @@ MESSAGGI: dict[str, str] = {
     # --- Drawdown tab -----------------------------------------------------------------------
     "drawdown.legend_portafoglio": "Portfolio",
     "drawdown.yaxis": "Drawdown (%)",
+    "drawdown.pac_caption": (
+        "With the plan active, drawdown and yearly returns are computed net of "
+        "the contributions: otherwise every instalment would show up as a "
+        "market gain and the falls would look milder than they were."
+    ),
     "drawdown.yearly_header": "**Calendar-year returns**",
     "drawdown.yaxis_yearly": "Return (%)",
 
@@ -539,6 +571,14 @@ MESSAGGI: dict[str, str] = {
         "drawdown and Sharpe cannot be computed from any public data. To "
         "get them, upload your fund's unit value with the CSV uploader in "
         "the sidebar."
+    ),
+    "previdenza.pac_caption": (
+        "**With the plan active**, on this tab: the scheme curves on the "
+        "portfolio chart receive the same contribution plan; your portfolio's "
+        "return is the one net of contributions, because that is how COVIP "
+        "computes its own; cost erosion and the projected balance use your "
+        "instalment for ten years, held **constant** — the annual increase "
+        "does not enter this projection."
     ),
     "previdenza.catalogo_error": (
         "COVIP catalog not available: check your connection and try again."
@@ -576,6 +616,7 @@ MESSAGGI: dict[str, str] = {
     "previdenza.col_isc_annuo": "Annual ISC",
     "previdenza.col_rendimento_10a": "10y return",
     "previdenza.col_eroso": "Eroded on {capitale} over 10 years",
+    "previdenza.col_eroso_pac": "Eroded on {capitale} paid in over 10 years",
     "previdenza.col_quota_rendimento": "Share of return",
     "previdenza.col_montante_pac_10a": "Projected amount (PAC, 10y)",
     "previdenza.costi_caption": (
@@ -622,6 +663,7 @@ METRICHE: dict[str, str] = {
     "worst_year": "Worst year",
     "ter_cost": "TER cost",
     "reconstructed": "Reconstructed",
+    "balance": "Ending balance",
     "invested": "Invested",
     "gain": "Gain",
     "xirr": "XIRR",

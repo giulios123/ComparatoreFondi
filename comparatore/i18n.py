@@ -35,6 +35,9 @@ SEPARATORE_MIGLIAIA = {"it": ".", "en": ",", "fr": " ", "de": "."}
 # Formato di `st.date_input` e dei pattern `strftime`/hovertemplate Plotly.
 FORMATO_DATA = {"it": "DD/MM/YYYY", "en": "MM/DD/YYYY", "fr": "DD/MM/YYYY", "de": "DD.MM.YYYY"}
 FORMATO_DATA_STRFTIME = {"it": "%d/%m/%Y", "en": "%m/%d/%Y", "fr": "%d/%m/%Y", "de": "%d.%m.%Y"}
+# Mese e anno per le etichette degli assi temporali: numerico e non `%b`, che
+# Plotly scriverebbe comunque in inglese senza caricarne il locale.
+FORMATO_MESE_ANNO = {"it": "%m/%Y", "en": "%m/%Y", "fr": "%m/%Y", "de": "%m.%Y"}
 
 
 def _catalogo(lingua: str):
@@ -165,6 +168,10 @@ def formato_data(lingua: str) -> str:
 
 def formato_data_strftime(lingua: str) -> str:
     return FORMATO_DATA_STRFTIME.get(lingua, FORMATO_DATA_STRFTIME[DEFAULT])
+
+
+def formato_mese_anno(lingua: str) -> str:
+    return FORMATO_MESE_ANNO.get(lingua, FORMATO_MESE_ANNO[DEFAULT])
 
 
 def separatore_migliaia(lingua: str) -> str:

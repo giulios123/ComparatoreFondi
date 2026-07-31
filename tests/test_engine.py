@@ -170,6 +170,54 @@ class PerFundTests(unittest.TestCase):
         np.testing.assert_allclose(res.per_fund["A"].to_numpy(), atteso["A"].to_numpy(), rtol=1e-9)
         np.testing.assert_allclose(res.per_fund["B"].to_numpy(), atteso["B"].to_numpy(), rtol=1e-9)
 
+    def test_per_fund_nav_e_lo_stesso_oggetto_senza_pac(self):
+        prezzi = _prezzi(120, {"A": 0.0004})
+        holdings = [Holding(symbol="A", label="A", weight=1.0)]
+        res = run_backtest(prezzi, holdings, 10_000.0, pac=None)
+        self.assertIs(res.per_fund_nav, res.per_fund)
+
+    def test_per_fund_nav_toglie_i_versamenti(self):
+        # Prezzo piatto: il fondo non rende nulla, quindi la curva depurata
+        # dai versamenti deve restare ferma al capitale iniziale mentre
+        # quella grezza cresce di tutto il versato. E' la differenza che
+        # rendeva "pesantemente sbagliate" le metriche della tabella.
+        giorni = 400
+        prezzi = pd.DataFrame(
+            {"A": [100.0] * giorni}, index=pd.bdate_range("2020-01-01", periods=giorni)
+        )
+        holdings = [Holding(symbol="A", label="A", weight=1.0)]
+        pac = Pac(amount=100.0, frequency=Frequency.MONTHLY)
+        res = run_backtest(prezzi, holdings, 10_000.0, Rebalance.NONE, pac=pac)
+
+        np.testing.assert_allclose(
+            res.per_fund_nav["A"].to_numpy(), np.full(giorni, 10_000.0), rtol=1e-9
+        )
+        self.assertAlmostEqual(
+            res.per_fund["A"].iloc[-1], res.invested.iloc[-1], places=6
+        )
+
+
+class PicTests(unittest.TestCase):
+    def test_nessun_pic_senza_pac(self):
+        prezzi = _prezzi(120, {"A": 0.0004})
+        holdings = [Holding(symbol="A", label="A", weight=1.0)]
+        res = run_backtest(prezzi, holdings, 10_000.0, pac=None)
+        self.assertIsNone(res.pic)
+
+    def test_pic_parte_dal_totale_versato_e_lo_fa_crescere_dal_primo_giorno(self):
+        prezzi = _prezzi(400, {"A": 0.0005})
+        holdings = [Holding(symbol="A", label="A", weight=1.0)]
+        pac = Pac(amount=100.0, frequency=Frequency.MONTHLY)
+        res = run_backtest(prezzi, holdings, 10_000.0, Rebalance.NONE, pac=pac)
+
+        totale = float(res.invested.iloc[-1])
+        self.assertAlmostEqual(res.pic.iloc[0], totale, places=6)
+        # Stesso denaro, entrato prima: su una serie che sale il PIC arriva
+        # piu' in alto del PAC.
+        self.assertGreater(res.pic.iloc[-1], res.portfolio.iloc[-1])
+        atteso = prezzi["A"] / prezzi["A"].iloc[0] * totale
+        np.testing.assert_allclose(res.pic.to_numpy(), atteso.to_numpy(), rtol=1e-9)
+
 
 if __name__ == "__main__":
     unittest.main()

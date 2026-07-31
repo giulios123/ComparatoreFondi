@@ -50,6 +50,31 @@ class CostoCumulatoTests(unittest.TestCase):
         atteso = 10_000.0 - 10_000.0 * 0.99**10
         self.assertAlmostEqual(eroso, atteso, places=6)
 
+    def test_versamenti_erosi_solo_per_il_tempo_in_cui_sono_investiti(self):
+        # La scorciatoia - sommare tutto il versato e trattarlo come se fosse
+        # sul conto dal primo giorno - e' quella che l'app usava e che
+        # sovrastimava il costo: qui si fissa che il risultato sta fra
+        # l'erosione del solo capitale iniziale e quella del totale versato.
+        isc, anni, capitale, rata, rate_annue = 0.015, 10, 10_000.0, 200.0, 12
+        totale_versato = capitale + rata * rate_annue * anni
+
+        eroso = hz.costo_cumulato(isc, anni, capitale, rata, rate_annue)
+        scorciatoia = hz.costo_cumulato(isc, anni, totale_versato)
+        solo_capitale = hz.costo_cumulato(isc, anni, capitale)
+
+        self.assertLess(eroso, scorciatoia)
+        self.assertGreater(eroso, solo_capitale)
+
+    def test_erosione_con_rate_e_differenza_fra_i_due_montanti(self):
+        isc, anni, capitale, rata, rate_annue = 0.02, 5, 1_000.0, 50.0, 4
+        atteso = (
+            hz.capitale_finale(0.0, anni, capitale, rata, rate_annue)
+            - hz.capitale_finale(-isc, anni, capitale, rata, rate_annue)
+        )
+        self.assertAlmostEqual(
+            hz.costo_cumulato(isc, anni, capitale, rata, rate_annue), atteso, places=9
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

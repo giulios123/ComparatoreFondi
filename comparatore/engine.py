@@ -82,6 +82,7 @@ class BacktestResult:
     portfolio_gross: pd.Series  # same, with every TER added back
     per_fund: pd.DataFrame  # value of the full capital in each fund alone
     per_fund_gross: pd.DataFrame
+    per_fund_nav: pd.DataFrame  # same, contributions stripped out (time-weighted)
     contributions: pd.DataFrame  # value of each sleeve inside the portfolio
     prices: pd.DataFrame  # fee-adjusted prices actually used
     start: pd.Timestamp
@@ -91,6 +92,7 @@ class BacktestResult:
     nav_gross: pd.Series  # same, fee-free
     invested: pd.Series  # cumulative capital paid in: initial value + instalments
     cashflows: list[tuple[pd.Timestamp, float]]  # for XIRR: negative = paid in
+    pic: pd.Series | None  # the same total money invested in one go on day one
 
 
 def apply_annual_fee(prices: pd.DataFrame | pd.Series, annual_rate: float):
@@ -311,11 +313,29 @@ def run_backtest(
     per_fund_gross = per_fund_gross.rename(columns=label_map)
     sleeves = sleeves.rename(columns=label_map)
 
+    # Time-weighted curves for the standalone funds too. Without them a
+    # comparison table would put per-fund metrics inflated by the
+    # contributions next to portfolio metrics already stripped of them - the
+    # rows would not be comparable. With no PAC this is the same object as
+    # `per_fund`, exactly as `nav` is the same object as `portfolio`.
+    per_fund_nav = per_fund if not contrib.any() else pd.DataFrame(
+        {col: nav_curve(per_fund[col], contrib, initial_value) for col in per_fund}
+    )
+
+    # PIC: the same money (initial capital plus every instalment) invested in
+    # one go on day one - the natural yardstick for a PAC, i.e. what spreading
+    # the entry over time cost or saved. None without a PAC, where it would
+    # just be `portfolio` again.
+    pic = None
+    if contrib.any():
+        pic, _ = simulate(used, weights, float(invested.iloc[-1]), rebalance, None)
+
     return BacktestResult(
         portfolio=portfolio,
         portfolio_gross=portfolio_gross,
         per_fund=per_fund,
         per_fund_gross=per_fund_gross,
+        per_fund_nav=per_fund_nav,
         contributions=sleeves,
         prices=used,
         start=prices.index[0],
@@ -325,6 +345,7 @@ def run_backtest(
         nav_gross=nav_gross,
         invested=invested,
         cashflows=cashflows,
+        pic=pic,
     )
 
 

@@ -116,15 +116,26 @@ def capitale_finale(
 
 
 def costo_cumulato(
-    isc_annuo: float | None, anni: int, capitale: float
+    isc_annuo: float | None,
+    anni: int,
+    capitale: float,
+    versamento_periodico: float = 0.0,
+    rate_annue: int = 12,
 ) -> float | None:
     """Quanto pesa un ISC costante su `anni`, a parita' di rendimento lordo.
 
     Confronta il montante senza costi con quello eroso dall'ISC: e' la stessa
     logica con cui l'applicazione mostra l'impatto del TER sui fondi comuni.
+
+    Con `versamento_periodico` > 0 vale per un piano di accumulo, dove la
+    scorciatoia - sommare tutto il versato e trattarlo come se fosse sul conto
+    dal primo giorno - sovrastima il costo di parecchio: la rata versata al
+    nono anno subisce un anno di costi, non dieci. Qui si confronta il piano
+    non eroso (tasso zero: capitale piu' le rate) con lo stesso piano cresciuto
+    a `-isc`, cioe' eroso per il solo tempo in cui ogni rata e' investita.
     """
     if isc_annuo is None:
         return None
-    lordo = capitale
-    netto = capitale * (1.0 - isc_annuo) ** anni
+    lordo = capitale_finale(0.0, anni, capitale, versamento_periodico, rate_annue)
+    netto = capitale_finale(-isc_annuo, anni, capitale, versamento_periodico, rate_annue)
     return lordo - netto
