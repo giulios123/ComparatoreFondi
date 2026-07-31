@@ -341,6 +341,7 @@ with st.sidebar:
         t("sidebar.lingua_label"), list(i18n.LINGUE), key="lang",
         format_func=lambda code: i18n.LINGUE.get(code, code),
         on_change=_cambia_lingua,
+        filter_mode=None,
     )
 
     st.header(t("sidebar.header"))
@@ -376,13 +377,15 @@ with st.sidebar:
         step=1_000.0, format="%.0f", key="initial_value",
     )
     base_ccy = st.selectbox(
-        t("sidebar.valuta_riferimento"), CURRENCIES, key="base_ccy"
+        t("sidebar.valuta_riferimento"), CURRENCIES, key="base_ccy",
+        filter_mode=None,
     )
     rebalance = Rebalance(
         st.selectbox(
             t("sidebar.ribilanciamento_label"), REBALANCE_OPTIONS, key="rebalance",
             format_func=lambda v: i18n.etichetta_ribilanciamento(LINGUA, v),
             help=t("rebalance.help"),
+            filter_mode=None,
         )
     )
     st.caption(
@@ -480,7 +483,10 @@ with st.sidebar:
             t("csv.symbol_label"), key="csv_key",
             placeholder=t("csv.symbol_placeholder"),
         )
-        csv_ccy = st.selectbox(t("csv.currency_label"), CURRENCIES, key="csv_ccy")
+        csv_ccy = st.selectbox(
+            t("csv.currency_label"), CURRENCIES, key="csv_ccy",
+            filter_mode=None,
+        )
         uploaded = st.file_uploader(t("csv.file_label"), type=["csv", "txt"])
         if uploaded is not None and csv_key.strip():
             try:
@@ -1508,9 +1514,13 @@ with tab5:
         tipo_sel = f1.selectbox(
             t("previdenza.forma_label"), ["Tutte", "negoziale", "aperto", "PIP"],
             key="tipo_previdenza",
+            filter_mode=None,
         )
         categorie = ["Tutte"] + sorted({c.categoria for c in catalogo if c.categoria})
-        cat_sel = f2.selectbox(t("previdenza.categoria_label"), categorie, key="categoria_previdenza")
+        cat_sel = f2.selectbox(
+            t("previdenza.categoria_label"), categorie, key="categoria_previdenza",
+            filter_mode=None,
+        )
         testo = f3.text_input(
             t("previdenza.cerca_label"),
             placeholder=t("previdenza.cerca_placeholder"),
@@ -1672,6 +1682,7 @@ with tab5:
                     t("previdenza.orizzonte_label"),
                     covip.ORIZZONTI, index=3, key="orizzonte_curva",
                     format_func=lambda a: f"{a} ({covip.periodi().get(a, '')})",
+                    filter_mode=None,
                 )
 
     st.caption(t("previdenza.fonte_caption"))

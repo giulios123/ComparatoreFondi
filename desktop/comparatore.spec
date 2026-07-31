@@ -27,6 +27,12 @@ from PyInstaller.utils.hooks import collect_all
 
 PROJECT_ROOT = Path(SPECPATH).resolve().parent
 
+# Generate via `uv run python scripts/generate_icons.py` (solo macOS: usa il
+# font di sistema Apple Color Emoji + iconutil). I file sono committati in
+# assets/ perche' il runner Windows della CI non puo' rigenerarli.
+ICON_ICNS = str(PROJECT_ROOT / "assets" / "icon.icns")  # macOS, per BUNDLE()
+ICON_ICO = str(PROJECT_ROOT / "assets" / "icon.ico")  # Windows, per EXE()
+
 # Il notice riflette le distribuzioni effettivamente installate sulla
 # piattaforma di build (incluse le dipendenze native o condizionali).
 subprocess.run(
@@ -93,6 +99,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=ICON_ICO,
 )
 
 coll = COLLECT(
@@ -111,7 +118,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name="ComparatoreFondi.app",
-    icon=None,
+    icon=ICON_ICNS,
     bundle_identifier="com.giuliosciarappa.comparatorefondi",
     info_plist={
         "NSHighResolutionCapable": True,
