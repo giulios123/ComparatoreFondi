@@ -85,23 +85,57 @@ def rendimenti_per_orizzonte(
     }
 
 
-def capitale_finale(rendimento_annuo: float | None, anni: int, capitale: float) -> float | None:
-    """Montante dopo `anni` a un tasso annuo composto."""
+def capitale_finale(
+    rendimento_annuo: float | None,
+    anni: int,
+    capitale: float,
+    versamento_periodico: float = 0.0,
+    rate_annue: int = 12,
+) -> float | None:
+    """Montante dopo `anni` a un tasso annuo composto.
+
+    Con `versamento_periodico` > 0 diventa la formula dell'annualita': oltre
+    al capitale iniziale che cresce come sempre, ad ogni fine periodo si
+    aggiunge una rata che da quel momento cresce anch'essa al tasso annuo -
+    la stessa convenzione (rata versata a fine periodo, non a inizio) usata
+    dal motore di backtest per il PAC in `comparatore.engine.simulate`.
+    `rate_annue` e' il numero di rate in un anno (12 mensile, 4 trimestrale,
+    1 annuale).
+    """
     if rendimento_annuo is None:
         return None
-    return capitale * (1.0 + rendimento_annuo) ** anni
+    montante = capitale * (1.0 + rendimento_annuo) ** anni
+    if versamento_periodico:
+        n = anni * rate_annue
+        tasso_periodo = (1.0 + rendimento_annuo) ** (1.0 / rate_annue) - 1.0
+        if tasso_periodo == 0:
+            montante += versamento_periodico * n
+        else:
+            montante += versamento_periodico * ((1.0 + tasso_periodo) ** n - 1.0) / tasso_periodo
+    return montante
 
 
 def costo_cumulato(
-    isc_annuo: float | None, anni: int, capitale: float
+    isc_annuo: float | None,
+    anni: int,
+    capitale: float,
+    versamento_periodico: float = 0.0,
+    rate_annue: int = 12,
 ) -> float | None:
     """Quanto pesa un ISC costante su `anni`, a parita' di rendimento lordo.
 
     Confronta il montante senza costi con quello eroso dall'ISC: e' la stessa
     logica con cui l'applicazione mostra l'impatto del TER sui fondi comuni.
+
+    Con `versamento_periodico` > 0 vale per un piano di accumulo, dove la
+    scorciatoia - sommare tutto il versato e trattarlo come se fosse sul conto
+    dal primo giorno - sovrastima il costo di parecchio: la rata versata al
+    nono anno subisce un anno di costi, non dieci. Qui si confronta il piano
+    non eroso (tasso zero: capitale piu' le rate) con lo stesso piano cresciuto
+    a `-isc`, cioe' eroso per il solo tempo in cui ogni rata e' investita.
     """
     if isc_annuo is None:
         return None
-    lordo = capitale
-    netto = capitale * (1.0 - isc_annuo) ** anni
+    lordo = capitale_finale(0.0, anni, capitale, versamento_periodico, rate_annue)
+    netto = capitale_finale(-isc_annuo, anni, capitale, versamento_periodico, rate_annue)
     return lordo - netto

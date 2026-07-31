@@ -52,6 +52,32 @@ MESSAGGI: dict[str, str] = {
         "eingestellten Werten zurück (keine Handelskosten berücksichtigt)."
     ),
 
+    # --- Seitenleiste: Sparplan (PAC) -------------------------------------
+    "pac.rebalance_caption": (
+        "Eine wiederkehrende Einzahlung fließt zu den Zielgewichten: das "
+        "wirkt wie ein sanftes Rebalancing, daher driftet das Portfolio im "
+        "Rebalancing-Modus Keines weniger, als es ohne Sparplan tun würde."
+    ),
+    "pac.expander": "📅 Wiederkehrende Einzahlungen (Sparplan)",
+    "pac.enable_checkbox": "Sparplan aktivieren",
+    "pac.help": (
+        "Fügt dem Anfangskapital wiederkehrende Einzahlungen hinzu. Bei "
+        "aktivem Sparplan bleibt die Rendite des Instruments (CAGR, "
+        "Sharpe, Drawdown, ...) ohne die Einzahlungen berechnet; der XIRR "
+        "misst dagegen die Rendite Ihres Geldes, Einzahlungen inbegriffen."
+    ),
+    "pac.amount_label": "Betrag je Einzahlung",
+    "pac.amount_help": "Der bei jeder Fälligkeit eingezahlte Betrag, in der Basiswährung.",
+    "pac.frequency_label": "Häufigkeit",
+    "pac.step_up_label": "Jährliche Erhöhung der Rate (%)",
+    "pac.step_up_help": (
+        "Erhöht die Rate einmal im Jahr um diesen Prozentsatz, z. B. um "
+        "die Inflation oder das Gehaltswachstum abzubilden."
+    ),
+    "pac.limit_window_checkbox": "Einzahlungen auf einen Zeitraum begrenzen",
+    "pac.start_label": "Erste Einzahlung",
+    "pac.end_label": "Letzte Einzahlung",
+
     # --- Seitenleiste: Kosten --------------------------------------------------
     "costs.subheader": "Kosten",
     "costs.caption": (
@@ -156,7 +182,7 @@ MESSAGGI: dict[str, str] = {
     "cache.caption": "💾 Cache auf Festplatte: {n} Reihen, {mb:.1f} MB",
     "cache.clear_button": "Cache leeren",
     "cache.cleared_toast": "Cache geleert",
-    "sidebar.risk_free_label": "Jährlicher risikofreier Zins (für Sharpe)",
+    "sidebar.risk_free_label": "Jährlicher risikofreier Zins % (für Sharpe)",
 
     # --- Seitenleiste: Informationen und Lizenzen --------------------------------------
     "about.expander": "ℹ️ Informationen und Lizenzen",
@@ -178,6 +204,7 @@ MESSAGGI: dict[str, str] = {
     "about.col_package": "Paket",
     "about.col_version": "Version",
     "about.col_license": "Lizenz",
+    "about.credit": "Mit Neugier erstellt von [Giulio](https://www.gshake.net)",
 
     # --- Seitenleiste: Portfolio (Export/Import) ---------------------------------
     "portfolio_io.expander": "💼 Portfolio: speichern und laden",
@@ -388,6 +415,17 @@ MESSAGGI: dict[str, str] = {
         "Abschnitt, keine echten Fondsdaten: ihre Kennzahlen sind als "
         "indikativ zu lesen."
     ),
+    "help.pac_saldo": (
+        "Was das Portfolio am Ende wert ist, Einzahlungen inklusive: "
+        "die Summe aus Eingezahltem und Gewinn."
+    ),
+    "help.pac_versato": "Anfangskapital plus alle bisher geleisteten Einzahlungen.",
+    "help.pac_guadagno": "Endwert des Portfolios abzüglich der insgesamt eingezahlten Summe.",
+    "help.pac_xirr": (
+        "Jährliche Rendite Ihres Geldes (XIRR): anders als der CAGR "
+        "berücksichtigt sie den Zeitpunkt jeder Einzahlung, nicht nur das "
+        "Anfangskapital."
+    ),
 
     # --- Diagramme (Tab Portfolio) -----------------------------------------------------
     "chart.legend_reconstructed": "Portfolio (rekonstruiert)",
@@ -396,6 +434,15 @@ MESSAGGI: dict[str, str] = {
     "chart.hover_reconstructed_suffix": " (rekonstruiert)",
     "chart.annotation_real_start": "Beginn echter Daten",
     "chart.annotation_initial_capital": "Anfangskapital",
+    "chart.legend_invested": "Kumulierte Einzahlungen",
+    "chart.legend_pic": "Einmalanlage",
+    "chart.pic_caption": (
+        "Die Linie **Einmalanlage** zeigt, wie es gelaufen wäre, wenn derselbe "
+        "Betrag, den der Sparplan über die Zeit einzahlt ({totale}), am ersten "
+        "Tag auf einen Schlag angelegt worden wäre: **{valore_pic}** gegenüber "
+        "**{valore_pac}** beim Sparplan. Ein hypothetischer Vergleich: er "
+        "setzt voraus, dass die ganze Summe sofort verfügbar war."
+    ),
     "chart.legend_synthetic": "{comparto} (synthetisch)",
     "chart.hover_constant_growth": " · konstantes Wachstum",
     "chart.yaxis_value": "Wert ({ccy})",
@@ -491,6 +538,11 @@ MESSAGGI: dict[str, str] = {
         "Verlauf von {capitale}, vollständig in jeden Fonds investiert, "
         "für einen Vergleich bei gleichem Kapital."
     ),
+    "confronto.caption_pac": (
+        "Verlauf von {capitale}, vollständig in jeden einzelnen Fonds "
+        "investiert, mit demselben Einzahlungsplan wie das Portfolio: der "
+        "Vergleich bleibt bei gleichem Kapital und gleichen Raten."
+    ),
     "confronto.legend_reconstructed": "{col} (rekonstruiert)",
     "confronto.legend_gross": "{col} (brutto)",
     "confronto.col_valore_finale": "Endwert (von {capitale})",
@@ -500,6 +552,15 @@ MESSAGGI: dict[str, str] = {
         "in das Portfolio mit den eingestellten Gewichten und dem "
         "gewählten Rebalancing investiert. Die Endwerte sind daher Zeile "
         "für Zeile direkt vergleichbar."
+    ),
+    "confronto.col_valore_finale_pac": "Endwert (aus {capitale} + Einzahlungen)",
+    "confronto.stesso_capitale_caption_pac": (
+        "Jede Zeile erhält dasselbe Anfangskapital (**{capitale}**) und "
+        "denselben Einzahlungsplan. *Endwert* ist der tatsächliche Stand am "
+        "Ende, Einzahlungen inklusive, und *XIRR* ist die Rendite deines "
+        "Geldes, die berücksichtigt, wann jede Rate eingezahlt wurde. Alle "
+        "übrigen Kennzahlen werden **ohne die Einzahlungen** berechnet: eine "
+        "Einzahlung ist kein Marktgewinn."
     ),
     "confronto.footnote": (
         "Die Spalte *Rekonstruiert* markiert Zeilen, deren Kennzahlen "
@@ -513,6 +574,11 @@ MESSAGGI: dict[str, str] = {
     # --- Tab Drawdown -----------------------------------------------------------------------
     "drawdown.legend_portafoglio": "Portfolio",
     "drawdown.yaxis": "Drawdown (%)",
+    "drawdown.pac_caption": (
+        "Bei aktivem Sparplan werden Drawdown und Jahresrenditen ohne die "
+        "Einzahlungen berechnet: sonst erschiene jede Rate als Marktgewinn und "
+        "die Rückgänge wirkten milder, als sie waren."
+    ),
     "drawdown.yearly_header": "**Renditen nach Kalenderjahr**",
     "drawdown.yaxis_yearly": "Rendite (%)",
 
@@ -541,6 +607,14 @@ MESSAGGI: dict[str, str] = {
         "Sie den Anteilswert Ihres Fonds über den CSV-Upload in der "
         "Seitenleiste hoch."
     ),
+    "previdenza.pac_caption": (
+        "**Bei aktivem Sparplan** gilt in diesem Reiter: die Kurven der "
+        "Anlagelinien im Portfolio-Diagramm erhalten denselben Einzahlungsplan; "
+        "die Rendite deines Portfolios ist die ohne Einzahlungen, denn so "
+        "berechnet COVIP die eigenen; Kostenerosion und projizierter Endwert "
+        "rechnen mit deiner Rate über zehn Jahre, **konstant** gehalten — die "
+        "jährliche Erhöhung geht in diese Projektion nicht ein."
+    ),
     "previdenza.catalogo_error": (
         "COVIP-Katalog nicht verfügbar: Verbindung prüfen und erneut versuchen."
     ),
@@ -557,6 +631,31 @@ MESSAGGI: dict[str, str] = {
         "Portfolio zu vergleichen."
     ),
     "previdenza.rendimento_header": "**Durchschnittliche jährliche Rendite, auf denselben COVIP-Fenstern**",
+    "previdenza.col_orizzonte": "{etichetta} · {periodo}",
+    "previdenza.legenda_caption": (
+        "Jede Spalte ist ein eigenes abgeschlossenes Fenster, kein kumulativer "
+        "Zeitraum: die Daten stehen in der Kopfzeile. Ein Zehnjahreswert unter "
+        "dem Fünfjahreswert heißt, dass die erste Hälfte des Jahrzehnts weniger "
+        "gebracht hat, nicht dass der Fonds zuletzt schlechter geworden ist. "
+        "**ISC 10a** ist der synthetische Kostenindikator, das Gegenstück zur "
+        "TER in der Altersvorsorge: wie stark die Kosten im Schnitt jedes Jahr "
+        "über zehn Jahre wiegen."
+    ),
+    "previdenza.portafoglio_periodo_proprio": (
+        "Dein Backtest deckt **{inizio} → {fine}** ({anni} Jahre) ab und hat "
+        "**{rendimento}** pro Jahr gebracht: eine Zahl, die mit den Spalten "
+        "oben nicht vergleichbar ist. Die COVIP-Fenster sind **ganze "
+        "Kalenderjahre**, vom 1. Januar bis zum 31. Dezember: ein Zeitraum, der "
+        "mitten im Jahr beginnt oder endet, deckt sie nicht ab, auch wenn die "
+        "Kalenderjahre gleich aussehen."
+    ),
+    "previdenza.allinea_button": "📐 Zeitraum auf {inizio} → {fine} setzen",
+    "previdenza.allinea_caption": (
+        "Ändert die Backtest-Daten so, dass sie die COVIP-Fenster abdecken. Der "
+        "Backtest beginnt ohnehin am ersten Datum, an dem **alle** ausgewählten "
+        "Fonds Daten haben: die längeren Fenster bleiben **n/d**, wenn ein "
+        "Fonds jünger ist."
+    ),
     "previdenza.col_help_orizzonte": (
         "Durchschnittliche jährliche COVIP-Rendite über das {anni}-Jahres-Fenster ({periodo})."
     ),
@@ -571,6 +670,7 @@ MESSAGGI: dict[str, str] = {
         "über einen kürzeren Zeitraum würde eine nicht vergleichbare "
         "Zahl ergeben."
     ),
+    "previdenza.anno_suffix": "{a} Jahr",
     "previdenza.anni_suffix": "{a} Jahre",
     "previdenza.il_tuo_portafoglio": "Ihr Portfolio",
     "previdenza.yaxis_rendimento": "Durchschnittliche jährliche Rendite (%)",
@@ -579,7 +679,9 @@ MESSAGGI: dict[str, str] = {
     "previdenza.col_isc_annuo": "Jährliche ISC",
     "previdenza.col_rendimento_10a": "Rendite 10J",
     "previdenza.col_eroso": "Aufgezehrt bei {capitale} über 10 Jahre",
+    "previdenza.col_eroso_pac": "Aufgezehrt bei {capitale} in 10 Jahren eingezahlt",
     "previdenza.col_quota_rendimento": "Anteil der Rendite",
+    "previdenza.col_montante_pac_10a": "Projiziertes Kapital (Sparplan, 10J)",
     "previdenza.costi_caption": (
         "Die ISC ist das Äquivalent der TER für die Altersvorsorge. Die "
         "letzte Spalte zeigt, welcher Anteil der erzielten Nettorendite "
@@ -627,6 +729,10 @@ METRICHE: dict[str, str] = {
     "worst_year": "Schlechtestes Jahr",
     "ter_cost": "TER-Kosten",
     "reconstructed": "Rekonstruiert",
+    "balance": "Endstand",
+    "invested": "Eingezahlt",
+    "gain": "Gewinn",
+    "xirr": "XIRR",
 }
 
 ESITI: dict[str, str] = {

@@ -99,6 +99,55 @@ def calendar_year_returns(curve: pd.Series) -> pd.Series:
     return out[~out.index.duplicated(keep="last")]
 
 
+def xirr(
+    cashflows: list[tuple[pd.Timestamp, float]],
+    final_value: float,
+    final_date: pd.Timestamp,
+) -> float:
+    """Money-weighted annual return of a stream of contributions.
+
+    `cashflows` are negative (money paid in) at their respective dates;
+    `final_value` is what the investor holds on `final_date`, treated as one
+    positive cashflow. This is the number a PAC needs and `cagr` cannot give:
+    `cagr` assumes one pot of money planted on day one, which is false the
+    moment there is more than one contribution.
+
+    Solved by bisection on the discount rate, not Newton's method: Newton can
+    diverge on a cashflow list with very uneven spacing (typical of a PAC with
+    a long history), while bisection on a bounded rate range always finds the
+    root whenever one exists in that range.
+    """
+    if not cashflows or final_value <= 0:
+        return float("nan")
+    dates = [d for d, _ in cashflows] + [pd.Timestamp(final_date)]
+    amounts = [a for _, a in cashflows] + [final_value]
+    t0 = dates[0]
+    years = [(d - t0).days / 365.25 for d in dates]
+
+    def npv(rate: float) -> float:
+        return sum(a / (1.0 + rate) ** y for a, y in zip(amounts, years))
+
+    lo, hi = -0.9999, 10.0
+    npv_lo, npv_hi = npv(lo), npv(hi)
+    if npv_lo == 0:
+        return lo
+    if npv_hi == 0:
+        return hi
+    if (npv_lo > 0) == (npv_hi > 0):
+        return float("nan")
+
+    for _ in range(100):
+        mid = (lo + hi) / 2
+        npv_mid = npv(mid)
+        if abs(npv_mid) < 1e-9:
+            return mid
+        if (npv_mid > 0) == (npv_lo > 0):
+            lo, npv_lo = mid, npv_mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
 def summarize(curve: pd.Series, risk_free: float = 0.0) -> dict:
     """Full metric set for one equity curve.
 

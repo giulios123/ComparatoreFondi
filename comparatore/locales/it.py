@@ -48,6 +48,32 @@ MESSAGGI: dict[str, str] = {
         "periodo (nessun costo di negoziazione applicato)."
     ),
 
+    # --- Sidebar: PAC (versamenti periodici) ------------------------------
+    "pac.rebalance_caption": (
+        "Un versamento periodico entra ai pesi impostati: è un ribilanciamento "
+        "morbido, quindi con «Nessuno» il portafoglio deriva meno di quanto "
+        "farebbe senza PAC."
+    ),
+    "pac.expander": "📅 Versamenti periodici (PAC)",
+    "pac.enable_checkbox": "Attiva il piano di accumulo",
+    "pac.help": (
+        "Aggiunge versamenti ricorrenti al capitale iniziale. Con il PAC "
+        "attivo il rendimento dello strumento (CAGR, Sharpe, drawdown, ...) "
+        "resta calcolato al netto dei versamenti; l'XIRR misura invece il "
+        "rendimento del tuo denaro, versamenti inclusi."
+    ),
+    "pac.amount_label": "Importo per versamento",
+    "pac.amount_help": "La rata versata ad ogni scadenza, nella valuta di riferimento.",
+    "pac.frequency_label": "Frequenza",
+    "pac.step_up_label": "Rivalutazione annua della rata (%)",
+    "pac.step_up_help": (
+        "Aumenta la rata di questa percentuale una volta all'anno, ad "
+        "esempio per seguire l'inflazione o la crescita dello stipendio."
+    ),
+    "pac.limit_window_checkbox": "Limita i versamenti a un periodo",
+    "pac.start_label": "Primo versamento",
+    "pac.end_label": "Ultimo versamento",
+
     # --- Sidebar: costi --------------------------------------------------
     "costs.subheader": "Costi",
     "costs.caption": (
@@ -147,7 +173,7 @@ MESSAGGI: dict[str, str] = {
     "cache.caption": "💾 Cache su disco: {n} serie, {mb:.1f} MB",
     "cache.clear_button": "Svuota cache",
     "cache.cleared_toast": "Cache svuotata",
-    "sidebar.risk_free_label": "Tasso risk-free annuo (per Sharpe)",
+    "sidebar.risk_free_label": "Tasso risk-free annuo % (per Sharpe)",
 
     # --- Sidebar: informazioni e licenze --------------------------------------
     "about.expander": "ℹ️ Informazioni e licenze",
@@ -168,6 +194,7 @@ MESSAGGI: dict[str, str] = {
     "about.col_package": "Pacchetto",
     "about.col_version": "Versione",
     "about.col_license": "Licenza",
+    "about.credit": "Creato con curiosità da [Giulio](https://www.gshake.net)",
 
     # --- Sidebar: portafoglio (export/import) ---------------------------------
     "portfolio_io.expander": "💼 Portafoglio: salva e carica",
@@ -370,6 +397,17 @@ MESSAGGI: dict[str, str] = {
         "dati reali del fondo: le sue metriche vanno lette come "
         "indicative."
     ),
+    "help.pac_saldo": (
+        "Quanto vale il portafoglio a fine periodo, versamenti inclusi: "
+        "è la somma di versato e guadagno."
+    ),
+    "help.pac_versato": "Capitale iniziale più tutti i versamenti fatti fino ad oggi.",
+    "help.pac_guadagno": "Valore finale del portafoglio meno il totale versato.",
+    "help.pac_xirr": (
+        "Rendimento annuo del tuo denaro (XIRR): a differenza del CAGR tiene "
+        "conto di quando è entrato ogni versamento, non solo del capitale "
+        "iniziale."
+    ),
 
     # --- Grafici (tab Portafoglio) -----------------------------------------------------
     "chart.legend_reconstructed": "Portafoglio (ricostruito)",
@@ -378,6 +416,15 @@ MESSAGGI: dict[str, str] = {
     "chart.hover_reconstructed_suffix": " (ricostruito)",
     "chart.annotation_real_start": "inizio dati reali",
     "chart.annotation_initial_capital": "capitale iniziale",
+    "chart.legend_invested": "Versato cumulato",
+    "chart.legend_pic": "PIC (versamento unico)",
+    "chart.pic_caption": (
+        "La linea **PIC** mostra come sarebbe andata versando in un'unica "
+        "soluzione, il primo giorno, lo stesso totale che il PAC versa nel "
+        "tempo ({totale}): **{valore_pic}** contro **{valore_pac}** del PAC. "
+        "È un confronto ipotetico: presuppone di avere avuto subito tutta la "
+        "somma."
+    ),
     "chart.legend_synthetic": "{comparto} (sintetica)",
     "chart.hover_constant_growth": " · crescita costante",
     "chart.yaxis_value": "Valore ({ccy})",
@@ -465,6 +512,11 @@ MESSAGGI: dict[str, str] = {
         "Andamento di {capitale} investiti interamente in ciascun fondo, "
         "per un confronto a parità di capitale."
     ),
+    "confronto.caption_pac": (
+        "Andamento di {capitale} investiti interamente in ciascun fondo, con "
+        "lo stesso piano di versamenti del portafoglio: il confronto resta a "
+        "parità di capitale e di rate."
+    ),
     "confronto.legend_reconstructed": "{col} (ricostruito)",
     "confronto.legend_gross": "{col} (lordo)",
     "confronto.col_valore_finale": "Valore finale (da {capitale})",
@@ -474,6 +526,15 @@ MESSAGGI: dict[str, str] = {
         "**{capitale}** investiti nel portafoglio con i pesi "
         "impostati e il ribilanciamento scelto. I valori finali sono quindi "
         "confrontabili direttamente riga per riga."
+    ),
+    "confronto.col_valore_finale_pac": "Valore finale (da {capitale} + versamenti)",
+    "confronto.stesso_capitale_caption_pac": (
+        "Tutte le righe ricevono lo stesso capitale iniziale (**{capitale}**) "
+        "e lo stesso piano di versamenti. *Valore finale* è il saldo vero a "
+        "fine periodo, versamenti inclusi, e *XIRR* è il rendimento del "
+        "denaro, che tiene conto di quando ogni rata è entrata. Tutte le "
+        "altre metriche sono calcolate **al netto dei versamenti**: un "
+        "versamento non è un guadagno di mercato."
     ),
     "confronto.footnote": (
         "La colonna *Ricostruito* segnala le righe le cui metriche "
@@ -487,6 +548,11 @@ MESSAGGI: dict[str, str] = {
     # --- Tab Drawdown -----------------------------------------------------------------------
     "drawdown.legend_portafoglio": "Portafoglio",
     "drawdown.yaxis": "Drawdown (%)",
+    "drawdown.pac_caption": (
+        "Con il PAC attivo drawdown e rendimenti annui sono calcolati al netto "
+        "dei versamenti: senza, ogni rata comparirebbe come un guadagno di "
+        "mercato e i cali sembrerebbero più leggeri di quanto sono stati."
+    ),
     "drawdown.yearly_header": "**Rendimenti per anno solare**",
     "drawdown.yaxis_yearly": "Rendimento (%)",
 
@@ -512,6 +578,14 @@ MESSAGGI: dict[str, str] = {
         "sono calcolabili da nessun dato pubblico. Per averli, carica il valore "
         "quota del tuo fondo con l'uploader CSV nella barra laterale."
     ),
+    "previdenza.pac_caption": (
+        "**Con il PAC attivo**, in questa scheda: le curve dei comparti nel "
+        "grafico del portafoglio ricevono lo stesso piano di versamenti; il "
+        "rendimento del tuo portafoglio è quello al netto dei versamenti, "
+        "perché è così che COVIP calcola i suoi; l'erosione dei costi e il "
+        "montante proiettato usano la tua rata per dieci anni, tenuta "
+        "**costante** — la rivalutazione annua non entra in questa proiezione."
+    ),
     "previdenza.catalogo_error": (
         "Catalogo COVIP non disponibile: controlla la connessione e riprova."
     ),
@@ -532,6 +606,30 @@ MESSAGGI: dict[str, str] = {
         "Seleziona uno o più comparti per confrontarli con il tuo portafoglio."
     ),
     "previdenza.rendimento_header": "**Rendimento medio annuo, sulle stesse finestre COVIP**",
+    "previdenza.col_orizzonte": "{etichetta} · {periodo}",
+    "previdenza.legenda_caption": (
+        "Ogni colonna è una finestra chiusa a sé, non un periodo cumulativo: le "
+        "date sono nell'intestazione. Un valore a 10 anni più basso di quello a "
+        "5 significa che la prima metà del decennio ha reso meno, non che il "
+        "fondo sia peggiorato di recente. **ISC 10a** è l'Indicatore Sintetico "
+        "dei Costi, l'equivalente del TER per la previdenza: quanto pesano in "
+        "media i costi ogni anno su un orizzonte di dieci anni."
+    ),
+    "previdenza.portafoglio_periodo_proprio": (
+        "Il tuo backtest copre **{inizio} → {fine}** ({anni} anni) e ha reso il "
+        "**{rendimento}** medio annuo: un numero non confrontabile con le "
+        "colonne qui sopra. Le finestre COVIP sono **anni solari interi**, dal "
+        "1° gennaio al 31 dicembre: un periodo che comincia o finisce a metà "
+        "anno non le copre, anche quando gli anni di calendario sembrano gli "
+        "stessi."
+    ),
+    "previdenza.allinea_button": "📐 Porta il periodo su {inizio} → {fine}",
+    "previdenza.allinea_caption": (
+        "Cambia le date del backtest per coprire le finestre COVIP. Il "
+        "backtest parte comunque dalla prima data in cui **tutti** i fondi "
+        "selezionati hanno dati: le finestre più lunghe restano **n/d** se un "
+        "fondo è più recente."
+    ),
     "previdenza.col_help_orizzonte": (
         "Rendimento medio annuo COVIP sulla finestra a {anni} anni ({periodo})."
     ),
@@ -545,6 +643,7 @@ MESSAGGI: dict[str, str] = {
         "l'intera finestra ({dettaglio}). Calcolarlo su un periodo più corto "
         "darebbe un numero non confrontabile."
     ),
+    "previdenza.anno_suffix": "{a} anno",
     "previdenza.anni_suffix": "{a} anni",
     "previdenza.il_tuo_portafoglio": "Il tuo portafoglio",
     "previdenza.yaxis_rendimento": "Rendimento medio annuo (%)",
@@ -553,7 +652,9 @@ MESSAGGI: dict[str, str] = {
     "previdenza.col_isc_annuo": "ISC annuo",
     "previdenza.col_rendimento_10a": "Rendimento 10a",
     "previdenza.col_eroso": "Eroso su {capitale} in 10 anni",
+    "previdenza.col_eroso_pac": "Eroso su {capitale} versati in 10 anni",
     "previdenza.col_quota_rendimento": "Quota del rendimento",
+    "previdenza.col_montante_pac_10a": "Montante proiettato (PAC, 10a)",
     "previdenza.costi_caption": (
         "L'ISC è l'equivalente del TER per la previdenza. L'ultima "
         "colonna mostra che frazione del rendimento netto ottenuto "
@@ -599,6 +700,10 @@ METRICHE: dict[str, str] = {
     "worst_year": "Peggior anno",
     "ter_cost": "Costo TER",
     "reconstructed": "Ricostruito",
+    "balance": "Saldo finale",
+    "invested": "Versato",
+    "gain": "Guadagno",
+    "xirr": "XIRR",
 }
 
 # Traduzione degli esiti di risoluzione di un simbolo (comparatore.sources.registry.Attempt).

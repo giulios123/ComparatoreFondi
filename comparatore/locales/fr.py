@@ -49,6 +49,32 @@ MESSAGGI: dict[str, str] = {
         "de chaque période (aucun frais de transaction appliqué)."
     ),
 
+    # --- Barre latérale : PAC (versements périodiques) ---------------------
+    "pac.rebalance_caption": (
+        "Un versement périodique entre aux poids cibles : c'est un "
+        "rééquilibrage doux, donc avec « Aucun » le portefeuille dérive "
+        "moins qu'il ne le ferait sans PAC."
+    ),
+    "pac.expander": "📅 Versements périodiques (PAC)",
+    "pac.enable_checkbox": "Activer le plan de versements",
+    "pac.help": (
+        "Ajoute des versements récurrents au capital initial. Avec le PAC "
+        "activé, le rendement de l'instrument (CAGR, Sharpe, drawdown, ...) "
+        "reste calculé hors versements ; l'XIRR mesure lui le rendement de "
+        "votre argent, versements inclus."
+    ),
+    "pac.amount_label": "Montant par versement",
+    "pac.amount_help": "La somme versée à chaque échéance, dans la devise de référence.",
+    "pac.frequency_label": "Fréquence",
+    "pac.step_up_label": "Revalorisation annuelle du versement (%)",
+    "pac.step_up_help": (
+        "Augmente le versement de ce pourcentage une fois par an, par "
+        "exemple pour suivre l'inflation ou la progression du salaire."
+    ),
+    "pac.limit_window_checkbox": "Limiter les versements à une période",
+    "pac.start_label": "Premier versement",
+    "pac.end_label": "Dernier versement",
+
     # --- Barre latérale : coûts --------------------------------------------------
     "costs.subheader": "Coûts",
     "costs.caption": (
@@ -152,7 +178,7 @@ MESSAGGI: dict[str, str] = {
     "cache.caption": "💾 Cache sur disque : {n} séries, {mb:.1f} Mo",
     "cache.clear_button": "Vider le cache",
     "cache.cleared_toast": "Cache vidé",
-    "sidebar.risk_free_label": "Taux sans risque annuel (pour Sharpe)",
+    "sidebar.risk_free_label": "Taux sans risque annuel % (pour Sharpe)",
 
     # --- Barre latérale : informations et licences --------------------------------------
     "about.expander": "ℹ️ Informations et licences",
@@ -174,6 +200,7 @@ MESSAGGI: dict[str, str] = {
     "about.col_package": "Paquet",
     "about.col_version": "Version",
     "about.col_license": "Licence",
+    "about.credit": "Créé avec curiosité par [Giulio](https://www.gshake.net)",
 
     # --- Barre latérale : portefeuille (export/import) ---------------------------------
     "portfolio_io.expander": "💼 Portefeuille : enregistrer et charger",
@@ -379,6 +406,17 @@ MESSAGGI: dict[str, str] = {
         "pas des données réelles du fonds : ses métriques doivent être "
         "lues comme indicatives."
     ),
+    "help.pac_saldo": (
+        "Ce que vaut le portefeuille à la fin, versements compris : "
+        "la somme du versé et du gain."
+    ),
+    "help.pac_versato": "Capital initial plus tous les versements effectués à ce jour.",
+    "help.pac_guadagno": "Valeur finale du portefeuille moins le total versé.",
+    "help.pac_xirr": (
+        "Rendement annuel de votre argent (XIRR) : contrairement au CAGR, "
+        "il tient compte de la date de chaque versement, pas seulement du "
+        "capital initial."
+    ),
 
     # --- Graphiques (onglet Portefeuille) -----------------------------------------------------
     "chart.legend_reconstructed": "Portefeuille (reconstitué)",
@@ -387,6 +425,15 @@ MESSAGGI: dict[str, str] = {
     "chart.hover_reconstructed_suffix": " (reconstitué)",
     "chart.annotation_real_start": "début des données réelles",
     "chart.annotation_initial_capital": "capital initial",
+    "chart.legend_invested": "Versements cumulés",
+    "chart.legend_pic": "Versement unique",
+    "chart.pic_caption": (
+        "La ligne **versement unique** montre ce qu'aurait donné le placement, "
+        "le premier jour et en une seule fois, du même total que le plan verse "
+        "au fil du temps ({totale}) : **{valore_pic}** contre **{valore_pac}** "
+        "pour le plan. C'est une comparaison hypothétique : elle suppose que "
+        "toute la somme était disponible dès le départ."
+    ),
     "chart.legend_synthetic": "{comparto} (synthétique)",
     "chart.hover_constant_growth": " · croissance constante",
     "chart.yaxis_value": "Valeur ({ccy})",
@@ -477,6 +524,11 @@ MESSAGGI: dict[str, str] = {
         "Évolution de {capitale} investis intégralement dans chaque fonds, "
         "pour une comparaison à capital égal."
     ),
+    "confronto.caption_pac": (
+        "Évolution de {capitale} investis entièrement dans chaque fonds, avec "
+        "le même plan de versements que le portefeuille : la comparaison reste "
+        "à capital et versements égaux."
+    ),
     "confronto.legend_reconstructed": "{col} (reconstitué)",
     "confronto.legend_gross": "{col} (brut)",
     "confronto.col_valore_finale": "Valeur finale (depuis {capitale})",
@@ -486,6 +538,15 @@ MESSAGGI: dict[str, str] = {
         "dans le portefeuille avec les poids fixés et le rééquilibrage "
         "choisi. Les valeurs finales sont donc directement comparables "
         "ligne par ligne."
+    ),
+    "confronto.col_valore_finale_pac": "Valeur finale (de {capitale} + versements)",
+    "confronto.stesso_capitale_caption_pac": (
+        "Toutes les lignes reçoivent le même capital initial (**{capitale}**) "
+        "et le même plan de versements. *Valeur finale* est le solde réel à la "
+        "fin, versements compris, et *XIRR* est le rendement de votre argent, "
+        "qui tient compte de la date d'entrée de chaque versement. Toutes les "
+        "autres mesures sont calculées **hors versements** : un versement "
+        "n'est pas un gain de marché."
     ),
     "confronto.footnote": (
         "La colonne *Reconstitué* signale les lignes dont les métriques "
@@ -499,6 +560,12 @@ MESSAGGI: dict[str, str] = {
     # --- Onglet Drawdown -----------------------------------------------------------------------
     "drawdown.legend_portafoglio": "Portefeuille",
     "drawdown.yaxis": "Drawdown (%)",
+    "drawdown.pac_caption": (
+        "Avec le plan actif, la perte maximale et les rendements annuels sont "
+        "calculés hors versements : sinon chaque versement apparaîtrait comme "
+        "un gain de marché et les baisses sembleraient plus douces qu'elles "
+        "ne l'ont été."
+    ),
     "drawdown.yearly_header": "**Rendements par année civile**",
     "drawdown.yaxis_yearly": "Rendement (%)",
 
@@ -527,6 +594,15 @@ MESSAGGI: dict[str, str] = {
         "part de votre fonds avec l'outil de chargement CSV dans la barre "
         "latérale."
     ),
+    "previdenza.pac_caption": (
+        "**Avec le plan actif**, dans cet onglet : les courbes des "
+        "compartiments sur le graphique du portefeuille reçoivent le même plan "
+        "de versements ; le rendement de votre portefeuille est celui hors "
+        "versements, car c'est ainsi que la COVIP calcule les siens ; "
+        "l'érosion des frais et le capital projeté utilisent votre versement "
+        "pendant dix ans, maintenu **constant** — la revalorisation annuelle "
+        "n'entre pas dans cette projection."
+    ),
     "previdenza.catalogo_error": (
         "Catalogue COVIP non disponible : vérifiez la connexion et réessayez."
     ),
@@ -543,6 +619,31 @@ MESSAGGI: dict[str, str] = {
         "votre portefeuille."
     ),
     "previdenza.rendimento_header": "**Rendement annuel moyen, sur les mêmes fenêtres COVIP**",
+    "previdenza.col_orizzonte": "{etichetta} · {periodo}",
+    "previdenza.legenda_caption": (
+        "Chaque colonne est une fenêtre fermée en soi, pas une période "
+        "cumulative : les dates sont dans l'en-tête. Une valeur à 10 ans "
+        "inférieure à celle à 5 ans signifie que la première moitié de la "
+        "décennie a moins rapporté, pas que le fonds s'est dégradé récemment. "
+        "**ISC 10a** est l'indicateur synthétique des coûts, l'équivalent du "
+        "TER pour la retraite : le poids moyen annuel des frais sur un horizon "
+        "de dix ans."
+    ),
+    "previdenza.portafoglio_periodo_proprio": (
+        "Votre backtest couvre **{inizio} → {fine}** ({anni} ans) et a rapporté "
+        "**{rendimento}** par an : un chiffre non comparable aux colonnes "
+        "ci-dessus. Les fenêtres COVIP sont des **années civiles entières**, du "
+        "1er janvier au 31 décembre : une période qui commence ou finit en "
+        "milieu d'année ne les couvre pas, même quand les années du calendrier "
+        "semblent les mêmes."
+    ),
+    "previdenza.allinea_button": "📐 Régler la période sur {inizio} → {fine}",
+    "previdenza.allinea_caption": (
+        "Modifie les dates du backtest pour couvrir les fenêtres COVIP. Le "
+        "backtest démarre de toute façon à la première date où **tous** les "
+        "fonds sélectionnés ont des données : les fenêtres les plus longues "
+        "restent **n/d** si un fonds est plus récent."
+    ),
     "previdenza.col_help_orizzonte": (
         "Rendement annuel moyen COVIP sur la fenêtre à {anni} ans ({periodo})."
     ),
@@ -556,6 +657,7 @@ MESSAGGI: dict[str, str] = {
         "couvre pas toute la fenêtre ({dettaglio}). Le calculer sur une "
         "période plus courte donnerait un chiffre non comparable."
     ),
+    "previdenza.anno_suffix": "{a} an",
     "previdenza.anni_suffix": "{a} ans",
     "previdenza.il_tuo_portafoglio": "Votre portefeuille",
     "previdenza.yaxis_rendimento": "Rendement annuel moyen (%)",
@@ -564,7 +666,9 @@ MESSAGGI: dict[str, str] = {
     "previdenza.col_isc_annuo": "ISC annuel",
     "previdenza.col_rendimento_10a": "Rendement 10a",
     "previdenza.col_eroso": "Érodé sur {capitale} en 10 ans",
+    "previdenza.col_eroso_pac": "Érodé sur {capitale} versés en 10 ans",
     "previdenza.col_quota_rendimento": "Part du rendement",
+    "previdenza.col_montante_pac_10a": "Montant projeté (PAC, 10 ans)",
     "previdenza.costi_caption": (
         "L'ISC est l'équivalent du TER pour la retraite. La dernière "
         "colonne montre la fraction du rendement net obtenu absorbée "
@@ -610,6 +714,10 @@ METRICHE: dict[str, str] = {
     "worst_year": "Pire année",
     "ter_cost": "Coût du TER",
     "reconstructed": "Reconstitué",
+    "balance": "Solde final",
+    "invested": "Versé",
+    "gain": "Gain",
+    "xirr": "XIRR",
 }
 
 ESITI: dict[str, str] = {
