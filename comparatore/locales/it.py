@@ -48,6 +48,32 @@ MESSAGGI: dict[str, str] = {
         "periodo (nessun costo di negoziazione applicato)."
     ),
 
+    # --- Sidebar: PAC (versamenti periodici) ------------------------------
+    "pac.rebalance_caption": (
+        "Un versamento periodico entra ai pesi impostati: è un ribilanciamento "
+        "morbido, quindi con «Nessuno» il portafoglio deriva meno di quanto "
+        "farebbe senza PAC."
+    ),
+    "pac.expander": "📅 Versamenti periodici (PAC)",
+    "pac.enable_checkbox": "Attiva il piano di accumulo",
+    "pac.help": (
+        "Aggiunge versamenti ricorrenti al capitale iniziale. Con il PAC "
+        "attivo il rendimento dello strumento (CAGR, Sharpe, drawdown, ...) "
+        "resta calcolato al netto dei versamenti; l'XIRR misura invece il "
+        "rendimento del tuo denaro, versamenti inclusi."
+    ),
+    "pac.amount_label": "Importo per versamento",
+    "pac.amount_help": "La rata versata ad ogni scadenza, nella valuta di riferimento.",
+    "pac.frequency_label": "Frequenza",
+    "pac.step_up_label": "Rivalutazione annua della rata",
+    "pac.step_up_help": (
+        "Aumenta la rata di questa percentuale una volta all'anno, ad "
+        "esempio per seguire l'inflazione o la crescita dello stipendio."
+    ),
+    "pac.limit_window_checkbox": "Limita i versamenti a un periodo",
+    "pac.start_label": "Primo versamento",
+    "pac.end_label": "Ultimo versamento",
+
     # --- Sidebar: costi --------------------------------------------------
     "costs.subheader": "Costi",
     "costs.caption": (
@@ -370,6 +396,13 @@ MESSAGGI: dict[str, str] = {
         "dati reali del fondo: le sue metriche vanno lette come "
         "indicative."
     ),
+    "help.pac_versato": "Capitale iniziale più tutti i versamenti fatti fino ad oggi.",
+    "help.pac_guadagno": "Valore finale del portafoglio meno il totale versato.",
+    "help.pac_xirr": (
+        "Rendimento annuo del tuo denaro (XIRR): a differenza del CAGR tiene "
+        "conto di quando è entrato ogni versamento, non solo del capitale "
+        "iniziale."
+    ),
 
     # --- Grafici (tab Portafoglio) -----------------------------------------------------
     "chart.legend_reconstructed": "Portafoglio (ricostruito)",
@@ -378,6 +411,7 @@ MESSAGGI: dict[str, str] = {
     "chart.hover_reconstructed_suffix": " (ricostruito)",
     "chart.annotation_real_start": "inizio dati reali",
     "chart.annotation_initial_capital": "capitale iniziale",
+    "chart.legend_invested": "Versato cumulato",
     "chart.legend_synthetic": "{comparto} (sintetica)",
     "chart.hover_constant_growth": " · crescita costante",
     "chart.yaxis_value": "Valore ({ccy})",
@@ -554,6 +588,7 @@ MESSAGGI: dict[str, str] = {
     "previdenza.col_rendimento_10a": "Rendimento 10a",
     "previdenza.col_eroso": "Eroso su {capitale} in 10 anni",
     "previdenza.col_quota_rendimento": "Quota del rendimento",
+    "previdenza.col_montante_pac_10a": "Montante proiettato (PAC, 10a)",
     "previdenza.costi_caption": (
         "L'ISC è l'equivalente del TER per la previdenza. L'ultima "
         "colonna mostra che frazione del rendimento netto ottenuto "
@@ -599,6 +634,9 @@ METRICHE: dict[str, str] = {
     "worst_year": "Peggior anno",
     "ter_cost": "Costo TER",
     "reconstructed": "Ricostruito",
+    "invested": "Versato",
+    "gain": "Guadagno",
+    "xirr": "XIRR",
 }
 
 # Traduzione degli esiti di risoluzione di un simbolo (comparatore.sources.registry.Attempt).

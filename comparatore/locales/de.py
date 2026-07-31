@@ -52,6 +52,32 @@ MESSAGGI: dict[str, str] = {
         "eingestellten Werten zurück (keine Handelskosten berücksichtigt)."
     ),
 
+    # --- Seitenleiste: Sparplan (PAC) -------------------------------------
+    "pac.rebalance_caption": (
+        "Eine wiederkehrende Einzahlung fließt zu den Zielgewichten: das "
+        "wirkt wie ein sanftes Rebalancing, daher driftet das Portfolio im "
+        "Rebalancing-Modus Keines weniger, als es ohne Sparplan tun würde."
+    ),
+    "pac.expander": "📅 Wiederkehrende Einzahlungen (Sparplan)",
+    "pac.enable_checkbox": "Sparplan aktivieren",
+    "pac.help": (
+        "Fügt dem Anfangskapital wiederkehrende Einzahlungen hinzu. Bei "
+        "aktivem Sparplan bleibt die Rendite des Instruments (CAGR, "
+        "Sharpe, Drawdown, ...) ohne die Einzahlungen berechnet; der XIRR "
+        "misst dagegen die Rendite Ihres Geldes, Einzahlungen inbegriffen."
+    ),
+    "pac.amount_label": "Betrag je Einzahlung",
+    "pac.amount_help": "Der bei jeder Fälligkeit eingezahlte Betrag, in der Basiswährung.",
+    "pac.frequency_label": "Häufigkeit",
+    "pac.step_up_label": "Jährliche Erhöhung der Rate",
+    "pac.step_up_help": (
+        "Erhöht die Rate einmal im Jahr um diesen Prozentsatz, z. B. um "
+        "die Inflation oder das Gehaltswachstum abzubilden."
+    ),
+    "pac.limit_window_checkbox": "Einzahlungen auf einen Zeitraum begrenzen",
+    "pac.start_label": "Erste Einzahlung",
+    "pac.end_label": "Letzte Einzahlung",
+
     # --- Seitenleiste: Kosten --------------------------------------------------
     "costs.subheader": "Kosten",
     "costs.caption": (
@@ -388,6 +414,13 @@ MESSAGGI: dict[str, str] = {
         "Abschnitt, keine echten Fondsdaten: ihre Kennzahlen sind als "
         "indikativ zu lesen."
     ),
+    "help.pac_versato": "Anfangskapital plus alle bisher geleisteten Einzahlungen.",
+    "help.pac_guadagno": "Endwert des Portfolios abzüglich der insgesamt eingezahlten Summe.",
+    "help.pac_xirr": (
+        "Jährliche Rendite Ihres Geldes (XIRR): anders als der CAGR "
+        "berücksichtigt sie den Zeitpunkt jeder Einzahlung, nicht nur das "
+        "Anfangskapital."
+    ),
 
     # --- Diagramme (Tab Portfolio) -----------------------------------------------------
     "chart.legend_reconstructed": "Portfolio (rekonstruiert)",
@@ -396,6 +429,7 @@ MESSAGGI: dict[str, str] = {
     "chart.hover_reconstructed_suffix": " (rekonstruiert)",
     "chart.annotation_real_start": "Beginn echter Daten",
     "chart.annotation_initial_capital": "Anfangskapital",
+    "chart.legend_invested": "Kumulierte Einzahlungen",
     "chart.legend_synthetic": "{comparto} (synthetisch)",
     "chart.hover_constant_growth": " · konstantes Wachstum",
     "chart.yaxis_value": "Wert ({ccy})",
@@ -580,6 +614,7 @@ MESSAGGI: dict[str, str] = {
     "previdenza.col_rendimento_10a": "Rendite 10J",
     "previdenza.col_eroso": "Aufgezehrt bei {capitale} über 10 Jahre",
     "previdenza.col_quota_rendimento": "Anteil der Rendite",
+    "previdenza.col_montante_pac_10a": "Projiziertes Kapital (Sparplan, 10J)",
     "previdenza.costi_caption": (
         "Die ISC ist das Äquivalent der TER für die Altersvorsorge. Die "
         "letzte Spalte zeigt, welcher Anteil der erzielten Nettorendite "
@@ -627,6 +662,9 @@ METRICHE: dict[str, str] = {
     "worst_year": "Schlechtestes Jahr",
     "ter_cost": "TER-Kosten",
     "reconstructed": "Rekonstruiert",
+    "invested": "Eingezahlt",
+    "gain": "Gewinn",
+    "xirr": "XIRR",
 }
 
 ESITI: dict[str, str] = {

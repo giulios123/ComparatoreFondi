@@ -85,11 +85,34 @@ def rendimenti_per_orizzonte(
     }
 
 
-def capitale_finale(rendimento_annuo: float | None, anni: int, capitale: float) -> float | None:
-    """Montante dopo `anni` a un tasso annuo composto."""
+def capitale_finale(
+    rendimento_annuo: float | None,
+    anni: int,
+    capitale: float,
+    versamento_periodico: float = 0.0,
+    rate_annue: int = 12,
+) -> float | None:
+    """Montante dopo `anni` a un tasso annuo composto.
+
+    Con `versamento_periodico` > 0 diventa la formula dell'annualita': oltre
+    al capitale iniziale che cresce come sempre, ad ogni fine periodo si
+    aggiunge una rata che da quel momento cresce anch'essa al tasso annuo -
+    la stessa convenzione (rata versata a fine periodo, non a inizio) usata
+    dal motore di backtest per il PAC in `comparatore.engine.simulate`.
+    `rate_annue` e' il numero di rate in un anno (12 mensile, 4 trimestrale,
+    1 annuale).
+    """
     if rendimento_annuo is None:
         return None
-    return capitale * (1.0 + rendimento_annuo) ** anni
+    montante = capitale * (1.0 + rendimento_annuo) ** anni
+    if versamento_periodico:
+        n = anni * rate_annue
+        tasso_periodo = (1.0 + rendimento_annuo) ** (1.0 / rate_annue) - 1.0
+        if tasso_periodo == 0:
+            montante += versamento_periodico * n
+        else:
+            montante += versamento_periodico * ((1.0 + tasso_periodo) ** n - 1.0) / tasso_periodo
+    return montante
 
 
 def costo_cumulato(

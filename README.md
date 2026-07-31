@@ -104,7 +104,43 @@ Tutto nella barra laterale a sinistra:
 Il grafico e le metriche si aggiornano da soli. Se i pesi non sommano a 100%
 l'app li normalizza e te lo segnala.
 
-### 6. Leggere i risultati
+### 6. Versamenti periodici (PAC)
+
+Nella barra laterale, sotto Ribilanciamento, l'espansore **📅 Versamenti
+periodici (PAC)** è chiuso e disattivato di default: senza aprirlo l'app si
+comporta esattamente come senza questa sezione.
+
+Attivandolo si configurano:
+
+- **Importo per versamento** e **Frequenza** (mensile, trimestrale, annuale);
+- **Rivalutazione annua della rata**, per farla crescere di una percentuale
+  fissa ogni anno (ad esempio per seguire l'inflazione o lo stipendio);
+- **Limita i versamenti a un periodo**, per versare solo fra due date invece
+  che per tutto l'orizzonte del backtest.
+
+Ogni rata entra ai pesi impostati il primo giorno di borsa del periodo
+successivo al capitale iniziale: è di fatto un ribilanciamento morbido, quindi
+anche con "Nessuno" il portafoglio deriva un po' meno di quanto farebbe senza
+PAC.
+
+Con il PAC attivo compaiono, accanto ai cinque KPI abituali, tre metriche in
+più:
+
+- **Versato** — capitale iniziale più tutti i versamenti fatti;
+- **Guadagno** — valore finale meno il versato;
+- **XIRR** — il rendimento annuo del *tuo* denaro, che tiene conto di quando
+  è entrato ogni versamento (a differenza del CAGR, che assume un capitale
+  unico investito il primo giorno).
+
+CAGR, volatilità, Sharpe, Sortino e drawdown restano invece calcolati sul
+rendimento dello strumento al netto dei versamenti: un PAC non falsa queste
+metriche facendo apparire ogni versamento come un guadagno di mercato. Nella
+scheda 🏦 Fondi pensione, per lo stesso motivo, il confronto con i rendimenti
+COVIP usa quel rendimento al netto dei versamenti, e la tabella dei costi ISC
+guadagna una colonna con il montante proiettato a 10 anni versando lo stesso
+PAC.
+
+### 7. Leggere i risultati
 
 Cinque schede sotto il grafico principale:
 
@@ -636,7 +672,7 @@ print(res.series.source, len(res.series.prices))
 - I NAV mancanti vengono riportati in avanti (`ffill`), come è corretto per i
   fondi che non quotano tutti i giorni.
 - **Non** sono considerati: costi di ingresso/uscita, spread denaro-lettera,
-  fiscalità, versamenti periodici (PAC).
+  fiscalità, inflazione.
 - Un fondo la cui valuta non è risolvibile viene **escluso** anziché mescolato
   a valute diverse.
 

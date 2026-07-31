@@ -49,6 +49,32 @@ MESSAGGI: dict[str, str] = {
         "de chaque période (aucun frais de transaction appliqué)."
     ),
 
+    # --- Barre latérale : PAC (versements périodiques) ---------------------
+    "pac.rebalance_caption": (
+        "Un versement périodique entre aux poids cibles : c'est un "
+        "rééquilibrage doux, donc avec « Aucun » le portefeuille dérive "
+        "moins qu'il ne le ferait sans PAC."
+    ),
+    "pac.expander": "📅 Versements périodiques (PAC)",
+    "pac.enable_checkbox": "Activer le plan de versements",
+    "pac.help": (
+        "Ajoute des versements récurrents au capital initial. Avec le PAC "
+        "activé, le rendement de l'instrument (CAGR, Sharpe, drawdown, ...) "
+        "reste calculé hors versements ; l'XIRR mesure lui le rendement de "
+        "votre argent, versements inclus."
+    ),
+    "pac.amount_label": "Montant par versement",
+    "pac.amount_help": "La somme versée à chaque échéance, dans la devise de référence.",
+    "pac.frequency_label": "Fréquence",
+    "pac.step_up_label": "Revalorisation annuelle du versement",
+    "pac.step_up_help": (
+        "Augmente le versement de ce pourcentage une fois par an, par "
+        "exemple pour suivre l'inflation ou la progression du salaire."
+    ),
+    "pac.limit_window_checkbox": "Limiter les versements à une période",
+    "pac.start_label": "Premier versement",
+    "pac.end_label": "Dernier versement",
+
     # --- Barre latérale : coûts --------------------------------------------------
     "costs.subheader": "Coûts",
     "costs.caption": (
@@ -379,6 +405,13 @@ MESSAGGI: dict[str, str] = {
         "pas des données réelles du fonds : ses métriques doivent être "
         "lues comme indicatives."
     ),
+    "help.pac_versato": "Capital initial plus tous les versements effectués à ce jour.",
+    "help.pac_guadagno": "Valeur finale du portefeuille moins le total versé.",
+    "help.pac_xirr": (
+        "Rendement annuel de votre argent (XIRR) : contrairement au CAGR, "
+        "il tient compte de la date de chaque versement, pas seulement du "
+        "capital initial."
+    ),
 
     # --- Graphiques (onglet Portefeuille) -----------------------------------------------------
     "chart.legend_reconstructed": "Portefeuille (reconstitué)",
@@ -387,6 +420,7 @@ MESSAGGI: dict[str, str] = {
     "chart.hover_reconstructed_suffix": " (reconstitué)",
     "chart.annotation_real_start": "début des données réelles",
     "chart.annotation_initial_capital": "capital initial",
+    "chart.legend_invested": "Versements cumulés",
     "chart.legend_synthetic": "{comparto} (synthétique)",
     "chart.hover_constant_growth": " · croissance constante",
     "chart.yaxis_value": "Valeur ({ccy})",
@@ -565,6 +599,7 @@ MESSAGGI: dict[str, str] = {
     "previdenza.col_rendimento_10a": "Rendement 10a",
     "previdenza.col_eroso": "Érodé sur {capitale} en 10 ans",
     "previdenza.col_quota_rendimento": "Part du rendement",
+    "previdenza.col_montante_pac_10a": "Montant projeté (PAC, 10 ans)",
     "previdenza.costi_caption": (
         "L'ISC est l'équivalent du TER pour la retraite. La dernière "
         "colonne montre la fraction du rendement net obtenu absorbée "
@@ -610,6 +645,9 @@ METRICHE: dict[str, str] = {
     "worst_year": "Pire année",
     "ter_cost": "Coût du TER",
     "reconstructed": "Reconstitué",
+    "invested": "Versé",
+    "gain": "Gain",
+    "xirr": "XIRR",
 }
 
 ESITI: dict[str, str] = {

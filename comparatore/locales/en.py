@@ -47,6 +47,32 @@ MESSAGGI: dict[str, str] = {
         "each period (no trading costs applied)."
     ),
 
+    # --- Sidebar: PAC (recurring contributions) ---------------------------
+    "pac.rebalance_caption": (
+        "A recurring contribution goes in at the target weights: it's a "
+        "soft rebalance, so with \"None\" the portfolio drifts less than it "
+        "would without a PAC."
+    ),
+    "pac.expander": "📅 Recurring contributions (PAC)",
+    "pac.enable_checkbox": "Enable the contribution plan",
+    "pac.help": (
+        "Adds recurring contributions on top of the initial capital. With "
+        "the PAC on, the instrument's return (CAGR, Sharpe, drawdown, ...) "
+        "still excludes the contributions; XIRR instead measures the "
+        "return on your money, contributions included."
+    ),
+    "pac.amount_label": "Amount per instalment",
+    "pac.amount_help": "The instalment paid at each due date, in the base currency.",
+    "pac.frequency_label": "Frequency",
+    "pac.step_up_label": "Annual instalment increase",
+    "pac.step_up_help": (
+        "Increases the instalment by this percentage once a year, e.g. to "
+        "track inflation or salary growth."
+    ),
+    "pac.limit_window_checkbox": "Limit contributions to a period",
+    "pac.start_label": "First instalment",
+    "pac.end_label": "Last instalment",
+
     # --- Sidebar: costs --------------------------------------------------
     "costs.subheader": "Costs",
     "costs.caption": (
@@ -365,6 +391,12 @@ MESSAGGI: dict[str, str] = {
         "This row includes a stretch estimated with a proxy instrument, "
         "not real fund data: its metrics should be read as indicative."
     ),
+    "help.pac_versato": "Initial capital plus every contribution made so far.",
+    "help.pac_guadagno": "Final portfolio value minus the total amount contributed.",
+    "help.pac_xirr": (
+        "Annual return on your money (XIRR): unlike CAGR, it accounts for "
+        "when each contribution came in, not just the initial capital."
+    ),
 
     # --- Charts (Portfolio tab) -----------------------------------------------------
     "chart.legend_reconstructed": "Portfolio (reconstructed)",
@@ -373,6 +405,7 @@ MESSAGGI: dict[str, str] = {
     "chart.hover_reconstructed_suffix": " (reconstructed)",
     "chart.annotation_real_start": "real data starts",
     "chart.annotation_initial_capital": "initial capital",
+    "chart.legend_invested": "Cumulative amount invested",
     "chart.legend_synthetic": "{comparto} (synthetic)",
     "chart.hover_constant_growth": " · constant growth",
     "chart.yaxis_value": "Value ({ccy})",
@@ -544,6 +577,7 @@ MESSAGGI: dict[str, str] = {
     "previdenza.col_rendimento_10a": "10y return",
     "previdenza.col_eroso": "Eroded on {capitale} over 10 years",
     "previdenza.col_quota_rendimento": "Share of return",
+    "previdenza.col_montante_pac_10a": "Projected amount (PAC, 10y)",
     "previdenza.costi_caption": (
         "The ISC is the pension-fund equivalent of the TER. The last "
         "column shows what fraction of the net return obtained is "
@@ -588,6 +622,9 @@ METRICHE: dict[str, str] = {
     "worst_year": "Worst year",
     "ter_cost": "TER cost",
     "reconstructed": "Reconstructed",
+    "invested": "Invested",
+    "gain": "Gain",
+    "xirr": "XIRR",
 }
 
 ESITI: dict[str, str] = {

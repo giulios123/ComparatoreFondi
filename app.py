@@ -24,11 +24,14 @@ from comparatore import prefs
 from comparatore import proxies as px
 from comparatore.engine import (
     FeeMode,
+    Frequency,
     Holding,
+    Pac,
     Rebalance,
     coverage_warnings,
     rebalance_dates,
     run_backtest,
+    simulate,
 )
 from comparatore.portfolio_io import assicura_alloc
 from comparatore.sources import AUTO, CsvParseError, Registry, is_isin, parse_csv
@@ -73,6 +76,23 @@ if "show_gross" not in st.session_state:
     st.session_state.show_gross = True
 if "risk_free" not in st.session_state:
     st.session_state.risk_free = 0.02
+# Il PAC e' una funzione avanzata, opt-in: `pac_enabled` e' un interruttore a
+# se', non dedotto da `pac_amount > 0`, cosi' spegnerlo non fa perdere i
+# parametri gia' configurati (stesso trattamento di `show_gross`).
+if "pac_enabled" not in st.session_state:
+    st.session_state.pac_enabled = False
+if "pac_amount" not in st.session_state:
+    st.session_state.pac_amount = 100.0
+if "pac_frequency" not in st.session_state:
+    st.session_state.pac_frequency = Frequency.MONTHLY.value
+if "pac_step_up" not in st.session_state:
+    st.session_state.pac_step_up = 0.0
+if "pac_limit_window" not in st.session_state:
+    st.session_state.pac_limit_window = False
+if "pac_start" not in st.session_state:
+    st.session_state.pac_start = st.session_state.start_date
+if "pac_end" not in st.session_state:
+    st.session_state.pac_end = st.session_state.end_date
 if "_pending_state" not in st.session_state:
     st.session_state._pending_state = {}
 if "_import_visto" not in st.session_state:
@@ -144,6 +164,12 @@ CURRENCIES = ["EUR", "USD", "GBP", "CHF", "JPY"]
 SYMBOLS = {"EUR": "€", "USD": "$", "GBP": "£", "CHF": "CHF ", "JPY": "¥"}
 
 REBALANCE_OPTIONS = [r.value for r in Rebalance]
+
+# `Frequency` condivide i valori "monthly"/"quarterly"/"yearly" con
+# `Rebalance`: la tendina di frequenza del PAC riusa `etichetta_ribilanciamento`
+# per il `format_func`, niente nuovo catalogo di traduzioni da mantenere.
+PAC_FREQUENCY_OPTIONS = [f.value for f in Frequency]
+PAC_RATE_ANNUE = {Frequency.MONTHLY: 12, Frequency.QUARTERLY: 4, Frequency.YEARLY: 1}
 
 # Opzioni della colonna "Fonte": nomi interni, tradotti solo a video via
 # `i18n.etichetta_fonte()` (vedi editor di composizione).
@@ -242,6 +268,9 @@ def metric_help(risk_free: float, initial_value: float, ccy: str) -> dict[str, s
         "worst_year": t("help.peggior_anno"),
         "ter_cost": t("help.costo_ter", ccy=ccy),
         "reconstructed": t("help.ricostruito"),
+        "invested": t("help.pac_versato"),
+        "gain": t("help.pac_guadagno"),
+        "xirr": t("help.pac_xirr"),
     }
 
 
@@ -348,16 +377,20 @@ def _cambia_lingua() -> None:
     script rilegga i widget, quindi qui `st.session_state.rebalance` e'
     ancora il valore buono dell'ultimo run.
 
-    `rebalance` usa un `format_func` tradotto: al cambio di lingua Streamlit
+    `rebalance` (e allo stesso modo `pac_frequency`, che ne riusa le
+    etichette) usa un `format_func` tradotto: al cambio di lingua Streamlit
     proverebbe a deserializzare l'etichetta ormai stale della lingua
     precedente, non la troverebbe fra le nuove opzioni formattate
     (`SelectboxSerde.deserialize`) e la scriverebbe cosi' com'e' in
     `session_state.rebalance` - una stringa che non e' piu' un valore valido
-    di `Rebalance`. Rimetterlo in coda per `_applica_pending()` lo previene.
+    di `Rebalance`. Rimetterli in coda per `_applica_pending()` lo previene.
     """
     _salva_preferenze()
     st.session_state._pending_state["rebalance"] = st.session_state.get(
         "rebalance", Rebalance.NONE.value
+    )
+    st.session_state._pending_state["pac_frequency"] = st.session_state.get(
+        "pac_frequency", Frequency.MONTHLY.value
     )
 
 
@@ -426,6 +459,47 @@ with st.sidebar:
         t("sidebar.rebalance_caption_none") if rebalance is Rebalance.NONE
         else t("sidebar.rebalance_caption_active")
     )
+    if st.session_state.get("pac_enabled") and st.session_state.get("pac_amount"):
+        # Un versamento periodico e' un ribilanciamento morbido: ogni rata
+        # entra ai pesi obiettivo, quindi con "Nessuno" il portafoglio
+        # deriva meno di quanto farebbe senza PAC. Vale solo quando il PAC e'
+        # davvero attivo: a interruttore spento questa riga non compare.
+        st.caption(t("pac.rebalance_caption"))
+
+    st.divider()
+    # Sezione avanzata e collassata: chi non la apre non la incontra. Se il
+    # PAC arriva gia' attivo - ad esempio da un portafoglio importato -
+    # l'expander si apre da solo, cosi' non resta un PAC acceso ma invisibile
+    # che produce numeri diversi da quelli attesi senza spiegazione visibile.
+    with st.expander(
+        t("pac.expander"), expanded=bool(st.session_state.get("pac_enabled"))
+    ):
+        st.checkbox(t("pac.enable_checkbox"), key="pac_enabled", help=t("pac.help"))
+        if st.session_state.pac_enabled:
+            st.number_input(
+                t("pac.amount_label"), min_value=0.0, step=50.0, format="%.0f",
+                key="pac_amount", help=t("pac.amount_help"),
+            )
+            st.selectbox(
+                t("pac.frequency_label"), PAC_FREQUENCY_OPTIONS, key="pac_frequency",
+                format_func=lambda v: i18n.etichetta_ribilanciamento(LINGUA, v),
+                filter_mode=None,
+            )
+            st.number_input(
+                t("pac.step_up_label"), min_value=0.0, max_value=0.20,
+                step=0.005, format="%.3f", key="pac_step_up", help=t("pac.step_up_help"),
+            )
+            st.checkbox(t("pac.limit_window_checkbox"), key="pac_limit_window")
+            if st.session_state.pac_limit_window:
+                pac_col_a, pac_col_b = st.columns(2)
+                pac_col_a.date_input(
+                    t("pac.start_label"), min_value=MIN_DATE, max_value=today,
+                    format=FMT_DATA_INPUT, key="pac_start",
+                )
+                pac_col_b.date_input(
+                    t("pac.end_label"), min_value=MIN_DATE, max_value=today,
+                    format=FMT_DATA_INPUT, key="pac_end",
+                )
 
     st.divider()
     st.subheader(t("costs.subheader"))
@@ -643,6 +717,34 @@ with st.sidebar:
                     pending["extend_history"] = parametri_importati["extend_history"]
                 if isinstance(parametri_importati.get("risk_free"), (int, float)):
                     pending["risk_free"] = float(parametri_importati["risk_free"])
+                # PAC: se il file lo salva attivo, deve tornare attivo
+                # all'import - altrimenti si ricaricherebbe un portafoglio
+                # che produce numeri diversi da quelli con cui e' stato
+                # salvato, senza che nulla lo segnali.
+                if isinstance(parametri_importati.get("pac_enabled"), bool):
+                    pending["pac_enabled"] = parametri_importati["pac_enabled"]
+                if isinstance(parametri_importati.get("pac_amount"), (int, float)):
+                    pending["pac_amount"] = float(parametri_importati["pac_amount"])
+                if parametri_importati.get("pac_frequency") in PAC_FREQUENCY_OPTIONS:
+                    pending["pac_frequency"] = parametri_importati["pac_frequency"]
+                if isinstance(parametri_importati.get("pac_step_up"), (int, float)):
+                    pending["pac_step_up"] = float(parametri_importati["pac_step_up"])
+                if isinstance(parametri_importati.get("pac_limit_window"), bool):
+                    pending["pac_limit_window"] = parametri_importati["pac_limit_window"]
+                if "pac_start" in parametri_importati:
+                    try:
+                        pending["pac_start"] = dt.date.fromisoformat(
+                            str(parametri_importati["pac_start"])
+                        )
+                    except (TypeError, ValueError):
+                        pass
+                if "pac_end" in parametri_importati:
+                    try:
+                        pending["pac_end"] = dt.date.fromisoformat(
+                            str(parametri_importati["pac_end"])
+                        )
+                    except (TypeError, ValueError):
+                        pass
                 st.session_state._pending_state.update(pending)
                 st.toast(t("portfolio_io.import_success", n=len(fondi_importati)), icon="💼")
                 st.rerun()
@@ -850,6 +952,13 @@ parametri_correnti = {
     "show_gross": st.session_state.show_gross,
     "extend_history": st.session_state.extend_history,
     "risk_free": st.session_state.risk_free,
+    "pac_enabled": st.session_state.pac_enabled,
+    "pac_amount": st.session_state.pac_amount,
+    "pac_frequency": st.session_state.pac_frequency,
+    "pac_step_up": st.session_state.pac_step_up,
+    "pac_limit_window": st.session_state.pac_limit_window,
+    "pac_start": st.session_state.pac_start.isoformat(),
+    "pac_end": st.session_state.pac_end.isoformat(),
 }
 payload = portfolio_io.dump(st.session_state.selected, parametri_correnti)
 with portfolio_export:
@@ -1041,8 +1150,21 @@ holdings = [
     if f["symbol"] in prices.columns
 ]
 
+# `pac` resta None quando la sezione avanzata e' spenta o la rata e' zero: e'
+# cio' che fa prendere a `run_backtest` esattamente il percorso di codice di
+# sempre, con `res.nav` identica a `res.portfolio` per costruzione.
+pac = None
+if st.session_state.pac_enabled and st.session_state.pac_amount:
+    pac = Pac(
+        amount=st.session_state.pac_amount,
+        frequency=Frequency(st.session_state.pac_frequency),
+        step_up=st.session_state.pac_step_up,
+        start=st.session_state.pac_start if st.session_state.pac_limit_window else None,
+        end=st.session_state.pac_end if st.session_state.pac_limit_window else None,
+    )
+
 try:
-    res = run_backtest(prices, holdings, initial_value, rebalance, FeeMode.NET)
+    res = run_backtest(prices, holdings, initial_value, rebalance, FeeMode.NET, pac)
 except ValueError as exc:
     st.error(str(exc))
     st.stop()
@@ -1060,7 +1182,12 @@ label_splice = {
 }
 portfolio_splice = max(label_splice.values()) if label_splice else None
 
-summary = mt.summarize(res.portfolio, risk_free)
+# Metriche calcolate sulla NAV, non sul valore grezzo del portafoglio: senza
+# PAC le due curve sono lo stesso oggetto, quindi questa riga non cambia
+# nulla di cio' che si vedeva prima. Con il PAC attivo e' cio' che tiene
+# total_return/CAGR/volatilita'/Sharpe/drawdown veri, invece che gonfiati da
+# ogni versamento letto come un guadagno di mercato.
+summary = mt.summarize(res.nav, risk_free)
 years = (res.end - res.start).days / 365.25
 
 mhelp = metric_help(risk_free, initial_value, base_ccy)
@@ -1077,6 +1204,21 @@ k[3].metric(i18n.etichetta_metrica(LINGUA, "max_drawdown"),
 k[4].metric(i18n.etichetta_metrica(LINGUA, "sharpe"),
             f"{summary['sharpe']:.2f}", help=mhelp["sharpe"])
 
+if pac is not None:
+    # Il portafoglio (non la NAV) e' il saldo vero del conto: qui la
+    # domanda e' "quanto ho versato" e "quanto ha reso il mio denaro", non
+    # "come si e' comportato lo strumento" - quella e' sopra.
+    versato = float(res.invested.iloc[-1])
+    guadagno = float(res.portfolio.iloc[-1] - versato)
+    tasso_xirr = mt.xirr(res.cashflows, float(res.portfolio.iloc[-1]), res.end)
+    kp = st.columns(3)
+    kp[0].metric(i18n.etichetta_metrica(LINGUA, "invested"),
+                 fmt_money(versato, base_ccy), help=mhelp["invested"])
+    kp[1].metric(i18n.etichetta_metrica(LINGUA, "gain"),
+                 fmt_money(guadagno, base_ccy), help=mhelp["gain"])
+    kp[2].metric(i18n.etichetta_metrica(LINGUA, "xirr"),
+                 fmt_pct(tasso_xirr), help=mhelp["xirr"])
+
 if portfolio_splice is not None and portfolio_splice > res.start:
     st.info(
         t(
@@ -1087,10 +1229,13 @@ if portfolio_splice is not None and portfolio_splice > res.start:
     )
 
 with st.expander(t("metrics.explainer_expander")):
-    for nome in [
+    nomi_metriche = [
         "final_value", "total_return", "cagr", "volatility", "sharpe", "sortino",
         "max_drawdown", "calmar", "best_year", "worst_year", "ter_cost", "reconstructed",
-    ]:
+    ]
+    if pac is not None:
+        nomi_metriche += ["invested", "gain", "xirr"]
+    for nome in nomi_metriche:
         st.markdown(f"- **{i18n.etichetta_metrica(LINGUA, nome)}** — {mhelp[nome]}")
 
 # --- Impatto dei costi -----------------------------------------------------
@@ -1115,6 +1260,27 @@ def split_at(series: pd.Series, splice: pd.Timestamp | None):
     if splice is None:
         return None, series
     return series.loc[:splice], series.loc[splice:]
+
+
+def curva_sintetica_covip(
+    rendimento_annuo: float, inizio: dt.date, fine: dt.date, capitale: float, pac: Pac | None,
+) -> pd.Series:
+    """Crescita costante al rendimento COVIP, con lo stesso PAC del portafoglio.
+
+    Senza PAC e' `covip.serie_sintetica` cosi' com'e'. Con il PAC attivo, una
+    retta ferma al solo capitale iniziale farebbe apparire il portafoglio
+    (che riceve versamenti) sempre piu' in vantaggio per un motivo che non ha
+    nulla a che fare col rendimento: il confronto sarebbe visivamente falso.
+    Si passa quindi la stessa serie sintetica, come prezzo, allo stesso
+    motore di simulazione con lo stesso piano di versamenti.
+    """
+    if pac is None:
+        return covip.serie_sintetica(rendimento_annuo, inizio, fine, capitale)
+    prezzi = covip.serie_sintetica(rendimento_annuo, inizio, fine, capitale=1.0)
+    if prezzi.empty:
+        return prezzi
+    valore, _ = simulate(prezzi.to_frame("x"), {"x": 1.0}, capitale, Rebalance.NONE, pac)
+    return valore
 
 
 def ciambella(quote: dict[str, float]) -> go.Figure:
@@ -1200,8 +1366,8 @@ with tab1:
             rendimento = comparto.rendimenti.get(orizzonte_curva)
             if rendimento is None:
                 continue
-            curva = covip.serie_sintetica(
-                rendimento / 100, res.start.date(), res.end.date(), initial_value
+            curva = curva_sintetica_covip(
+                rendimento / 100, res.start.date(), res.end.date(), initial_value, pac
             )
             fig.add_trace(go.Scatter(
                 x=curva.index, y=curva.values,
@@ -1212,8 +1378,18 @@ with tab1:
                               + t("chart.hover_constant_growth") + "</extra>",
             ))
 
-    fig.add_hline(y=initial_value, line=dict(color="#9ca3af", width=1, dash="dash"),
-                  annotation_text=t("chart.annotation_initial_capital"), annotation_position="bottom right")
+    if pac is not None:
+        # Con i versamenti in corso una riga ferma al capitale iniziale
+        # mentirebbe: la curva del versato cresce nel tempo.
+        fig.add_trace(go.Scatter(
+            x=res.invested.index, y=res.invested.values,
+            name=t("chart.legend_invested"),
+            line=dict(color="#9ca3af", width=1, dash="dash"),
+            hovertemplate="%{y:,.0f}<extra>" + t("chart.legend_invested") + "</extra>",
+        ))
+    else:
+        fig.add_hline(y=initial_value, line=dict(color="#9ca3af", width=1, dash="dash"),
+                      annotation_text=t("chart.annotation_initial_capital"), annotation_position="bottom right")
     fig.update_layout(
         height=460, hovermode="x unified", margin=dict(l=0, r=0, t=30, b=0),
         yaxis_title=t("chart.yaxis_value", ccy=base_ccy), xaxis_title=None,
@@ -1661,7 +1837,12 @@ with tab5:
         else:
             finestre = {a: covip.finestra(a) for a in covip.ORIZZONTI}
             finestre = {a: w for a, w in finestre.items() if w}
-            rend_port = hz.rendimenti_per_orizzonte(res.portfolio, finestre)
+            # NAV, non il valore grezzo: qui il portafoglio va confrontato
+            # con rendimenti COVIP time-weighted, e senza questo la riga
+            # "il tuo portafoglio" risulterebbe sistematicamente gonfiata da
+            # ogni versamento del PAC letto come un guadagno di mercato -
+            # proprio accanto a rendimenti ufficiali pubblicati.
+            rend_port = hz.rendimenti_per_orizzonte(res.nav, finestre)
 
             righe = []
             for c in comparti_scelti:
@@ -1740,31 +1921,56 @@ with tab5:
 
             # --- impatto dell'ISC ---
             st.markdown(t("previdenza.costi_header"))
+            # Con il PAC attivo il capitale esposto all'ISC in 10 anni non e'
+            # il capitale iniziale ma il totale versato in quell'orizzonte -
+            # stesse rate, stessa frequenza del PAC configurato, per 10 anni.
+            # A PAC spento resta `initial_value`: comportamento invariato.
+            capitale_isc_10a = (
+                initial_value + st.session_state.pac_amount * PAC_RATE_ANNUE[pac.frequency] * 10
+                if pac is not None else initial_value
+            )
             costi = []
             for c in comparti_scelti:
                 isc10 = c.isc.get(10)
                 if isc10 is None:
                     continue
-                eroso = hz.costo_cumulato(isc10 / 100, 10, initial_value)
+                eroso = hz.costo_cumulato(isc10 / 100, 10, capitale_isc_10a)
                 lordo = c.rendimenti.get(10)
-                costi.append({
+                riga_costo = {
                     "comparto": f"{c.fondo} · {c.comparto}",
                     "isc_annuo": f"{isc10:.2f}%",
                     "rendimento_10a": t("nd") if lordo is None else f"{lordo:.2f}%",
                     "eroso": fmt_money(eroso, base_ccy),
                     "quota_rendimento": t("nd") if not lordo or lordo <= 0
                         else f"{isc10 / lordo * 100:.0f}%",
-                })
+                }
+                if pac is not None:
+                    # Proiezione, non retrospettiva come le altre colonne: cosa
+                    # accumuleresti in 10 anni versando il tuo PAC configurato
+                    # al rendimento netto storico di questo comparto. E' l'uso
+                    # concreto dell'annualita' di `hz.capitale_finale`.
+                    if lordo is None:
+                        riga_costo["montante_pac_10a"] = t("nd")
+                    else:
+                        montante = hz.capitale_finale(
+                            (lordo - isc10) / 100, 10, initial_value,
+                            st.session_state.pac_amount, PAC_RATE_ANNUE[pac.frequency],
+                        )
+                        riga_costo["montante_pac_10a"] = fmt_money(montante, base_ccy)
+                costi.append(riga_costo)
             if costi:
+                costi_column_config = {
+                    "comparto": t("previdenza.col_comparto"),
+                    "isc_annuo": t("previdenza.col_isc_annuo"),
+                    "rendimento_10a": t("previdenza.col_rendimento_10a"),
+                    "eroso": t("previdenza.col_eroso", capitale=fmt_money(capitale_isc_10a, base_ccy)),
+                    "quota_rendimento": t("previdenza.col_quota_rendimento"),
+                }
+                if pac is not None:
+                    costi_column_config["montante_pac_10a"] = t("previdenza.col_montante_pac_10a")
                 st.dataframe(
                     pd.DataFrame(costi), hide_index=True, width="stretch",
-                    column_config={
-                        "comparto": t("previdenza.col_comparto"),
-                        "isc_annuo": t("previdenza.col_isc_annuo"),
-                        "rendimento_10a": t("previdenza.col_rendimento_10a"),
-                        "eroso": t("previdenza.col_eroso", capitale=fmt_money(initial_value, base_ccy)),
-                        "quota_rendimento": t("previdenza.col_quota_rendimento"),
-                    },
+                    column_config=costi_column_config,
                 )
                 st.caption(t("previdenza.costi_caption"))
 
