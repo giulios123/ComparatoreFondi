@@ -375,9 +375,19 @@ scaricare il valore quota dal sito del proprio fondo e caricarlo con
 l'uploader CSV descritto sopra.
 
 Il confronto usa **le stesse finestre pubblicate da COVIP** (es. `2016-2025`,
-non "ultimi dieci anni da oggi"): se il tuo portafoglio non copre l'intera
-finestra, quella cella mostra `n/d` invece di un numero calcolato su un
-periodo più corto e non realmente confrontabile.
+non "ultimi dieci anni da oggi"): le date sono scritte nell'intestazione di
+ogni colonna, perché sono finestre chiuse e indipendenti, non periodi
+cumulativi. Un rendimento a 10 anni più basso di quello a 5 significa quindi
+che la prima metà del decennio ha reso meno, non che il fondo sia peggiorato
+di recente.
+
+Se il tuo portafoglio non copre l'intera finestra, quella cella mostra `n/d`
+invece di un numero calcolato su un periodo più corto e non realmente
+confrontabile. In quel caso l'app mostra comunque, sotto la tabella, il
+rendimento medio annuo del portafoglio **sul suo periodo**, dichiarato non
+confrontabile: serve ad avere un ordine di grandezza e a capire che per un
+confronto valido va allargato il periodo del backtest — che parte comunque
+dalla prima data in cui *tutti* i fondi selezionati hanno dati.
 
 Puoi anche sovrapporre al grafico principale una **curva sintetica** per ogni
 comparto scelto (interruttore in fondo alla scheda, spento di default): è una

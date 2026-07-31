@@ -606,6 +606,23 @@ MESSAGGI: dict[str, str] = {
         "Seleziona uno o più comparti per confrontarli con il tuo portafoglio."
     ),
     "previdenza.rendimento_header": "**Rendimento medio annuo, sulle stesse finestre COVIP**",
+    "previdenza.col_orizzonte": "{etichetta} · {periodo}",
+    "previdenza.legenda_caption": (
+        "Ogni colonna è una finestra chiusa a sé, non un periodo cumulativo: le "
+        "date sono nell'intestazione. Un valore a 10 anni più basso di quello a "
+        "5 significa che la prima metà del decennio ha reso meno, non che il "
+        "fondo sia peggiorato di recente. **ISC 10a** è l'Indicatore Sintetico "
+        "dei Costi, l'equivalente del TER per la previdenza: quanto pesano in "
+        "media i costi ogni anno su un orizzonte di dieci anni."
+    ),
+    "previdenza.portafoglio_periodo_proprio": (
+        "Sul **suo** periodo — {inizio} → {fine}, {anni} anni — il tuo "
+        "portafoglio ha reso il **{rendimento}** medio annuo. Non è "
+        "confrontabile con le colonne qui sopra, che sono finestre chiuse e "
+        "datate. Per un confronto valido allarga il periodo del backtest (il "
+        "pulsante **20a** in barra laterale): il backtest parte comunque dalla "
+        "prima data in cui **tutti** i fondi selezionati hanno dati."
+    ),
     "previdenza.col_help_orizzonte": (
         "Rendimento medio annuo COVIP sulla finestra a {anni} anni ({periodo})."
     ),
@@ -619,6 +636,7 @@ MESSAGGI: dict[str, str] = {
         "l'intera finestra ({dettaglio}). Calcolarlo su un periodo più corto "
         "darebbe un numero non confrontabile."
     ),
+    "previdenza.anno_suffix": "{a} anno",
     "previdenza.anni_suffix": "{a} anni",
     "previdenza.il_tuo_portafoglio": "Il tuo portafoglio",
     "previdenza.yaxis_rendimento": "Rendimento medio annuo (%)",

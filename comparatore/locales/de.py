@@ -631,6 +631,25 @@ MESSAGGI: dict[str, str] = {
         "Portfolio zu vergleichen."
     ),
     "previdenza.rendimento_header": "**Durchschnittliche jährliche Rendite, auf denselben COVIP-Fenstern**",
+    "previdenza.col_orizzonte": "{etichetta} · {periodo}",
+    "previdenza.legenda_caption": (
+        "Jede Spalte ist ein eigenes abgeschlossenes Fenster, kein kumulativer "
+        "Zeitraum: die Daten stehen in der Kopfzeile. Ein Zehnjahreswert unter "
+        "dem Fünfjahreswert heißt, dass die erste Hälfte des Jahrzehnts weniger "
+        "gebracht hat, nicht dass der Fonds zuletzt schlechter geworden ist. "
+        "**ISC 10a** ist der synthetische Kostenindikator, das Gegenstück zur "
+        "TER in der Altersvorsorge: wie stark die Kosten im Schnitt jedes Jahr "
+        "über zehn Jahre wiegen."
+    ),
+    "previdenza.portafoglio_periodo_proprio": (
+        "Über **seinen eigenen** Zeitraum — {inizio} → {fine}, {anni} Jahre — "
+        "hat dein Portfolio **{rendimento}** pro Jahr gebracht. Das ist nicht "
+        "mit den Spalten oben vergleichbar, die abgeschlossene, datierte "
+        "Fenster sind. Für einen gültigen Vergleich den Backtest-Zeitraum "
+        "erweitern (Schaltfläche **20a** in der Seitenleiste): der Backtest "
+        "beginnt ohnehin am ersten Datum, an dem **alle** ausgewählten Fonds "
+        "Daten haben."
+    ),
     "previdenza.col_help_orizzonte": (
         "Durchschnittliche jährliche COVIP-Rendite über das {anni}-Jahres-Fenster ({periodo})."
     ),
@@ -645,6 +664,7 @@ MESSAGGI: dict[str, str] = {
         "über einen kürzeren Zeitraum würde eine nicht vergleichbare "
         "Zahl ergeben."
     ),
+    "previdenza.anno_suffix": "{a} Jahr",
     "previdenza.anni_suffix": "{a} Jahre",
     "previdenza.il_tuo_portafoglio": "Ihr Portfolio",
     "previdenza.yaxis_rendimento": "Durchschnittliche jährliche Rendite (%)",

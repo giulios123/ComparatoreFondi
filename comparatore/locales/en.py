@@ -595,6 +595,23 @@ MESSAGGI: dict[str, str] = {
         "Select one or more sub-funds to compare them with your portfolio."
     ),
     "previdenza.rendimento_header": "**Average annual return, on the same COVIP windows**",
+    "previdenza.col_orizzonte": "{etichetta} · {periodo}",
+    "previdenza.legenda_caption": (
+        "Each column is a closed window of its own, not a cumulative period: "
+        "the dates are in the header. A 10-year figure lower than the 5-year "
+        "one means the first half of the decade returned less, not that the "
+        "fund has got worse lately. **ISC 10a** is the synthetic cost "
+        "indicator, the pension equivalent of the TER: how much costs weigh on "
+        "average each year over a ten-year horizon."
+    ),
+    "previdenza.portafoglio_periodo_proprio": (
+        "Over **its own** period — {inizio} → {fine}, {anni} years — your "
+        "portfolio returned **{rendimento}** a year. That is not comparable "
+        "with the columns above, which are closed, dated windows. For a valid "
+        "comparison widen the backtest period (the **20a** button in the "
+        "sidebar): the backtest still starts on the first date where **every** "
+        "selected fund has data."
+    ),
     "previdenza.col_help_orizzonte": (
         "COVIP average annual return over the {anni}-year window ({periodo})."
     ),
@@ -608,6 +625,7 @@ MESSAGGI: dict[str, str] = {
         "cover the full window ({dettaglio}). Computing it over a shorter "
         "period would give a non-comparable figure."
     ),
+    "previdenza.anno_suffix": "{a} year",
     "previdenza.anni_suffix": "{a} years",
     "previdenza.il_tuo_portafoglio": "Your portfolio",
     "previdenza.yaxis_rendimento": "Average annual return (%)",

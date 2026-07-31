@@ -269,6 +269,12 @@ def fmt_pct(v: float, decimals: int = 2) -> str:
     return t("nd") if pd.isna(v) else f"{v * 100:.{decimals}f}%"
 
 
+def etichetta_anni(a: int) -> str:
+    """"1 anno" al singolare, "{a} anni" al plurale: gli orizzonti COVIP
+    partono da uno e l'intestazione della tabella lo mostra a video."""
+    return t("previdenza.anno_suffix" if a == 1 else "previdenza.anni_suffix", a=a)
+
+
 def metric_help(risk_free: float, initial_value: float, ccy: str) -> dict[str, str]:
     """Spiegazione di ogni metrica, riusata da tooltip e legenda.
 
@@ -1971,16 +1977,32 @@ with tab5:
             righe.append(riga_port)
 
             st.markdown(t("previdenza.rendimento_header"))
+            # Il periodo va nell'intestazione, non solo nel tooltip: senza,
+            # "10 anni" e "5 anni" sembrano periodi cumulativi e un decennio
+            # piu' basso del quinquennio sembra una contraddizione invece di
+            # quello che e' - due finestre diverse, con la prima meta' del
+            # decennio piu' fiacca.
+            periodi_covip = covip.periodi()
+            etichetta_orizzonte = {
+                anni: (
+                    t(
+                        "previdenza.col_orizzonte",
+                        etichetta=etichetta_anni(anni), periodo=periodi_covip[anni],
+                    )
+                    if periodi_covip.get(anni) else etichetta_anni(anni)
+                )
+                for anni in covip.ORIZZONTI
+            }
             covip_column_config = {
                 "strumento": t("bilancio.col_strumento"),
                 "tipo": t("previdenza.col_tipo"),
                 "categoria": t("previdenza.categoria_label"),
                 **{
                     f"{anni}a": st.column_config.TextColumn(
-                        t("previdenza.anni_suffix", a=anni),
+                        etichetta_orizzonte[anni],
                         help=t(
                             "previdenza.col_help_orizzonte",
-                            anni=anni, periodo=covip.periodi().get(anni, ""),
+                            anni=anni, periodo=periodi_covip.get(anni, ""),
                         ),
                     )
                     for anni in covip.ORIZZONTI
@@ -1993,12 +2015,26 @@ with tab5:
                 pd.DataFrame(righe), hide_index=True, width="stretch",
                 column_config=covip_column_config,
             )
+            st.caption(t("previdenza.legenda_caption"))
 
             mancanti = [a for a in covip.ORIZZONTI if rend_port.get(a) is None]
             if mancanti:
-                elenco_anni = ", ".join(t("previdenza.anni_suffix", a=a) for a in mancanti)
-                dettaglio = ", ".join(f"{a}a = {covip.periodi().get(a)}" for a in mancanti)
+                elenco_anni = ", ".join(etichetta_anni(a) for a in mancanti)
+                dettaglio = ", ".join(f"{a}a = {periodi_covip.get(a)}" for a in mancanti)
                 st.caption(t("previdenza.mancanti_caption", elenco_anni=elenco_anni, dettaglio=dettaglio))
+                # Una colonna di "n/d" senza altro non dice nulla: qui almeno
+                # il numero c'e', con scritto perche' non e' confrontabile e
+                # cosa fare per renderlo tale.
+                st.info(
+                    t(
+                        "previdenza.portafoglio_periodo_proprio",
+                        inizio=res.start.strftime(FMT_DATA),
+                        fine=res.end.strftime(FMT_DATA),
+                        anni=f"{years:.1f}",
+                        rendimento=fmt_pct(summary["cagr"]),
+                    ),
+                    icon="📐",
+                )
 
             # --- grafico a barre ---
             bars = go.Figure()
@@ -2006,14 +2042,14 @@ with tab5:
             for i, c in enumerate(comparti_scelti):
                 bars.add_trace(go.Bar(
                     name=f"{c.comparto[:24]}",
-                    x=[t("previdenza.anni_suffix", a=a) for a in orizzonti_utili],
+                    x=[etichetta_anni(a) for a in orizzonti_utili],
                     y=[c.rendimenti.get(a) for a in orizzonti_utili],
                     marker_color=PALETTE[(i + 4) % len(PALETTE)],
                     hovertemplate="%{y:.2f}%<extra>" + c.comparto + "</extra>",
                 ))
             bars.add_trace(go.Bar(
                 name=t("previdenza.il_tuo_portafoglio"),
-                x=[t("previdenza.anni_suffix", a=a) for a in orizzonti_utili],
+                x=[etichetta_anni(a) for a in orizzonti_utili],
                 y=[None if rend_port.get(a) is None else rend_port[a] * 100
                    for a in orizzonti_utili],
                 marker_color=PALETTE[0],
