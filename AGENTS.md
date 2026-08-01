@@ -20,11 +20,12 @@ Tre confini, e sono la cosa più importante da sapere prima di scrivere codice:
 ## Comandi
 
 ```bash
-uv sync                            # dipendenze di runtime
-uv sync --group dev                # + PyInstaller e pip-licenses
+uv sync                            # dipendenze di runtime + sviluppo (dev è il gruppo predefinito)
+uv sync --no-dev                   # solo runtime, senza PyInstaller/pip-licenses/ruff
 
 uv run streamlit run app.py        # avvia l'app su http://localhost:8501
 uv run python -m unittest discover -s tests -p "test_*.py"   # test
+uv run ruff check .                # lint
 
 uv run pyinstaller desktop/comparatore.spec --noconfirm --clean   # bundle
 uv run python scripts/generate_third_party_notices.py --check     # audit licenze
@@ -47,14 +48,20 @@ le dipendenze e `uv run pytest` non funziona.
 - **`THIRD_PARTY_NOTICES.txt` e `THIRD_PARTY_LICENSES.json` sono generati**, non
   si modificano a mano: `desktop/comparatore.spec` li rigenera a ogni build e la
   CI verifica l'allowlist su Linux, macOS e Windows.
-- **La versione è duplicata**: `pyproject.toml` (`version`) e
-  `desktop/comparatore.spec` (`CFBundleShortVersionString`). Vanno cambiate
-  insieme.
+- **La versione ha una fonte sola**: `__version__` in
+  `comparatore/__init__.py`. `pyproject.toml` (`version`) la duplica ancora
+  perché senza un `[build-system]` deve restare un letterale statico, ma
+  `tests/test_versione.py` fallisce se le due divergono; `desktop/comparatore.spec`
+  non la scrive più a mano, la estrae con `ast` dal primo file.
 - **Il tag di release ha tre componenti.** Il workflow si attiva su `v*.*.*`:
   `v0.3.0` sì, `v0.2` no (quella release ha richiesto una run manuale).
 - **CSS custom solo se non c'è alternativa**, e sempre agganciato a una classe
   `st-key-…` di un `st.container(key=…)`, mai a un selettore globale. Oggi ce
   n'è **uno solo**, in cima ad `app.py`, per i pulsanti dei periodi rapidi.
+- **`uv run ruff check .` deve restare pulito** (regole E, W, F, I, UP; riga
+  100). È un job CI a parte da `unittest`, quindi un fallimento di stile non
+  nasconde l'esito dei test. Nessun formatter: solo verifica, mai riscrittura
+  automatica di un intero file.
 
 ## Stile
 

@@ -114,6 +114,10 @@ Crea l'ambiente virtuale in `.venv/` e installa tutto quello che serve
 prima volta scarica qualche centinaio di MB; le volte successive è quasi
 istantaneo.
 
+`uv sync` installa **anche** gli strumenti di sviluppo (PyInstaller,
+pip-licenses, ruff): per `uv`, quel gruppo è incluso di default. Per il solo
+runtime, come su una macchina che deve solo eseguire l'app: `uv sync --no-dev`.
+
 **4. Avvia l'app:**
 
 ```bash
