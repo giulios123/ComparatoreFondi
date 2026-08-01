@@ -23,6 +23,11 @@ confronta con i fondi pensione COVIP.
 - **Fix dei preset di periodo** che andavano a capo a barra laterale stretta —
   prima spec eseguita con il nuovo processo
   ([`001`](../spec-driven/specs/001-preset-periodo-nowrap/spec.md)).
+- **I quattro disallineamenti annotati qui sotto sono stati sciolti**: Pillow
+  dichiarata, `--locked` ovunque, versione unificata, ruff in CI (decisioni 19
+  e 20). Indagandoli, la versione si è rivelata non solo duplicata ma **rotta**:
+  il pannello "Informazioni e licenze" mostrava sempre `-` perché il pacchetto
+  non viene mai installato come distribuzione. Ora mostra `0.2.0`.
 
 ## Aperto, e noto
 
@@ -30,10 +35,6 @@ confronta con i fondi pensione COVIP.
 |---|---|
 | **App non firmate** | Gatekeeper e SmartScreen avvisano. Decisione 17: costa 99 $/anno + 70-250 $/anno, rimandata |
 | **macOS solo arm64** | La build CI gira su `macos-latest`; per Intel/universal va adattato il workflow |
-| **Pillow non dichiarata** | `scripts/generate_icons.py` importa `PIL`, che non è in `pyproject.toml` (né runtime né dev). Lo script è macOS-only e usa e getta, quindi finora non è emerso |
-| **`--locked` disallineato** | `desktop-build.yml` usa `uv sync --group dev --locked` nel job macOS ma `uv sync --group dev` in quello Windows: le due build possono partire da lockfile diversi |
-| **Versione duplicata** | `pyproject.toml` e `desktop/comparatore.spec` vanno aggiornati insieme a mano |
-| **Nessun linter** | Non c'è ruff, black o mypy configurato: lo stile è tenuto a mano |
 
 ## Da sapere per lavorarci
 
@@ -51,6 +52,6 @@ confronta con i fondi pensione COVIP.
 Nessuno è deciso — sono le direzioni che il lavoro fatto finora lascia aperte:
 
 1. Completare gli screenshot del README con la scheda dei fondi pensione.
-2. Sciogliere i due disallineamenti della CI (Pillow, `--locked` su Windows).
-3. Unificare la versione in un punto solo.
-4. Valutare la firma del codice se l'app esce dalla cerchia di utenti fidati.
+2. Valutare la firma del codice se l'app esce dalla cerchia di utenti fidati.
+3. Se il progetto dovesse mai distribuirsi anche via PyPI, rivedere la
+   decisione 20 (aggiungere un `[build-system]`, che oggi manca di proposito).

@@ -17,7 +17,11 @@ codice spiega già una ragione, qui c'è il rimando, non una copia.
 Python 3.13. Nessun `[build-system]` in `pyproject.toml`: il progetto **non** si
 installa come wheel, si esegue da sorgente.
 **Conseguenze.** Niente `console_scripts`, niente `pip install comparatore-fondi`.
-Chi vuole un eseguibile passa dal bundle PyInstaller (decisione 13).
+Chi vuole un eseguibile passa dal bundle PyInstaller (decisione 13). Scoperta
+solo in seguito: senza `[build-system]` il pacchetto non ha mai un `.dist-info`,
+quindi `importlib.metadata.version()` non lo trova **mai** — ne' da sorgente ne'
+nel bundle. Ha tenuto rotto per due release il pannello versione in `app.py`,
+finche' la decisione 20 non gli ha dato un'altra fonte.
 **Traccia.** `pyproject.toml`, `.python-version`.
 
 ### 2 · `comparatore/` non importa mai Streamlit
@@ -238,3 +242,66 @@ non il fatto che Streamlit continui a emettere quelle classi.
 **Alternative scartate.** Etichette più corte (perdono informazione e non
 risolvono in tedesco); un solo selettore a tendina al posto dei pulsanti (un
 clic in più per l'azione più frequente della barra laterale).
+
+### 19 · Un linter in CI, in sola verifica
+
+*Agosto 2026*
+
+**Contesto.** Nessuno strumento controllava lo stile del codice. Misurato con
+ruff sul codice esistente: pulitissimo, **due soli** rilievi con le regole
+predefinite (due import morti in `covip.py`). Introdurne uno costava poco e da
+quel momento in poi avrebbe protetto.
+**Scelta.** `ruff check`, non `ruff format`: un formatter riscriverebbe ogni
+file toccato, e combatterebbe con l'allineamento manuale dei cataloghi di
+traduzione, dove ogni riga è una voce e la leggibilità della colonna conta più
+di una lunghezza uniforme. Regole `E, W, F, I, UP`, riga a 100 caratteri (il
+file più lungo del repository sfora 88 di 25 caratteri: 79 o 88 avrebbero
+costretto a spezzare frasi che si leggono meglio intere). `UP042` (StrEnum) è
+escluso: cambierebbe cosa restituisce `str()` su `Rebalance`/`FeeMode`/
+`Frequency`, che finisce nel JSON dei portafogli esportati — un cambio di
+formato dati, non di stile, e semmai passa da una spec sua. Job CI separato da
+`unittest`, cosi' un fallimento di stile non nasconde l'esito dei test.
+**Conseguenze.** 41 rilievi preesistenti corretti (11 in automatico — newline
+finali, import morti, ordinamento; 30 a mano, tutte righe lunghe). Le
+stringhe tradotte nei cataloghi sono state solo **spezzate su più righe** con
+la sintassi di concatenazione già in uso altrove nello stesso file — mai
+riformulate: è stato verificato confrontando il valore Python di ogni chiave,
+non solo il diff testuale, che le quattro lingue restassero carattere per
+carattere identiche.
+**Alternative scartate.** `force-single-line` in `isort` per preservare lo
+stile "un simbolo per riga" di un singolo blocco di import in `app.py`: avrebbe
+riscritto la convenzione opposta, e dominante, usata in una decina di altri
+file (`from x import a, b, c` su una riga). Non era una convenzione
+documentata: si è lasciato che il blocco in `app.py` si allineasse al resto.
+**Traccia.** `pyproject.toml` (`[tool.ruff]`), `.github/workflows/tests.yml`
+(job `lint`).
+
+### 20 · La versione vive in `comparatore/__init__.py`
+
+*Agosto 2026*
+
+**Contesto.** La versione sembrava "solo" duplicata fra `pyproject.toml` e
+`desktop/comparatore.spec`. Indagando è emerso un terzo consumatore silenzioso:
+`app.py` la leggeva con `importlib.metadata.version("comparatore-fondi")` nel
+pannello "Informazioni e licenze". Per la decisione 1 il pacchetto non viene
+**mai** installato come distribuzione, quindi quella chiamata falliva sempre e
+il pannello mostrava "-" fin da quando esiste — un bug silenzioso, mai
+segnalato perché non rompeva nulla di bloccante.
+**Scelta.** `__version__` in `comparatore/__init__.py` come fonte unica: è il
+file che finisce nel bundle e che si legge senza installare nulla. `app.py` lo
+importa. `desktop/comparatore.spec` lo estrae con `ast.parse()` invece di
+importare il pacchetto — che in fase di build tirerebbe dentro pandas e
+streamlit solo per una stringa, oltre a introdurre un ordine di inizializzazione
+non necessario. `pyproject.toml` resta un secondo letterale, perché senza
+`[build-system]` deve restare statico, ma un test lo tiene allineato.
+**Conseguenze.** Il pannello versione mostra di nuovo un numero, non un
+segnaposto. Un bump di versione ora tocca due file invece di tre, e
+`tests/test_versione.py` avverte se restano scoordinati.
+**Alternative scartate.** Aggiungere un `[build-system]` per far funzionare
+`importlib.metadata` sul serio: è la via canonica, ma contraddice la decisione
+1 (eseguito da sorgente) e avrebbe richiesto `copy_metadata` nel bundle
+PyInstaller per lo stesso motivo per cui oggi serve `collect_all` sui pacchetti
+con dati non-Python. Rimandata, non scartata per sempre: se il progetto dovesse
+mai distribuirsi anche via PyPI, e' la prima cosa da rivedere.
+**Traccia.** `comparatore/__init__.py`, `desktop/comparatore.spec`,
+`tests/test_versione.py`.
