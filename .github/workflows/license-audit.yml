@@ -27,7 +27,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --group dev
+        run: uv sync --group dev --locked
 
       - name: Reject unapproved licenses
         run: uv run python scripts/generate_third_party_notices.py --check
