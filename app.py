@@ -165,6 +165,35 @@ FMT_DATA_INPUT = i18n.formato_data(LINGUA)  # per st.date_input(format=...)
 
 st.set_page_config(page_title=t("app.page_title"), page_icon="📈", layout="wide")
 
+# Unico foglio di stile dell'app, e per una sola ragione: nessuna opzione di
+# Streamlit permette di dire "questo pulsante non si spezza". Resta agganciato
+# a `.st-key-preset_periodo` - la classe che Streamlit emette per un
+# `st.container(key=...)` - invece che a `.stButton` in generale, cosi' vale
+# solo dove serve e non tocca gli altri pulsanti della pagina.
+#
+# `min-width: 3ch` e' il vincolo vero: le etichette dei preset sono lunghe al
+# massimo tre caratteri in tutte e quattro le lingue ("10a", "20a", "Max",
+# "10J"), quindi garantire tre caratteri di larghezza equivale a garantire che
+# non vadano mai a capo. In `ch` e non in pixel perche' l'unita' segue il font
+# effettivo: la garanzia regge anche se il tema cambia corpo o famiglia. Il
+# `gap` piu' stretto non e' estetica: e' spazio restituito ai pulsanti, e
+# rimanda il punto in cui il `min-width` deve sfondare la colonna per tenere
+# fede alla garanzia.
+st.markdown(
+    """
+    <style>
+    .st-key-preset_periodo [data-testid="stHorizontalBlock"] { gap: 0.4rem; }
+    .st-key-preset_periodo .stButton p { white-space: nowrap; }
+    .st-key-preset_periodo .stButton button {
+        min-width: 3ch;
+        padding-left: 0.25rem;
+        padding-right: 0.25rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 CURRENCIES = ["EUR", "USD", "GBP", "CHF", "JPY"]
 SYMBOLS = {"EUR": "€", "USD": "$", "GBP": "£", "CHF": "CHF ", "JPY": "¥"}
 
@@ -455,25 +484,31 @@ with st.sidebar:
 
     today = dt.date.today()
     st.caption(t("sidebar.periodo_caption"))
-    # Su due file da tre e da due, non su cinque colonne in fila: stringendo
-    # la barra laterale, cinque pulsanti affiancati diventano piu' stretti
-    # della loro stessa etichetta, che va a capo ("10" sopra, "a" sotto) e
-    # smette di leggersi. Con tre per riga ogni pulsante ha quasi il doppio
-    # dello spazio e regge una barra molto piu' stretta.
+    # Due difese contro la stessa cosa: la barra laterale si trascina fino a
+    # diventare piu' stretta dell'etichetta di un pulsante, e allora "10a" si
+    # spezza in "10" sopra e "a" sotto, che non si legge piu'.
+    #
+    # La prima e' il layout su due file da tre e da due invece che cinque
+    # colonne in fila: ogni pulsante parte con quasi il doppio dello spazio.
+    # Non basta pero', perche' la barra si puo' stringere ancora - da qui la
+    # seconda, il contenitore con `key` che espone alla CSS in cima al file la
+    # classe `.st-key-preset_periodo` e le impone tre caratteri di larghezza
+    # minima, che e' quanto serve all'etichetta piu' lunga.
     presets = [
         ("preset.1y", 1), ("preset.5y", 5), ("preset.10y", 10),
         ("preset.20y", 20), ("preset.max", None),
     ]
-    for riga in (presets[:3], presets[3:]):
-        preset_cols = st.columns(3)
-        for col, (chiave_label, years) in zip(preset_cols, riga):
-            col.button(
-                t(chiave_label),
-                key=f"preset_{years if years is not None else 'max'}",
-                on_click=set_period,
-                args=(years,),
-                width="stretch",
-            )
+    with st.container(key="preset_periodo"):
+        for riga in (presets[:3], presets[3:]):
+            preset_cols = st.columns(3)
+            for col, (chiave_label, years) in zip(preset_cols, riga):
+                col.button(
+                    t(chiave_label),
+                    key=f"preset_{years if years is not None else 'max'}",
+                    on_click=set_period,
+                    args=(years,),
+                    width="stretch",
+                )
 
     col_a, col_b = st.columns(2)
     start_date = col_a.date_input(
