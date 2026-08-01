@@ -23,7 +23,8 @@ class CapitaleFinaleTests(unittest.TestCase):
         # Senza capitale iniziale, con versamenti mensili, il montante e'
         # l'annualita' ordinaria classica: FV = P*((1+i)^n - 1)/i.
         tasso_annuo = 0.06
-        montante = hz.capitale_finale(tasso_annuo, 5, 0.0, versamento_periodico=100.0, rate_annue=12)
+        montante = hz.capitale_finale(
+            tasso_annuo, 5, 0.0, versamento_periodico=100.0, rate_annue=12)
 
         tasso_mensile = (1.0 + tasso_annuo) ** (1.0 / 12) - 1.0
         n = 5 * 12

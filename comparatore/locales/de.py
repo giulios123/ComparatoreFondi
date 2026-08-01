@@ -100,7 +100,9 @@ MESSAGGI: dict[str, str] = {
         "ungleich USD kann die Rekonstruktion nicht vor **{anno}** "
         "zurückreichen, dem ersten Datum der offiziellen EZB-Wechselkurse."
     ),
-    "history.caption_usd": "Währung USD: die Rekonstruktion kann die volle Tiefe des Proxys nutzen.",
+    "history.caption_usd": (
+        "Währung USD: die Rekonstruktion kann die volle Tiefe des Proxys nutzen."
+    ),
 
     # --- Seitenleiste: Datenquellen -----------------------------------------------
     "sources.subheader": "Datenquellen",
@@ -214,7 +216,9 @@ MESSAGGI: dict[str, str] = {
         "wieder zu öffnen."
     ),
     "portfolio_io.download_button": "⬇️ Portfolio herunterladen (.json)",
-    "portfolio_io.download_empty_hint": "Fügen Sie mindestens einen Fonds hinzu, um es herunterzuladen.",
+    "portfolio_io.download_empty_hint": (
+        "Fügen Sie mindestens einen Fonds hinzu, um es herunterzuladen."
+    ),
     "portfolio_io.upload_label": "Ein Portfolio laden (.json)",
     "portfolio_io.import_success": "Portfolio geladen: {n} Fonds.",
     "portfolio_io.import_error": "Ungültige Datei: {errore}",
@@ -294,14 +298,20 @@ MESSAGGI: dict[str, str] = {
         "kostenpflichtiger Plan ist erforderlich), daher stammen weder "
         "TER noch Klassifikation von dort. "
     ),
-    "ter_warning.reason_none": "keine konfigurierte Quelle stellt sie für diese Instrumente bereit. ",
+    "ter_warning.reason_none": (
+        "keine konfigurierte Quelle stellt sie für diese Instrumente bereit. "
+    ),
     "ter_warning.message": (
         "TER nicht gefunden für: {elenco}. {motivo}"
         "Tragen Sie sie manuell aus dem KID ein, um die Kostenwirkung zu sehen."
     ),
     "weight.error_zero": "Weisen Sie mindestens ein Gewicht größer als null zu.",
-    "weight.warning_normalized": "Die Gewichte summieren sich auf {tot:.1f}%: sie werden auf 100% normiert.",
-    "weight.error_importo_min": "Das Gesamtkapital des Portfolios darf nicht unter {minimo} fallen.",
+    "weight.warning_normalized": (
+        "Die Gewichte summieren sich auf {tot:.1f}%: sie werden auf 100% normiert."
+    ),
+    "weight.error_importo_min": (
+        "Das Gesamtkapital des Portfolios darf nicht unter {minimo} fallen."
+    ),
     "dates.error_order": "Das Startdatum muss vor dem Enddatum liegen.",
 
     # --- Kursabruf -----------------------------------------------------------------
@@ -454,7 +464,9 @@ MESSAGGI: dict[str, str] = {
         "dorthin gelangt wäre. Der reale Verlauf schwankte, aber COVIP "
         "veröffentlicht keine historischen Reihen."
     ),
-    "chart.weights_set_final": "Eingestellte Gewichte: {pesi} → am Ende des Zeitraums: {pesi_finali}.",
+    "chart.weights_set_final": (
+        "Eingestellte Gewichte: {pesi} → am Ende des Zeitraums: {pesi_finali}."
+    ),
     "chart.rebalance_caption_active": (
         "{tipo} Rebalancing: {n} Eingriffe im Zeitraum, der letzte am "
         "{data} (eingestellte Gewichte: {pesi})."
@@ -630,7 +642,9 @@ MESSAGGI: dict[str, str] = {
         "Wählen Sie einen oder mehrere Teilfonds, um sie mit Ihrem "
         "Portfolio zu vergleichen."
     ),
-    "previdenza.rendimento_header": "**Durchschnittliche jährliche Rendite, auf denselben COVIP-Fenstern**",
+    "previdenza.rendimento_header": (
+        "**Durchschnittliche jährliche Rendite, auf denselben COVIP-Fenstern**"
+    ),
     "previdenza.col_orizzonte": "{etichetta} · {periodo}",
     "previdenza.legenda_caption": (
         "Jede Spalte ist ein eigenes abgeschlossenes Fenster, kein kumulativer "

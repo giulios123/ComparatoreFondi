@@ -305,7 +305,8 @@ def run_backtest(
         {col: _standalone_curve(net_prices[col], initial_value, pac) for col in net_prices.columns}
     )
     per_fund_gross = pd.DataFrame(
-        {col: _standalone_curve(gross_prices[col], initial_value, pac) for col in gross_prices.columns}
+        {col: _standalone_curve(gross_prices[col], initial_value, pac)
+         for col in gross_prices.columns}
     )
 
     label_map = {h.symbol: h.label for h in holdings}

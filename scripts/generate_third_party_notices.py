@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import subprocess
 import sys
 import sysconfig
-
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = PROJECT_ROOT / "THIRD_PARTY_NOTICES.txt"

@@ -321,7 +321,9 @@ MESSAGGI: dict[str, str] = {
     "history.proxy_not_older": (
         "{symbol}: {proxy} is not older than the fund, nothing to reconstruct"
     ),
-    "history.reconstructed_note": "**{symbol}** reconstructed from {data} with {proxy_label}{caveat}",
+    "history.reconstructed_note": (
+        "**{symbol}** reconstructed from {data} with {proxy_label}{caveat}"
+    ),
     "history.reconstructed_caption": (
         "Reconstructed stretches are estimates based on a different "
         "instrument than the fund, not real data. They appear dashed in the charts."

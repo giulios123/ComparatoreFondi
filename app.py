@@ -1486,7 +1486,8 @@ with tab1:
             ))
     else:
         fig.add_hline(y=initial_value, line=dict(color="#9ca3af", width=1, dash="dash"),
-                      annotation_text=t("chart.annotation_initial_capital"), annotation_position="bottom right")
+                      annotation_text=t("chart.annotation_initial_capital"),
+                      annotation_position="bottom right")
     fig.update_layout(
         height=460, hovermode="x unified", margin=dict(l=0, r=0, t=30, b=0),
         yaxis_title=t("chart.yaxis_value", ccy=base_ccy), xaxis_title=None,
@@ -1656,9 +1657,12 @@ with tab_bil:
         st.caption(t("bilancio.provenienza_prefix") + ", ".join(provenienza) + ".")
 
         ripartizioni = [
-            ("classe", t("bilancio.titolo_classe"), al.aggrega(pesi_per_simbolo, effettive["classe"])),
-            ("area", t("bilancio.titolo_area"), al.aggrega(pesi_per_simbolo, effettive["area"])),
-            ("settore", t("bilancio.titolo_settore"), al.aggrega(pesi_per_simbolo, effettive["settore"])),
+            ("classe", t("bilancio.titolo_classe"),
+             al.aggrega(pesi_per_simbolo, effettive["classe"])),
+            ("area", t("bilancio.titolo_area"),
+             al.aggrega(pesi_per_simbolo, effettive["area"])),
+            ("settore", t("bilancio.titolo_settore"),
+             al.aggrega(pesi_per_simbolo, effettive["settore"])),
             ("valuta", t("bilancio.titolo_valuta"), al.aggrega(pesi_per_simbolo, valute)),
             ("paesi", t("bilancio.titolo_paesi"), al.aggrega(pesi_per_simbolo, paesi)),
         ]
@@ -1681,9 +1685,12 @@ with tab_bil:
                 {
                     "strumento": f["name"],
                     "peso": f"{f['weight']:.2f}",
-                    "classe": i18n.etichetta_termine(LINGUA, al.descrivi(effettive["classe"][f["symbol"]])),
-                    "area": i18n.etichetta_termine(LINGUA, al.descrivi(effettive["area"][f["symbol"]])),
-                    "settore": i18n.etichetta_termine(LINGUA, al.descrivi(effettive["settore"][f["symbol"]])),
+                    "classe": i18n.etichetta_termine(
+                        LINGUA, al.descrivi(effettive["classe"][f["symbol"]])),
+                    "area": i18n.etichetta_termine(
+                        LINGUA, al.descrivi(effettive["area"][f["symbol"]])),
+                    "settore": i18n.etichetta_termine(
+                        LINGUA, al.descrivi(effettive["settore"][f["symbol"]])),
                     "valuta": f["currency"] or t("nd"),
                 }
                 for f in fondi
@@ -2055,7 +2062,8 @@ with tab5:
             if mancanti:
                 elenco_anni = ", ".join(etichetta_anni(a) for a in mancanti)
                 dettaglio = ", ".join(f"{a}a = {periodi_covip.get(a)}" for a in mancanti)
-                st.caption(t("previdenza.mancanti_caption", elenco_anni=elenco_anni, dettaglio=dettaglio))
+                st.caption(t("previdenza.mancanti_caption",
+                             elenco_anni=elenco_anni, dettaglio=dettaglio))
                 # Una colonna di "n/d" senza altro non dice nulla: qui almeno
                 # il numero c'e', con scritto perche' non e' confrontabile e
                 # cosa fare per renderlo tale.

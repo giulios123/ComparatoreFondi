@@ -9,7 +9,9 @@ MESSAGGI: dict[str, str] = {
     # --- En-tête -------------------------------------------------
     "app.page_title": "Comparateur de fonds",
     "app.title": "📈 Comparateur de fonds",
-    "app.subtitle": "Backtest de fonds et ETF sur plusieurs sources de données, avec l'impact du TER.",
+    "app.subtitle": (
+        "Backtest de fonds et ETF sur plusieurs sources de données, avec l'impact du TER."
+    ),
 
     # --- Rééquilibrage (aide du menu) --------------------------
     "rebalance.help": (
@@ -97,7 +99,9 @@ MESSAGGI: dict[str, str] = {
         "autre que l'USD, la reconstitution ne peut pas descendre "
         "avant **{anno}**, première date des taux de change officiels de la BCE."
     ),
-    "history.caption_usd": "Devise USD : la reconstitution peut utiliser toute la profondeur du proxy.",
+    "history.caption_usd": (
+        "Devise USD : la reconstitution peut utiliser toute la profondeur du proxy."
+    ),
 
     # --- Barre latérale : sources de données -----------------------------------------------
     "sources.subheader": "Sources de données",
@@ -296,7 +300,9 @@ MESSAGGI: dict[str, str] = {
     ),
     "weight.error_zero": "Attribuez au moins un poids supérieur à zéro.",
     "weight.warning_normalized": "Les poids totalisent {tot:.1f}% : ils seront normalisés à 100%.",
-    "weight.error_importo_min": "Le capital total du portefeuille ne peut pas descendre sous {minimo}.",
+    "weight.error_importo_min": (
+        "Le capital total du portefeuille ne peut pas descendre sous {minimo}."
+    ),
     "dates.error_order": "La date de début doit précéder la date de fin.",
 
     # --- Récupération des prix -----------------------------------------------------------
@@ -332,7 +338,9 @@ MESSAGGI: dict[str, str] = {
     "history.proxy_not_older": (
         "{symbol} : {proxy} n'est pas plus ancien que le fonds, rien à reconstituer"
     ),
-    "history.reconstructed_note": "**{symbol}** reconstitué depuis le {data} avec {proxy_label}{caveat}",
+    "history.reconstructed_note": (
+        "**{symbol}** reconstitué depuis le {data} avec {proxy_label}{caveat}"
+    ),
     "history.reconstructed_caption": (
         "Les tronçons reconstitués sont des estimations basées sur un "
         "instrument différent du fonds, pas des données réelles. Ils "
@@ -519,7 +527,7 @@ MESSAGGI: dict[str, str] = {
         "ETF sur le marché mondial coté en euros reste exposé au dollar."
     ),
 
-    # --- Onglet Comparaison de fonds -----------------------------------------------------------------
+    # --- Onglet Comparaison de fonds ------------------------------------
     "confronto.caption": (
         "Évolution de {capitale} investis intégralement dans chaque fonds, "
         "pour une comparaison à capital égal."
@@ -674,7 +682,9 @@ MESSAGGI: dict[str, str] = {
         "colonne montre la fraction du rendement net obtenu absorbée "
         "chaque année par les coûts."
     ),
-    "previdenza.curve_checkbox": "Afficher les courbes des fonds de pension dans le graphique du portefeuille",
+    "previdenza.curve_checkbox": (
+        "Afficher les courbes des fonds de pension dans le graphique du portefeuille"
+    ),
     "previdenza.curve_help": (
         "Droites à croissance constante dérivées du rendement annuel "
         "moyen : elles montrent le point d'arrivée, pas le parcours."

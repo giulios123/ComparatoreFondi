@@ -31,10 +31,9 @@ di divario che questa applicazione esiste per rendere visibile.
 from __future__ import annotations
 
 import datetime as dt
-import json
 import re
 import unicodedata
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 
 import pandas as pd
 import requests
