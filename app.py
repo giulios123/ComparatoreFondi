@@ -9,18 +9,12 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from comparatore import __version__, covip, fx, i18n, licenses, pesi, portfolio_io, prefs
 from comparatore import allocazione as al
 from comparatore import cache as disk_cache
-from comparatore import covip
-from comparatore import fx
 from comparatore import horizons as hz
-from comparatore import i18n
 from comparatore import keys as api_keys_store
-from comparatore import licenses
 from comparatore import metrics as mt
-from comparatore import pesi
-from comparatore import portfolio_io
-from comparatore import prefs
 from comparatore import proxies as px
 from comparatore.engine import (
     FeeMode,
@@ -719,12 +713,7 @@ with st.sidebar:
 
     st.divider()
     with st.expander(t("about.expander")):
-        try:
-            import importlib.metadata as _ilm
-            versione = _ilm.version("comparatore-fondi")
-        except Exception:
-            versione = "-"
-        st.caption(t("about.version", versione=versione))
+        st.caption(t("about.version", versione=__version__))
         st.caption(t("about.license_caption"))
         st.markdown(f"**{t('about.third_party_header')}**")
         st.caption(t("about.third_party_caption"))
