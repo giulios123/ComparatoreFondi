@@ -5,29 +5,120 @@ portafoglio, scegli il periodo e vedi quanto sarebbe diventato il tuo capitale �
 con l'impatto dei costi (TER) evidenziato. Include anche il confronto con i
 fondi pensione italiani (negoziali, aperti, PIP).
 
+![Comparatore Fondi: barra laterale con i parametri, ricerca fondi e composizione del portafoglio](docs/images/01-panoramica.png)
+
 ---
 
-## Guida rapida
+## Installazione
 
-### 1. Installazione (una volta sola)
+Ci sono due modi, e conviene sceglierli così:
 
-Serve Python 3.13+ e [`uv`](https://docs.astral.sh/uv/) come gestore del
-progetto. Se `uv` non è già installato:
+| | **A · Scarica la release** | **B · Clona il repository** |
+|---|---|---|
+| **Per chi** | Voglio usare l'app | Voglio modificarla, o voglio l'ultima versione |
+| **Serve** | Niente: nessun Python da installare | Python 3.13+ e [`uv`](https://docs.astral.sh/uv/) |
+| **Ottieni** | Un'applicazione da avviare con doppio clic | Il codice sorgente, aggiornato all'ultimo commit |
+| **Pesa** | ~105 MB da scaricare | ~500 MB fra ambiente virtuale e dipendenze |
+| **Sistemi** | macOS (Apple Silicon) e Windows | macOS, Windows, Linux |
+
+---
+
+### A · Installazione da release
+
+**1. Scarica l'archivio** dalla pagina delle release:
+
+👉 **<https://github.com/giulios123/ComparatoreFondi/releases/latest>**
+
+In fondo alla pagina, sotto *Assets*, scegli il file per il tuo sistema:
+
+| Sistema | File | Dimensione |
+|---|---|---|
+| macOS (Apple Silicon) | `ComparatoreFondi-macOS.zip` | ~105 MB |
+| Windows | `ComparatoreFondi-Windows.zip` | ~107 MB |
+
+> **macOS Intel:** gli archivi pubblicati sono compilati per Apple Silicon
+> (arm64). Su un Mac Intel serve la strada B, oppure adattare il workflow di
+> build (vedi § Pacchetto standalone).
+
+**2. Estrai l'archivio.** Doppio clic sul file `.zip`.
+
+- **macOS** → ottieni `ComparatoreFondi.app`. Trascinala in *Applicazioni*.
+- **Windows** → ottieni la cartella `ComparatoreFondi`, che contiene
+  `ComparatoreFondi.exe`. Spostala dove preferisci, ma **tienila intera**:
+  l'eseguibile ha bisogno dei file che gli stanno accanto.
+
+**3. Al primo avvio, sblocca l'app.** Le applicazioni non sono firmate
+digitalmente (il perché è spiegato in § Firma del codice), quindi il sistema
+avvisa. Succede **solo la prima volta**:
+
+- **macOS** — un doppio clic mostra "sviluppatore non identificato". Chiudi
+  l'avviso, poi **clic destro sull'app → Apri**, e conferma **Apri** nella
+  finestra che compare.
+- **Windows** — SmartScreen mostra "Windows ha protetto il PC". Clicca
+  **Ulteriori informazioni** → **Esegui comunque**.
+
+**4. L'app parte.** Si apre da sola nel browser predefinito, su
+<http://localhost:8765>. La finestra del browser *è* l'applicazione: chiuderla
+non spegne il programma, che si chiude dalla sua icona nel Dock (macOS) o dalla
+finestra del terminale che resta aperta (Windows).
+
+I tuoi dati — cache, chiavi API, preferenze — stanno fuori dall'app, così un
+aggiornamento non li porta via:
+
+| Sistema | Cartella |
+|---|---|
+| macOS | `~/Library/Application Support/ComparatoreFondi` |
+| Windows | `%APPDATA%\ComparatoreFondi` |
+
+**Se l'app non parte**, nella stessa cartella trovi `comparatore.log` con il
+motivo dell'ultimo avvio fallito.
+
+**Per aggiornare:** scarica il nuovo archivio dalla stessa pagina e sostituisci
+l'applicazione. I dati nella cartella qui sopra restano dove sono.
+
+---
+
+### B · Installazione da sorgente (clone)
+
+**1. Installa `uv`**, se non ce l'hai già. È il gestore di progetto: si occupa
+anche di scaricare Python 3.13 se manca, quindi non serve installarlo a parte.
 
 ```bash
+# macOS e Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Poi, dalla cartella del progetto, installa le dipendenze:
+```powershell
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+In alternativa: `brew install uv` su macOS, `pipx install uv` ovunque, o gli
+altri metodi elencati nella [documentazione di `uv`](https://docs.astral.sh/uv/getting-started/installation/).
+
+**2. Clona il repository ed entra nella cartella:**
+
+```bash
+git clone https://github.com/giulios123/ComparatoreFondi.git
+cd ComparatoreFondi
+```
+
+**3. Installa le dipendenze:**
 
 ```bash
 uv sync
 ```
 
-Questo crea l'ambiente virtuale in `.venv/` e installa tutto quello che serve
-(Streamlit, pandas, yfinance, openpyxl, ecc.) leggendo `pyproject.toml`.
+Crea l'ambiente virtuale in `.venv/` e installa tutto quello che serve
+(Streamlit, pandas, yfinance, openpyxl, ecc.) leggendo `pyproject.toml`. La
+prima volta scarica qualche centinaio di MB; le volte successive è quasi
+istantaneo.
 
-### 2. Avvio
+`uv sync` installa **anche** gli strumenti di sviluppo (PyInstaller,
+pip-licenses, ruff): per `uv`, quel gruppo è incluso di default. Per il solo
+runtime, come su una macchina che deve solo eseguire l'app: `uv sync --no-dev`.
+
+**4. Avvia l'app:**
 
 ```bash
 uv run streamlit run app.py
@@ -36,12 +127,41 @@ uv run streamlit run app.py
 Si apre automaticamente il browser su <http://localhost:8501>. Per fermarla,
 `Ctrl+C` nel terminale.
 
+**Per aggiornare:**
+
+```bash
+git pull
+uv sync      # riallinea le dipendenze se sono cambiate
+```
+
+**Per eseguire i test:**
+
+```bash
+uv run python -m unittest discover -s tests -p "test_*.py"
+```
+
+---
+
+### Se qualcosa non funziona
+
+| Sintomo | Cosa fare |
+|---|---|
+| `uv: command not found` dopo l'installazione | Riapri il terminale: `uv` finisce in `~/.local/bin`, che serve al `PATH` della nuova sessione |
+| `Port 8501 is already in use` | Un'altra istanza è già attiva. Chiudila, oppure usa un'altra porta: `uv run streamlit run app.py --server.port 8502` |
+| Il browser non si apre da solo | Vai a mano su <http://localhost:8501> (da sorgente) o <http://localhost:8765> (app scaricata) |
+| L'app scaricata non parte con doppio clic | Leggi `comparatore.log` nella cartella dati utente indicata sopra |
+| Un fondo non produce dati | Apri **📚 Fonti usate** sotto la tabella: l'app dichiara quali fonti ha provato e come è andata |
+
+---
+
+## Guida rapida
+
 L'interfaccia è disponibile in **italiano, inglese, francese e tedesco**: alla
 prima apertura viene scelta in base alla lingua del browser (o del sistema
 operativo nell'app desktop), ed è sempre cambiabile dal selettore in cima alla
 barra laterale. La scelta viene ricordata fra un avvio e l'altro.
 
-### 3. Aggiungere un fondo
+### 1. Aggiungere un fondo
 
 1. Apri il pannello **🔎 Cerca fondi ed ETF** in cima alla pagina.
 2. Digita un nome (`Vanguard S&P 500`), un ticker (`VUSA.AS`) o un **ISIN**
@@ -72,7 +192,7 @@ modificare:
   da dove arrivano i dati di un fondo specifico;
 - **Proxy storico** — vedi [Storico esteso](#storico-esteso).
 
-### 4. Rimuovere un fondo
+### 2. Rimuovere un fondo
 
 Ogni riga della tabella ha un pulsante **🗑️** nella prima colonna: un clic
 toglie il fondo, nessuna conferma. Il capitale resta investito — i pesi dei
@@ -80,7 +200,7 @@ fondi rimasti si ridistribuiscono mantenendo le loro proporzioni reciproche,
 mentre il valore iniziale del portafoglio non cambia. **🗑️ Svuota**, sotto la
 tabella, azzera invece tutto il portafoglio.
 
-### 5. Impostare periodo, valuta e capitale
+### 3. Impostare periodo, valuta e capitale
 
 Tutto nella barra laterale a sinistra:
 
@@ -88,7 +208,7 @@ Tutto nella barra laterale a sinistra:
   a mano.
 - **Valore iniziale del portafoglio** e **Valuta di riferimento**: cambiare il
   capitale qui riscala tutti gli importi per fondo mantenendo i pesi
-  invariati (è l'operazione inversa a quella descritta al punto 3).
+  invariati (è l'operazione inversa a quella descritta al punto 1).
 - **Ribilanciamento**: nessuno (buy & hold), mensile, trimestrale, annuale —
   vedi il tooltip ⓘ accanto al menu per la spiegazione completa. In breve:
   senza ribilanciamento i pesi impostati sono solo il punto di partenza e
@@ -104,7 +224,16 @@ Tutto nella barra laterale a sinistra:
 Il grafico e le metriche si aggiornano da soli. Se i pesi non sommano a 100%
 l'app li normalizza e te lo segnala.
 
-### 6. Versamenti periodici (PAC)
+<img src="docs/images/04-barra-laterale-stretta.png" alt="La barra laterale ristretta al minimo: i pulsanti dei periodi restano leggibili su una riga" align="right" width="176">
+
+La barra laterale si può **restringere trascinandone il bordo**, per lasciare
+più spazio ai grafici. Le etichette lunghe vanno a capo, ma i pulsanti dei
+periodi no: restano leggibili su una riga anche alla larghezza minima.
+
+<br clear="right">
+
+
+### 4. Versamenti periodici (PAC)
 
 Nella barra laterale, sotto Ribilanciamento, l'espansore **📅 Versamenti
 periodici (PAC)** è chiuso e disattivato di default: senza aprirlo l'app si
@@ -160,7 +289,16 @@ tempo in cui è davvero investita, e una colonna in più proietta il montante a
 10 anni versando lo stesso PAC. Quella proiezione tiene la rata costante: la
 rivalutazione annua non vi entra.
 
-### 7. Leggere i risultati
+### 5. Leggere i risultati
+
+Sopra le schede trovi la composizione del portafoglio e le metriche di sintesi
+del periodo:
+
+![Composizione del portafoglio e metriche di sintesi: valore finale, CAGR, volatilità, max drawdown e Sharpe, con il riquadro dell'impatto del TER](docs/images/02-composizione-risultati.png)
+
+> Le schermate di questa guida usano due serie di esempio caricate da CSV, non
+> fondi reali: servono a mostrare l'interfaccia, non a suggerire un
+> investimento.
 
 Cinque schede sotto il grafico principale:
 
@@ -182,6 +320,12 @@ per riga.
 
 Il riquadro **💸 Impatto del TER** quantifica in euro quanto i costi correnti
 sono costati rispetto al fondo ipotetico senza commissioni.
+
+Nella scheda 📊 Portafoglio, la curva continua è il capitale **netto** e quella
+tratteggiata il **lordo**: la distanza fra le due *è* il costo del TER. Sotto,
+la composizione nel tempo mostra come i pesi si sono mossi.
+
+![Curva del capitale netta e lorda a confronto, e composizione del portafoglio nel tempo](docs/images/03-curva-e-composizione.png)
 
 ---
 
@@ -570,10 +714,12 @@ pulsante.
 
 ## Pacchetto standalone (macOS / Windows)
 
-Oltre all'uso da sorgente con `uv run streamlit run app.py`, il progetto puo'
-essere impacchettato in un eseguibile che non richiede Python installato,
-tramite [PyInstaller](https://pyinstaller.org/). I file coinvolti sono in
-`desktop/`:
+Questa sezione riguarda chi **costruisce** il pacchetto. Per scaricarlo e
+usarlo basta la [§ A · Installazione da release](#a--installazione-da-release).
+
+Il progetto puo' essere impacchettato in un eseguibile che non richiede Python
+installato, tramite [PyInstaller](https://pyinstaller.org/). I file coinvolti
+sono in `desktop/`:
 
 - [`desktop/launcher.py`](desktop/launcher.py) — entry point del bundle: avvia il
   server Streamlit e apre il browser, come farebbe `streamlit run app.py`.
@@ -611,6 +757,10 @@ builda entrambe le piattaforme su GitHub Actions:
 - **su tag** — `git tag v0.3.0 && git push origin v0.3.0` builda entrambe le
   piattaforme e pubblica una GitHub Release con i due `.zip` allegati.
 
+> **Il tag deve avere tre componenti.** Il trigger è `v*.*.*`: `v0.3.0` lo
+> soddisfa, `v0.2` no. Un tag a due componenti non fa partire nulla e la release
+> va poi completata a mano con una run manuale del workflow.
+
 Il workflow `License audit` esegue inoltre la scansione a ogni push su `main` e
 su ogni pull request, su Linux, macOS e Windows. Ogni licenza non inclusa
 nell'allowlist verificata viene bloccata e richiede revisione; PyInstaller è
@@ -619,11 +769,10 @@ impacchettato.
 
 ### Firma del codice (non ancora fatta)
 
-Le app prodotte oggi **non sono firmate**: su macOS Gatekeeper mostra
-"sviluppatore non identificato" (si apre comunque con click destro -> Apri),
-su Windows SmartScreen mostra un avviso simile ("Ulteriori informazioni" ->
-"Esegui comunque"). Per uso personale o con pochi utenti fidati e' un
-fastidio, non un blocco reale.
+Le app prodotte oggi **non sono firmate**: al primo avvio macOS e Windows
+mostrano un avviso, e vanno sbloccate una volta sola con i passi descritti in
+[§ A · Installazione da release](#a--installazione-da-release). Per uso
+personale o con pochi utenti fidati e' un fastidio, non un blocco reale.
 
 Per togliere questi avvisi servono due iscrizioni distinte e a pagamento,
 indipendenti fra loro:
@@ -650,6 +799,12 @@ procedere.
 
 ```
 app.py                    interfaccia Streamlit
+AGENTS.md                 istruzioni per chi (o cosa) lavora sul codice
+CLAUDE.md                 rimando ad AGENTS.md, più le note specifiche di Claude Code
+docs/
+  images/                  screenshot usati da questo README
+  memory-bank/             perché le cose sono come sono: decisioni, architettura, stato
+  spec-driven/            il processo: spec → piano → attività → codice
 .streamlit/
   config.toml              barra Streamlit senza Deploy/Rerun (committato)
   secrets.toml             chiavi API, alternativa al pannello (gitignored)
@@ -694,6 +849,17 @@ res = reg.resolve("IE00B3XXRP09", dt.date(2010, 1, 1), dt.date.today(),
                   "EUR", isin="IE00B3XXRP09")
 print(res.series.source, len(res.series.prices))
 ```
+
+### Per chi vuole metterci mano
+
+- **[`AGENTS.md`](AGENTS.md)** — comandi, confini architetturali e regole da
+  rispettare. È il primo file da leggere, e vale sia per le persone sia per gli
+  assistenti di codice.
+- **[`docs/memory-bank/`](docs/memory-bank/)** — il *perché* delle scelte fatte
+  finora, con il registro delle decisioni. Prima di rimettere in discussione un
+  vincolo, quasi sempre la risposta è già lì.
+- **[`docs/spec-driven/`](docs/spec-driven/)** — il processo per le funzionalità
+  nuove: prima la spec, poi il piano, poi il codice.
 
 ---
 

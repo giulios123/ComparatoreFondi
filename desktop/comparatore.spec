@@ -19,6 +19,7 @@ analizzato per gli import (cosi' pandas/plotly/comparatore/* vengono
 raccolti) ma resta il launcher, non app.py, l'eseguibile che parte.
 """
 
+import ast
 from pathlib import Path
 import subprocess
 import sys
@@ -26,6 +27,26 @@ import sys
 from PyInstaller.utils.hooks import collect_all
 
 PROJECT_ROOT = Path(SPECPATH).resolve().parent
+
+
+def _versione_app() -> str:
+    """Legge `__version__` da comparatore/__init__.py senza importarlo: in
+    fase di build servirebbe l'intero pacchetto (pandas, streamlit, ...) solo
+    per una stringa. E' la stessa fonte che usa app.py a runtime -
+    tests/test_versione.py verifica che resti allineata a pyproject.toml."""
+    sorgente = (PROJECT_ROOT / "comparatore" / "__init__.py").read_text(encoding="utf-8")
+    albero = ast.parse(sorgente, filename="comparatore/__init__.py")
+    for nodo in ast.walk(albero):
+        if (
+            isinstance(nodo, ast.Assign)
+            and any(isinstance(t, ast.Name) and t.id == "__version__" for t in nodo.targets)
+            and isinstance(nodo.value, ast.Constant)
+        ):
+            return str(nodo.value.value)
+    raise RuntimeError("__version__ non trovata in comparatore/__init__.py")
+
+
+VERSIONE = _versione_app()
 
 # Generate via `uv run python scripts/generate_icons.py` (solo macOS: usa il
 # font di sistema Apple Color Emoji + iconutil). I file sono committati in
@@ -122,6 +143,6 @@ app = BUNDLE(
     bundle_identifier="com.giuliosciarappa.comparatorefondi",
     info_plist={
         "NSHighResolutionCapable": True,
-        "CFBundleShortVersionString": "0.2.0",
+        "CFBundleShortVersionString": VERSIONE,
     },
 )

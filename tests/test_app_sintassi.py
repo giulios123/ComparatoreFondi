@@ -6,6 +6,8 @@ import ast
 import unittest
 from pathlib import Path
 
+from comparatore import i18n
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -70,6 +72,32 @@ class TestSintassiApp(unittest.TestCase):
             sorgente.index("payload = portfolio_io.dump("),
             sorgente.index("res = run_backtest("),
         )
+
+    def test_preset_periodo_non_vanno_a_capo(self):
+        """Il contenitore con `key` e la regola CSS che ne dipende vivono a
+        centinaia di righe di distanza: separati non servono a niente, e una
+        riscrittura del blocco dei preset puo' portarne via uno solo senza che
+        nulla protesti finche' qualcuno non stringe la barra laterale."""
+        sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+
+        self.assertIn('st.container(key="preset_periodo")', sorgente)
+        self.assertIn(".st-key-preset_periodo .stButton p { white-space: nowrap; }", sorgente)
+        self.assertIn(".st-key-preset_periodo .stButton button {", sorgente)
+        self.assertIn("min-width: 3ch;", sorgente)
+
+    def test_etichette_preset_stanno_in_tre_caratteri(self):
+        """`min-width: 3ch` protegge le etichette solo finche' restano di tre
+        caratteri: una traduzione piu' lunga tornerebbe ad andare a capo, e il
+        posto dove accorgersene e' qui, non a video."""
+        for codice in i18n.LINGUE:
+            for chiave in ("preset.1y", "preset.5y", "preset.10y",
+                           "preset.20y", "preset.max"):
+                etichetta = i18n.traduci(codice, chiave)
+                self.assertLessEqual(
+                    len(etichetta), 3,
+                    f"{codice}/{chiave} = {etichetta!r}: oltre i 3 caratteri "
+                    "garantiti dalla CSS dei preset in app.py",
+                )
 
     def test_preferenza_justetf_e_riepilogo_chiavi_sono_collegati(self):
         sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")

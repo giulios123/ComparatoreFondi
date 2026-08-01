@@ -81,7 +81,8 @@ CATALOG: dict[str, ProxyDef] = {
     "VGTSX": ProxyDef("VGTSX", "Internazionale ex USA (TR)", "fondo", True, "USD", "1996-04-29"),
     "VEURX": ProxyDef("VEURX", "Europa (TR)", "fondo", True, "USD", "1990-06-18"),
     "VEIEX": ProxyDef("VEIEX", "Mercati emergenti (TR)", "fondo", True, "USD", "1994-05-04"),
-    "VBMFX": ProxyDef("VBMFX", "Obbligazionario aggregato USA (TR)", "fondo", True, "USD", "1986-12-11"),
+    "VBMFX": ProxyDef(
+        "VBMFX", "Obbligazionario aggregato USA (TR)", "fondo", True, "USD", "1986-12-11"),
     "QQQ": ProxyDef("QQQ", "Nasdaq 100 (TR)", "fondo", True, "USD", "1999-03-10"),
     "^SP500TR": ProxyDef("^SP500TR", "S&P 500 Total Return", "indice", True, "USD", "1988-01-04"),
     # Indici di solo prezzo: piu' storico, ma sottostimano. Solo su scelta esplicita.

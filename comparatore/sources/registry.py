@@ -39,7 +39,9 @@ AUTO = "auto"
 @dataclass
 class Attempt:
     source: str
-    outcome: str  # "ok" | "no_data" | "not_configured" | "isin_required" - vedi comparatore.i18n.etichetta_esito
+    # "ok" | "no_data" | "not_configured" | "isin_required"
+    # vedi comparatore.i18n.etichetta_esito
+    outcome: str
 
 
 @dataclass

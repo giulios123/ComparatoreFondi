@@ -287,7 +287,9 @@ MESSAGGI: dict[str, str] = {
     ),
     "weight.error_zero": "Assegna almeno un peso maggiore di zero.",
     "weight.warning_normalized": "I pesi sommano a {tot:.1f}%: verranno normalizzati a 100%.",
-    "weight.error_importo_min": "Il capitale totale del portafoglio non può scendere sotto {minimo}.",
+    "weight.error_importo_min": (
+        "Il capitale totale del portafoglio non può scendere sotto {minimo}."
+    ),
     "dates.error_order": "La data di inizio deve precedere la data di fine.",
 
     # --- Recupero prezzi -----------------------------------------------------------

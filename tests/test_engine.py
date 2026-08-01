@@ -67,11 +67,13 @@ class ContributionScheduleTests(unittest.TestCase):
         self.assertEqual(contrib[0], 0.0)  # il giorno zero non e' un versamento
 
     def test_quattro_rate_trimestrali(self):
-        contrib = contribution_schedule(self.INDEX, Pac(amount=600.0, frequency=Frequency.QUARTERLY))
+        contrib = contribution_schedule(
+            self.INDEX, Pac(amount=600.0, frequency=Frequency.QUARTERLY))
         self.assertEqual(int((contrib > 0).sum()), 4)
 
     def test_una_rata_annuale(self):
-        contrib = contribution_schedule(self.INDEX, Pac(amount=2_400.0, frequency=Frequency.YEARLY))
+        contrib = contribution_schedule(
+            self.INDEX, Pac(amount=2_400.0, frequency=Frequency.YEARLY))
         self.assertEqual(int((contrib > 0).sum()), 1)
 
     def test_nessun_pac_da_vettore_di_zeri(self):
@@ -86,11 +88,14 @@ class ContributionScheduleTests(unittest.TestCase):
         contrib = contribution_schedule(self.INDEX, pac)
         date_versate = self.INDEX[contrib > 0]
         self.assertEqual(len(date_versate), 4)  # giu, lug, ago, set
-        self.assertTrue(all(pd.Timestamp("2020-06-01") <= d <= pd.Timestamp("2020-09-30") for d in date_versate))
+        self.assertTrue(all(
+            pd.Timestamp("2020-06-01") <= d <= pd.Timestamp("2020-09-30") for d in date_versate
+        ))
 
     def test_rivalutazione_annua_scatta_alla_tredicesima_rata(self):
         index = pd.bdate_range("2020-01-01", "2021-06-30")
-        contrib = contribution_schedule(index, Pac(amount=100.0, frequency=Frequency.MONTHLY, step_up=0.10))
+        contrib = contribution_schedule(
+            index, Pac(amount=100.0, frequency=Frequency.MONTHLY, step_up=0.10))
         importi = contrib[contrib > 0]
         self.assertEqual(len(importi), 17)  # feb 2020 - giu 2021
         np.testing.assert_allclose(importi[:12], [100.0] * 12)
@@ -140,7 +145,8 @@ class XirrTests(unittest.TestCase):
         # portafoglio parte da valore nullo e la NAV (non usata qui, ma
         # calcolata comunque da run_backtest) dividerebbe per zero.
         giorni = 400
-        prezzi = pd.DataFrame({"A": [100.0] * giorni}, index=pd.bdate_range("2020-01-01", periods=giorni))
+        prezzi = pd.DataFrame(
+            {"A": [100.0] * giorni}, index=pd.bdate_range("2020-01-01", periods=giorni))
         holdings = [Holding(symbol="A", label="A", weight=1.0)]
         pac = Pac(amount=100.0, frequency=Frequency.MONTHLY)
         res = run_backtest(prezzi, holdings, 100.0, Rebalance.NONE, pac=pac)

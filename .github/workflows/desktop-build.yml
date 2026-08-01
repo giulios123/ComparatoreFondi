@@ -63,7 +63,7 @@ jobs:
           enable-cache: true
 
       - name: Installa dipendenze (incluso PyInstaller)
-        run: uv sync --group dev
+        run: uv sync --group dev --locked
 
       - name: Costruisci il bundle
         run: uv run pyinstaller desktop/comparatore.spec --noconfirm --clean

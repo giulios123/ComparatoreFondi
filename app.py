@@ -9,18 +9,12 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from comparatore import __version__, covip, fx, i18n, licenses, pesi, portfolio_io, prefs
 from comparatore import allocazione as al
 from comparatore import cache as disk_cache
-from comparatore import covip
-from comparatore import fx
 from comparatore import horizons as hz
-from comparatore import i18n
 from comparatore import keys as api_keys_store
-from comparatore import licenses
 from comparatore import metrics as mt
-from comparatore import pesi
-from comparatore import portfolio_io
-from comparatore import prefs
 from comparatore import proxies as px
 from comparatore.engine import (
     FeeMode,
@@ -164,6 +158,35 @@ FMT_DATA = i18n.formato_data_strftime(LINGUA)  # per strftime() e hovertemplate 
 FMT_DATA_INPUT = i18n.formato_data(LINGUA)  # per st.date_input(format=...)
 
 st.set_page_config(page_title=t("app.page_title"), page_icon="📈", layout="wide")
+
+# Unico foglio di stile dell'app, e per una sola ragione: nessuna opzione di
+# Streamlit permette di dire "questo pulsante non si spezza". Resta agganciato
+# a `.st-key-preset_periodo` - la classe che Streamlit emette per un
+# `st.container(key=...)` - invece che a `.stButton` in generale, cosi' vale
+# solo dove serve e non tocca gli altri pulsanti della pagina.
+#
+# `min-width: 3ch` e' il vincolo vero: le etichette dei preset sono lunghe al
+# massimo tre caratteri in tutte e quattro le lingue ("10a", "20a", "Max",
+# "10J"), quindi garantire tre caratteri di larghezza equivale a garantire che
+# non vadano mai a capo. In `ch` e non in pixel perche' l'unita' segue il font
+# effettivo: la garanzia regge anche se il tema cambia corpo o famiglia. Il
+# `gap` piu' stretto non e' estetica: e' spazio restituito ai pulsanti, e
+# rimanda il punto in cui il `min-width` deve sfondare la colonna per tenere
+# fede alla garanzia.
+st.markdown(
+    """
+    <style>
+    .st-key-preset_periodo [data-testid="stHorizontalBlock"] { gap: 0.4rem; }
+    .st-key-preset_periodo .stButton p { white-space: nowrap; }
+    .st-key-preset_periodo .stButton button {
+        min-width: 3ch;
+        padding-left: 0.25rem;
+        padding-right: 0.25rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 CURRENCIES = ["EUR", "USD", "GBP", "CHF", "JPY"]
 SYMBOLS = {"EUR": "€", "USD": "$", "GBP": "£", "CHF": "CHF ", "JPY": "¥"}
@@ -455,25 +478,31 @@ with st.sidebar:
 
     today = dt.date.today()
     st.caption(t("sidebar.periodo_caption"))
-    # Su due file da tre e da due, non su cinque colonne in fila: stringendo
-    # la barra laterale, cinque pulsanti affiancati diventano piu' stretti
-    # della loro stessa etichetta, che va a capo ("10" sopra, "a" sotto) e
-    # smette di leggersi. Con tre per riga ogni pulsante ha quasi il doppio
-    # dello spazio e regge una barra molto piu' stretta.
+    # Due difese contro la stessa cosa: la barra laterale si trascina fino a
+    # diventare piu' stretta dell'etichetta di un pulsante, e allora "10a" si
+    # spezza in "10" sopra e "a" sotto, che non si legge piu'.
+    #
+    # La prima e' il layout su due file da tre e da due invece che cinque
+    # colonne in fila: ogni pulsante parte con quasi il doppio dello spazio.
+    # Non basta pero', perche' la barra si puo' stringere ancora - da qui la
+    # seconda, il contenitore con `key` che espone alla CSS in cima al file la
+    # classe `.st-key-preset_periodo` e le impone tre caratteri di larghezza
+    # minima, che e' quanto serve all'etichetta piu' lunga.
     presets = [
         ("preset.1y", 1), ("preset.5y", 5), ("preset.10y", 10),
         ("preset.20y", 20), ("preset.max", None),
     ]
-    for riga in (presets[:3], presets[3:]):
-        preset_cols = st.columns(3)
-        for col, (chiave_label, years) in zip(preset_cols, riga):
-            col.button(
-                t(chiave_label),
-                key=f"preset_{years if years is not None else 'max'}",
-                on_click=set_period,
-                args=(years,),
-                width="stretch",
-            )
+    with st.container(key="preset_periodo"):
+        for riga in (presets[:3], presets[3:]):
+            preset_cols = st.columns(3)
+            for col, (chiave_label, years) in zip(preset_cols, riga):
+                col.button(
+                    t(chiave_label),
+                    key=f"preset_{years if years is not None else 'max'}",
+                    on_click=set_period,
+                    args=(years,),
+                    width="stretch",
+                )
 
     col_a, col_b = st.columns(2)
     start_date = col_a.date_input(
@@ -684,12 +713,7 @@ with st.sidebar:
 
     st.divider()
     with st.expander(t("about.expander")):
-        try:
-            import importlib.metadata as _ilm
-            versione = _ilm.version("comparatore-fondi")
-        except Exception:
-            versione = "-"
-        st.caption(t("about.version", versione=versione))
+        st.caption(t("about.version", versione=__version__))
         st.caption(t("about.license_caption"))
         st.markdown(f"**{t('about.third_party_header')}**")
         st.caption(t("about.third_party_caption"))
@@ -1462,7 +1486,8 @@ with tab1:
             ))
     else:
         fig.add_hline(y=initial_value, line=dict(color="#9ca3af", width=1, dash="dash"),
-                      annotation_text=t("chart.annotation_initial_capital"), annotation_position="bottom right")
+                      annotation_text=t("chart.annotation_initial_capital"),
+                      annotation_position="bottom right")
     fig.update_layout(
         height=460, hovermode="x unified", margin=dict(l=0, r=0, t=30, b=0),
         yaxis_title=t("chart.yaxis_value", ccy=base_ccy), xaxis_title=None,
@@ -1632,9 +1657,12 @@ with tab_bil:
         st.caption(t("bilancio.provenienza_prefix") + ", ".join(provenienza) + ".")
 
         ripartizioni = [
-            ("classe", t("bilancio.titolo_classe"), al.aggrega(pesi_per_simbolo, effettive["classe"])),
-            ("area", t("bilancio.titolo_area"), al.aggrega(pesi_per_simbolo, effettive["area"])),
-            ("settore", t("bilancio.titolo_settore"), al.aggrega(pesi_per_simbolo, effettive["settore"])),
+            ("classe", t("bilancio.titolo_classe"),
+             al.aggrega(pesi_per_simbolo, effettive["classe"])),
+            ("area", t("bilancio.titolo_area"),
+             al.aggrega(pesi_per_simbolo, effettive["area"])),
+            ("settore", t("bilancio.titolo_settore"),
+             al.aggrega(pesi_per_simbolo, effettive["settore"])),
             ("valuta", t("bilancio.titolo_valuta"), al.aggrega(pesi_per_simbolo, valute)),
             ("paesi", t("bilancio.titolo_paesi"), al.aggrega(pesi_per_simbolo, paesi)),
         ]
@@ -1657,9 +1685,12 @@ with tab_bil:
                 {
                     "strumento": f["name"],
                     "peso": f"{f['weight']:.2f}",
-                    "classe": i18n.etichetta_termine(LINGUA, al.descrivi(effettive["classe"][f["symbol"]])),
-                    "area": i18n.etichetta_termine(LINGUA, al.descrivi(effettive["area"][f["symbol"]])),
-                    "settore": i18n.etichetta_termine(LINGUA, al.descrivi(effettive["settore"][f["symbol"]])),
+                    "classe": i18n.etichetta_termine(
+                        LINGUA, al.descrivi(effettive["classe"][f["symbol"]])),
+                    "area": i18n.etichetta_termine(
+                        LINGUA, al.descrivi(effettive["area"][f["symbol"]])),
+                    "settore": i18n.etichetta_termine(
+                        LINGUA, al.descrivi(effettive["settore"][f["symbol"]])),
                     "valuta": f["currency"] or t("nd"),
                 }
                 for f in fondi
@@ -2031,7 +2062,8 @@ with tab5:
             if mancanti:
                 elenco_anni = ", ".join(etichetta_anni(a) for a in mancanti)
                 dettaglio = ", ".join(f"{a}a = {periodi_covip.get(a)}" for a in mancanti)
-                st.caption(t("previdenza.mancanti_caption", elenco_anni=elenco_anni, dettaglio=dettaglio))
+                st.caption(t("previdenza.mancanti_caption",
+                             elenco_anni=elenco_anni, dettaglio=dettaglio))
                 # Una colonna di "n/d" senza altro non dice nulla: qui almeno
                 # il numero c'e', con scritto perche' non e' confrontabile e
                 # cosa fare per renderlo tale.

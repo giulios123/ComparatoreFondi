@@ -1,5 +1,13 @@
 """Comparatore Fondi - backtester per fondi ed ETF su piu' fonti dati."""
 
+# Fonte unica della versione: il progetto non ha un [build-system] e non viene
+# mai installato come distribuzione, quindi `importlib.metadata.version()` non
+# la troverebbe ne' da sorgente ne' nel bundle. `app.py` la importa da qui, e
+# `desktop/comparatore.spec` la estrae con `ast` (senza importare il pacchetto,
+# che tirerebbe dentro pandas e streamlit in fase di build). Va tenuta
+# allineata a `version` in pyproject.toml - lo verifica tests/test_versione.py.
+__version__ = "0.2.0"
+
 from . import allocazione, cache, covip, fx, horizons
 from .covip import Comparto
 from .data import Instrument, convert_currency, get_metadata, get_prices, search

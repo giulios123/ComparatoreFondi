@@ -26,3 +26,21 @@ jobs:
 
       - name: Esegui i test
         run: uv run python -m unittest discover -s tests -p "test_*.py"
+
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installa uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Installa dipendenze
+        run: uv sync --group dev --locked
+
+      - name: Esegui ruff
+        run: uv run ruff check .
