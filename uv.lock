@@ -247,6 +247,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "pillow" },
     { name = "pip-licenses" },
     { name = "pyinstaller" },
 ]
@@ -266,6 +267,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "pillow", specifier = ">=11" },
     { name = "pip-licenses", specifier = ">=5.5.5" },
     { name = "pyinstaller", specifier = ">=6.11" },
 ]

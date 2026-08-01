@@ -21,6 +21,9 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    # Solo per scripts/generate_icons.py. Arriva comunque come transitiva di
+    # Streamlit: dichiararla serve a non dipendere da quel caso.
+    "pillow>=11",
     "pip-licenses>=5.5.5",
     "pyinstaller>=6.11",
 ]
