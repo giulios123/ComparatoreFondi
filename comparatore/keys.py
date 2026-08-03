@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path
 
 KEYS = ("EODHD_API_KEY", "TWELVEDATA_API_KEY")
@@ -59,13 +60,24 @@ def load() -> dict[str, str]:
 
 
 def save(values: dict[str, str]) -> None:
-    """Scrive le chiavi su disco con permessi ristretti al proprietario."""
+    """Scrive le chiavi su disco con permessi ristretti al proprietario.
+
+    Passa da un file temporaneo nella stessa cartella: `chmod` viene applicato
+    *prima* che il file compaia al percorso finale (`os.replace` e' atomico),
+    cosi' non esiste una finestra in cui la chiave in chiaro e' leggibile a
+    permessi di default - il rischio che scrivere e poi fare `chmod` in due
+    passi separati lasciava aperto.
+    """
     path = keys_file()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         cleaned = {k: v.strip() for k, v in values.items() if k in KEYS and v.strip()}
-        path.write_text(json.dumps(cleaned))
-        os.chmod(path, 0o600)
+        fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+        os.close(fd)
+        tmp = Path(tmp_name)
+        tmp.write_text(json.dumps(cleaned))
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
     except Exception:
         # Disco pieno o di sola lettura: la chiave resta valida solo per
         # questa sessione, ma l'app non deve interrompersi per questo.

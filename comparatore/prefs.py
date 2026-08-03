@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path
 
 CHIAVI_TESTUALI = ("lingua",)
@@ -49,7 +50,15 @@ def load() -> dict[str, str | bool]:
 
 
 def save(values: dict[str, str | bool]) -> None:
-    """Scrive le preferenze su disco."""
+    """Scrive le preferenze su disco.
+
+    Passa da un file temporaneo nella stessa cartella e `os.replace` (atomico):
+    un crash a meta' scrittura lascia intatto il file precedente invece di uno
+    troncato che `load()` dovrebbe poi scartare come corrotto. Effetto
+    collaterale voluto: `mkstemp` crea il temporaneo a permessi ristretti al
+    proprietario, quindi anche `prefs.json` li eredita al posto del default
+    - non e' un segreto, ma restringere non fa danno.
+    """
     path = prefs_file()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -62,7 +71,11 @@ def save(values: dict[str, str | bool]) -> None:
             v = values.get(k)
             if isinstance(v, bool):
                 cleaned[k] = v
-        path.write_text(json.dumps(cleaned), encoding="utf-8")
+        fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+        os.close(fd)
+        tmp = Path(tmp_name)
+        tmp.write_text(json.dumps(cleaned), encoding="utf-8")
+        os.replace(tmp, path)
     except Exception:
         # Disco pieno o di sola lettura: la preferenza resta valida solo per
         # questa sessione, ma l'app non deve interrompersi per questo.

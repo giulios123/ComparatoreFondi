@@ -26,6 +26,7 @@ import json
 import os
 import re
 import shutil
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -68,6 +69,23 @@ def _paths(key: str) -> tuple[Path, Path]:
     return d / f"{stem}.parquet", d / f"{stem}.json"
 
 
+def _tmp_path(path: Path) -> Path:
+    """Percorso temporaneo nella stessa cartella di `path`, per un
+    `os.replace` atomico: stesso filesystem, quindi mai una copia a metà."""
+    fd, name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    os.close(fd)
+    return Path(name)
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Scrive testo passando da un temporaneo: un crash a metà lascia intatto
+    il file precedente invece di uno troncato che `read()`/`read_meta()`
+    dovrebbero poi scartare come corrotto."""
+    tmp = _tmp_path(path)
+    tmp.write_text(text)
+    os.replace(tmp, path)
+
+
 @dataclass
 class CacheEntry:
     series: pd.Series
@@ -99,13 +117,22 @@ def read(key: str) -> CacheEntry | None:
 
 
 def write(key: str, series: pd.Series, req_start: dt.date, req_end: dt.date) -> None:
-    """Scrive la serie e i metadati dell'intervallo richiesto."""
+    """Scrive la serie e i metadati dell'intervallo richiesto.
+
+    Parquet e sidecar passano ciascuno da un temporaneo (vedi `_tmp_path`):
+    non elimina la finestra fra i due file - restano scritture indipendenti,
+    `read()` tollera gia' la loro discordanza - ma chiude quella interna a
+    ciascuno.
+    """
     if series is None or series.empty:
         return
     parquet, meta_path = _paths(key)
     try:
-        series.sort_index().to_frame(name="value").to_parquet(parquet)
-        meta_path.write_text(
+        tmp_parquet = _tmp_path(parquet)
+        series.sort_index().to_frame(name="value").to_parquet(tmp_parquet)
+        os.replace(tmp_parquet, parquet)
+        _atomic_write_text(
+            meta_path,
             json.dumps(
                 {
                     "key": key,
@@ -113,7 +140,7 @@ def write(key: str, series: pd.Series, req_start: dt.date, req_end: dt.date) -> 
                     "req_end": req_end.isoformat(),
                     "fetched_at": dt.datetime.now().isoformat(timespec="seconds"),
                 }
-            )
+            ),
         )
     except Exception:
         # Il disco pieno o di sola lettura degrada la velocita', non la correttezza.
@@ -225,7 +252,7 @@ def write_meta(key: str, value: dict) -> None:
     try:
         stored = dict(value)
         stored["_cached_at"] = dt.datetime.now().isoformat(timespec="seconds")
-        path.write_text(json.dumps(stored))
+        _atomic_write_text(path, json.dumps(stored))
     except Exception:
         pass
 

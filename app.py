@@ -879,13 +879,13 @@ with st.expander(t("search.expander"), expanded=not st.session_state.selected):
         for r in results:
             cols = st.columns([4.3, 1.3, 1.3, 1.1, 1])
             cols[0].markdown(f"**{r['name']}**  \n`{r['symbol']}`")
-            cols[1].markdown(f"<small>{r['quote_type']}</small>", unsafe_allow_html=True)
-            cols[2].markdown(f"<small>{r['exchange']}</small>", unsafe_allow_html=True)
+            # `st.caption` rende in piccolo senza `unsafe_allow_html`: i tre
+            # valori sono metadati grezzi dei provider, mai fidati abbastanza
+            # da meritare HTML non filtrato (vedi audit tecnico, P3).
+            cols[1].caption(r["quote_type"])
+            cols[2].caption(r["exchange"])
             fonte = r.get("source", "")
-            cols[3].markdown(
-                f"<small>{i18n.etichetta_fonte(LINGUA, fonte)}</small>" if fonte else "",
-                unsafe_allow_html=True,
-            )
+            cols[3].caption(i18n.etichetta_fonte(LINGUA, fonte) if fonte else "")
             cols[4].button(
                 t("search.add_button"), key=f"add_{r['symbol']}",
                 on_click=add_fund,
