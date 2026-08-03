@@ -1,6 +1,6 @@
 # Stato attuale
 
-*Aggiornato: agosto 2026*
+*Aggiornato: 3 agosto 2026*
 
 ## Dove siamo
 
@@ -28,6 +28,16 @@ confronta con i fondi pensione COVIP.
   e 20). Indagandoli, la versione si è rivelata non solo duplicata ma **rotta**:
   il pannello "Informazioni e licenze" mostrava sempre `-` perché il pacchetto
   non viene mai installato come distribuzione. Ora mostra `0.2.0`.
+- **I tre P1 dell'[audit tecnico](../audit-codebase-2026-08-01.md) sono
+  risolti** — spec
+  [`002-integrita-backtest`](../spec-driven/specs/002-integrita-backtest/spec.md).
+  Un fondo senza prezzi ora blocca il backtest con un'azione esplicita di
+  rimozione invece di rinormalizzare i pesi in silenzio; il motore rifiuta
+  quote zero, negative o non finite invece di trasformarle in rendimento nullo
+  (`comparatore.engine.valida_prezzi`, `valida_holdings`); il simbolo resta la
+  chiave interna delle colonne per tutto il calcolo, quindi due fondi con lo
+  stesso nome non rompono più il PAC (`BacktestResult.labels` per la vista).
+  Decisione 21.
 
 ## Aperto, e noto
 
@@ -35,6 +45,7 @@ confronta con i fondi pensione COVIP.
 |---|---|
 | **App non firmate** | Gatekeeper e SmartScreen avvisano. Decisione 17: costa 99 $/anno + 70-250 $/anno, rimandata |
 | **macOS solo arm64** | La build CI gira su `macos-latest`; per Intel/universal va adattato il workflow |
+| **Import e CI** | L'[audit tecnico](../audit-codebase-2026-08-01.md) ha confermato validazione semantica insufficiente nell'import JSON (P2, non ancora affrontato) e action GitHub fissate a tag mutabili invece che a SHA (P2, non ancora affrontato). |
 
 ## Da sapere per lavorarci
 
@@ -51,7 +62,9 @@ confronta con i fondi pensione COVIP.
 
 Nessuno è deciso — sono le direzioni che il lavoro fatto finora lascia aperte:
 
-1. Completare gli screenshot del README con la scheda dei fondi pensione.
-2. Valutare la firma del codice se l'app esce dalla cerchia di utenti fidati.
-3. Se il progetto dovesse mai distribuirsi anche via PyPI, rivedere la
+1. Eseguire la roadmap P2 dell'[audit tecnico](../audit-codebase-2026-08-01.md):
+   validazione semantica dell'import JSON e pin SHA delle GitHub Action.
+2. Completare gli screenshot del README con la scheda dei fondi pensione.
+3. Valutare la firma del codice se l'app esce dalla cerchia di utenti fidati.
+4. Se il progetto dovesse mai distribuirsi anche via PyPI, rivedere la
    decisione 20 (aggiungere un `[build-system]`, che oggi manca di proposito).

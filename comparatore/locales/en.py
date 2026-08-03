@@ -334,6 +334,24 @@ MESSAGGI: dict[str, str] = {
     ),
     "coverage_warning": "{symbol}: data available only from {data}",
 
+    # --- Backtest integrity -----------------------------------------------------
+    "engine.error_quote_non_valide": (
+        "Invalid quotes (zero, negative, or non-finite) for: {elenco}."
+    ),
+    "engine.error_date_duplicate": "Duplicate dates in the price history for: {elenco}.",
+    "engine.error_simboli_duplicati": "Duplicate symbols in the portfolio: {elenco}.",
+    "engine.error_simboli_senza_prezzi": "No price data available for: {elenco}.",
+    "engine.error_pesi_non_validi": "Invalid weight for: {elenco}.",
+    "integrita.error_fondi_assenti": (
+        "🚫 The backtest can't run: no price data for {elenco}. A temporary "
+        "issue with the source would otherwise change the allocation "
+        "actually simulated without you choosing it."
+    ),
+    "integrita.allocazione_reale": (
+        "Removing these funds, the portfolio would become: {elenco}."
+    ),
+    "integrita.button_rimuovi": "Remove the funds with no data and continue",
+
     # --- Backtest results --------------------------------------------------------
     "results.subheader": "Results · {inizio} → {fine}",
     "results.reconstructed_info": (

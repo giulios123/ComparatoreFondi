@@ -65,6 +65,21 @@ class Holding:
     extra_cost: float = 0.0  # annual fraction NOT in the NAV
 
 
+class BacktestInputError(ValueError):
+    """Prezzi o pesi inutilizzabili: il backtest non parte.
+
+    Sottoclasse di `ValueError` per restare compatibile con chi cattura
+    quell'eccezione usando la libreria da script. `kind` e `symbols` sono
+    strutturati apposta perche' l'interfaccia (`app.py`) deve poter tradurre
+    l'errore con `t()`, non limitarsi a mostrare `str(exc)`.
+    """
+
+    def __init__(self, kind: str, symbols: list[str], message: str) -> None:
+        super().__init__(message)
+        self.kind = kind
+        self.symbols = symbols
+
+
 @dataclass
 class Pac:
     """A recurring contribution plan layered on top of the initial capital."""
@@ -80,6 +95,8 @@ class Pac:
 class BacktestResult:
     portfolio: pd.Series  # portfolio value over time, base currency
     portfolio_gross: pd.Series  # same, with every TER added back
+    # per_fund*, contributions: columns keyed by symbol, not by label - see
+    # `labels` below for the symbol -> display name mapping.
     per_fund: pd.DataFrame  # value of the full capital in each fund alone
     per_fund_gross: pd.DataFrame
     per_fund_nav: pd.DataFrame  # same, contributions stripped out (time-weighted)
@@ -93,6 +110,7 @@ class BacktestResult:
     invested: pd.Series  # cumulative capital paid in: initial value + instalments
     cashflows: list[tuple[pd.Timestamp, float]]  # for XIRR: negative = paid in
     pic: pd.Series | None  # the same total money invested in one go on day one
+    labels: dict[str, str]  # symbol -> unique display label (see `etichette_uniche`)
 
 
 def apply_annual_fee(prices: pd.DataFrame | pd.Series, annual_rate: float):
@@ -202,6 +220,104 @@ def nav_curve(value: pd.Series, contributions: np.ndarray, base: float) -> pd.Se
     return pd.Series(base * np.cumprod(ratios), index=value.index)
 
 
+def valida_prezzi(prices: pd.DataFrame, *, consenti_nan: bool = False) -> None:
+    """Rifiuta un frame di prezzi inutilizzabile invece di lasciarlo passare.
+
+    Nessun prezzo di mercato e' zero, negativo o infinito: un valore cosi'
+    indica un errore di fonte o di file caricato a mano, non un dato da
+    trattare come "nessuna variazione" (era il comportamento di
+    `np.nan_to_num` che questa funzione sostituisce - vedi
+    `docs/audit-codebase-2026-08-01.md`, P1). Un `NaN` invece e' spesso un
+    buco di calendario legittimo (fondi comuni, listati incrociati), chiuso a
+    monte con un `ffill`: e' ammesso solo con `consenti_nan=True`, che
+    `run_backtest` usa prima di quel passaggio; `simulate`, che gira
+    sull'output gia' pulito, valida in modo stretto.
+    """
+    if prices.index.has_duplicates:
+        duplicate = sorted({str(d.date()) for d in prices.index[prices.index.duplicated()]})
+        raise BacktestInputError(
+            "date_duplicate", duplicate,
+            f"Date duplicate nella serie storica: {', '.join(duplicate)}.",
+        )
+
+    valori = prices.to_numpy(dtype=float)
+    mancante = np.isnan(valori)
+    non_valido = (~mancante) & ~((valori > 0) & np.isfinite(valori))
+    if not consenti_nan:
+        non_valido = non_valido | mancante
+    if non_valido.any():
+        colonne = [
+            str(prices.columns[j]) for j in range(prices.shape[1]) if non_valido[:, j].any()
+        ]
+        raise BacktestInputError(
+            "quote_non_valide", colonne,
+            f"Quote non valide (zero, negative, non finite o mancanti) per: "
+            f"{', '.join(colonne)}.",
+        )
+
+
+def valida_holdings(holdings: list[Holding], colonne) -> None:
+    """Nessun simbolo duplicato, ogni simbolo con una colonna di prezzi, pesi
+    validi con somma positiva.
+
+    E' la barriera che rende impossibile far girare il backtest su un
+    sottoinsieme del portafoglio senza che sia una scelta esplicita: prima di
+    questa funzione un fondo senza prezzi veniva semplicemente escluso dagli
+    `Holding` costruiti a monte in `app.py`, e il motore rinormalizzava i pesi
+    dei rimasti come se il portafoglio fosse sempre stato quello.
+    """
+    if not holdings:
+        raise BacktestInputError(
+            "simboli_senza_prezzi", [], "Nessun fondo da simulare."
+        )
+
+    simboli = [h.symbol for h in holdings]
+    duplicati = sorted({s for s in simboli if simboli.count(s) > 1})
+    if duplicati:
+        raise BacktestInputError(
+            "simboli_duplicati", duplicati,
+            f"Simboli duplicati nel portafoglio: {', '.join(duplicati)}.",
+        )
+
+    disponibili = set(colonne)
+    assenti = [s for s in simboli if s not in disponibili]
+    if assenti:
+        raise BacktestInputError(
+            "simboli_senza_prezzi", assenti,
+            f"Nessun prezzo disponibile per: {', '.join(assenti)}.",
+        )
+
+    non_validi = [h.symbol for h in holdings if not np.isfinite(h.weight) or h.weight < 0]
+    if non_validi:
+        raise BacktestInputError(
+            "pesi_non_validi", non_validi,
+            f"Peso non valido per: {', '.join(non_validi)}.",
+        )
+    if sum(h.weight for h in holdings) <= 0:
+        raise BacktestInputError(
+            "pesi_non_validi", simboli,
+            "La somma dei pesi deve essere maggiore di zero.",
+        )
+
+
+def etichette_uniche(holdings: list[Holding]) -> dict[str, str]:
+    """Simbolo -> etichetta da mostrare, disambiguata quando due fondi
+    condividono lo stesso nome visuale.
+
+    Il simbolo resta la chiave interna delle colonne per tutto il calcolo
+    (vedi `run_backtest`): questa e' l'unica traduzione verso un nome
+    leggibile, fatta una volta sola invece di lasciare che ogni punto
+    dell'interfaccia la reinventi rinominando colonne.
+    """
+    conteggio: dict[str, int] = {}
+    for h in holdings:
+        conteggio[h.label] = conteggio.get(h.label, 0) + 1
+    return {
+        h.symbol: h.label if conteggio[h.label] == 1 else f"{h.label} ({h.symbol})"
+        for h in holdings
+    }
+
+
 def simulate(
     prices: pd.DataFrame,
     weights: dict[str, float],
@@ -215,6 +331,7 @@ def simulate(
     instalment of `pac`, if given, is invested at the target weights - the
     same way the initial capital is - the day it lands.
     """
+    valida_prezzi(prices)
     cols = list(prices.columns)
     w = np.array([weights.get(c, 0.0) for c in cols], dtype=float)
     total_w = w.sum()
@@ -223,10 +340,12 @@ def simulate(
     w = w / total_w
 
     step = prices.to_numpy()
-    # Daily gross return factor per asset, forward-filled across missing NAVs.
+    # Il rapporto giorno/giorno e' definito ovunque perche' `valida_prezzi` ha
+    # gia' rifiutato zero, negativi e non finiti: non serve piu' sostituire
+    # nulla con `np.nan_to_num`, che trasformava un dato corrotto in un
+    # rendimento nullo invece di segnalarlo (vedi audit-codebase-2026-08-01.md, P1).
     ratios = np.ones_like(step)
     ratios[1:] = step[1:] / step[:-1]
-    ratios = np.nan_to_num(ratios, nan=1.0, posinf=1.0, neginf=1.0)
 
     rb = rebalance_dates(prices.index, rebalance)
     contrib = contribution_schedule(prices.index, pac)
@@ -265,6 +384,14 @@ def run_backtest(
     pac: Pac | None = None,
 ) -> BacktestResult:
     """Full backtest: portfolio plus each fund standalone, net and gross."""
+    valida_holdings(holdings, prices.columns)
+    # Solo le colonne del portafoglio, nell'ordine degli holding: scarta
+    # qualunque colonna estranea rimasta nel frame passato dal chiamante e
+    # rende l'ordine deterministico invece di dipendere da come e' stato
+    # assemblato `prices`.
+    prices = prices[[h.symbol for h in holdings]]
+    valida_prezzi(prices, consenti_nan=True)
+
     prices = prices.dropna(how="all").sort_index()
     # Start where every fund has data, then carry NAVs forward across the
     # calendar gaps that mutual funds and cross-market listings inevitably have.
@@ -309,10 +436,13 @@ def run_backtest(
          for col in gross_prices.columns}
     )
 
-    label_map = {h.symbol: h.label for h in holdings}
-    per_fund = per_fund.rename(columns=label_map)
-    per_fund_gross = per_fund_gross.rename(columns=label_map)
-    sleeves = sleeves.rename(columns=label_map)
+    # Le colonne restano indicizzate per simbolo fino in fondo: rinominarle
+    # qui con l'etichetta visuale (comportamento di prima) rompe il calcolo
+    # quando due strumenti condividono lo stesso nome - due colonne
+    # duplicate, e la selezione di una di esse in `nav_curve()` diventa un
+    # DataFrame invece di una Series (vedi audit-codebase-2026-08-01.md, P1).
+    # `labels` e' l'unica traduzione verso un nome leggibile, gia' disambiguata.
+    labels = etichette_uniche(holdings)
 
     # Time-weighted curves for the standalone funds too. Without them a
     # comparison table would put per-fund metrics inflated by the
@@ -347,6 +477,7 @@ def run_backtest(
         invested=invested,
         cashflows=cashflows,
         pic=pic,
+        labels=labels,
     )
 
 

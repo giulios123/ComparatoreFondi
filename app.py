@@ -17,6 +17,7 @@ from comparatore import keys as api_keys_store
 from comparatore import metrics as mt
 from comparatore import proxies as px
 from comparatore.engine import (
+    BacktestInputError,
     FeeMode,
     Frequency,
     Holding,
@@ -407,6 +408,23 @@ def rimuovi_fondo(indice: int):
         fondo["weight"] = peso
     st.session_state.composizione_rev += 1
     st.toast(t("toast.fund_removed", elenco=rimosso["symbol"]), icon="🗑️")
+
+
+def rimuovi_fondi_assenti(simboli: list[str]):
+    """Toglie dal portafoglio i fondi senza prezzi risolti e rinormalizza i
+    pesi dei rimasti - stesso schema di `rimuovi_fondo`, ma per un elenco di
+    simboli invece che per posizione: e' l'azione dietro il pulsante che
+    segue il blocco del backtest quando una fonte non risponde (vedi
+    audit-codebase-2026-08-01.md, P1)."""
+    da_togliere = set(simboli)
+    st.session_state.selected = [
+        f for f in st.session_state.selected if f["symbol"] not in da_togliere
+    ]
+    nuovi_pesi = pesi.rinormalizza([f["weight"] for f in st.session_state.selected])
+    for fondo, peso in zip(st.session_state.selected, nuovi_pesi):
+        fondo["weight"] = peso
+    st.session_state.composizione_rev += 1
+    st.toast(t("toast.fund_removed", elenco=", ".join(sorted(simboli))), icon="🗑️")
 
 
 def set_period(years: int | None):
@@ -1218,6 +1236,26 @@ for symbol, prima_data in coverage_warnings(prices, start_date):
     st.warning(t("coverage_warning", symbol=symbol, data=prima_data.strftime(FMT_DATA)), icon="📅")
 
 # --------------------------------------------------------------------------
+# Integrità del backtest: nessun fondo si esclude in silenzio
+# --------------------------------------------------------------------------
+# Un fondo senza prezzi risolti (fonte irraggiungibile, cambio non
+# risolvibile) non deve sparire dal calcolo senza che sia una scelta
+# esplicita: il motore rinormalizzerebbe i pesi dei rimasti e il backtest
+# mostrerebbe un risultato valido ma riferito a un portafoglio diverso da
+# quello impostato (vedi audit-codebase-2026-08-01.md, P1). Si blocca e si
+# offre un'unica azione esplicita per procedere senza quei fondi.
+assenti = [f["symbol"] for f in st.session_state.selected if f["symbol"] not in prices.columns]
+if assenti:
+    rimasti = [f for f in st.session_state.selected if f["symbol"] not in assenti]
+    pesi_reali = pesi.rinormalizza([f["weight"] for f in rimasti])
+    allocazione = " · ".join(f"{f['name']} {p:.0f}%" for f, p in zip(rimasti, pesi_reali))
+    st.error(t("integrita.error_fondi_assenti", elenco=", ".join(assenti)))
+    if allocazione:
+        st.caption(t("integrita.allocazione_reale", elenco=allocazione))
+    st.button(t("integrita.button_rimuovi"), on_click=rimuovi_fondi_assenti, args=(assenti,))
+    st.stop()
+
+# --------------------------------------------------------------------------
 # Backtest
 # --------------------------------------------------------------------------
 
@@ -1230,7 +1268,6 @@ holdings = [
         extra_cost=f["extra"] / 100,
     )
     for f in st.session_state.selected
-    if f["symbol"] in prices.columns
 ]
 
 # `pac` resta None quando la sezione avanzata e' spenta o la rata e' zero: e'
@@ -1248,6 +1285,9 @@ if st.session_state.pac_enabled and st.session_state.pac_amount:
 
 try:
     res = run_backtest(prices, holdings, initial_value, rebalance, FeeMode.NET, pac)
+except BacktestInputError as exc:
+    st.error(t(f"engine.error_{exc.kind}", elenco=", ".join(exc.symbols)))
+    st.stop()
 except ValueError as exc:
     st.error(str(exc))
     st.stop()
@@ -1257,13 +1297,10 @@ st.subheader(
     t("results.subheader", inizio=res.start.strftime(FMT_DATA), fine=res.end.strftime(FMT_DATA))
 )
 
-# Etichetta -> data di innesto, per tratteggiare i grafici per fondo.
-label_splice = {
-    h.label: splice_dates[h.symbol]
-    for h in holdings
-    if h.symbol in splice_dates
-}
-portfolio_splice = max(label_splice.values()) if label_splice else None
+# `splice_dates` e' gia' per simbolo, la stessa chiave con cui `res.per_fund`
+# e le altre colonne del risultato sono indicizzate: nessuna conversione a
+# etichetta serve piu' per tratteggiare i grafici per fondo.
+portfolio_splice = max(splice_dates.values()) if splice_dates else None
 
 # Metriche calcolate sulla NAV, non sul valore grezzo del portafoglio: senza
 # PAC le due curve sono lo stesso oggetto, quindi questa riga non cambia
@@ -1510,10 +1547,11 @@ with tab1:
     st.markdown(t("chart.composition_header"))
     area = go.Figure()
     for i, col in enumerate(res.contributions.columns):
+        nome = res.labels[col]
         area.add_trace(go.Scatter(
-            x=res.contributions.index, y=res.contributions[col], name=col,
+            x=res.contributions.index, y=res.contributions[col], name=nome,
             stackgroup="one", line=dict(width=0.5, color=PALETTE[i % len(PALETTE)]),
-            hovertemplate="%{y:,.0f}<extra>" + col + "</extra>",
+            hovertemplate="%{y:,.0f}<extra>" + nome + "</extra>",
         ))
     area.update_layout(
         height=300, hovermode="x unified", margin=dict(l=0, r=0, t=10, b=0),
@@ -1525,14 +1563,14 @@ with tab1:
     # Effetto tangibile della scelta di ribilanciamento: senza, i pesi
     # derivano con i rendimenti; con, si può contare quante volte sono
     # stati riportati a quelli impostati.
-    set_weights = " · ".join(f"{h.label} {h.weight * 100:.0f}%" for h in holdings)
+    set_weights = " · ".join(f"{res.labels[h.symbol]} {h.weight * 100:.0f}%" for h in holdings)
     final_alloc = res.contributions.iloc[-1]
     final_total = final_alloc.sum()
     if rebalance is Rebalance.NONE:
         if final_total > 0:
             final_weights = " · ".join(
-                f"{label} {value / final_total * 100:.0f}%"
-                for label, value in final_alloc.items()
+                f"{res.labels[symbol]} {value / final_total * 100:.0f}%"
+                for symbol, value in final_alloc.items()
             )
             st.caption(t("chart.weights_set_final", pesi=set_weights, pesi_finali=final_weights))
     else:
@@ -1749,26 +1787,27 @@ with tab2:
     ))
     fig2 = go.Figure()
     for i, col in enumerate(res.per_fund.columns):
+        nome = res.labels[col]
         color = PALETTE[i % len(PALETTE)]
-        recon, real = split_at(res.per_fund[col], label_splice.get(col))
+        recon, real = split_at(res.per_fund[col], splice_dates.get(col))
         if recon is not None and len(recon) > 1:
             fig2.add_trace(go.Scatter(
-                x=recon.index, y=recon.values, name=t("confronto.legend_reconstructed", col=col),
+                x=recon.index, y=recon.values, name=t("confronto.legend_reconstructed", col=nome),
                 line=dict(color=color, width=1.5, dash="dot"), opacity=0.7,
                 showlegend=False,
                 hovertemplate=f"%{{x|{FMT_DATA}}}<br>%{{y:,.0f}}"
                               f"{t('chart.hover_reconstructed_suffix')}"
-                              "<extra>" + col + "</extra>",
+                              "<extra>" + nome + "</extra>",
             ))
         fig2.add_trace(go.Scatter(
-            x=real.index, y=real.values, name=col,
+            x=real.index, y=real.values, name=nome,
             line=dict(color=color, width=2),
-            hovertemplate=f"%{{x|{FMT_DATA}}}<br>%{{y:,.0f}}<extra>" + col + "</extra>",
+            hovertemplate=f"%{{x|{FMT_DATA}}}<br>%{{y:,.0f}}<extra>" + nome + "</extra>",
         ))
         if show_gross:
             fig2.add_trace(go.Scatter(
                 x=res.per_fund_gross.index, y=res.per_fund_gross[col],
-                name=t("confronto.legend_gross", col=col),
+                name=t("confronto.legend_gross", col=nome),
                 line=dict(color=color, width=1, dash="dash"),
                 opacity=0.45, showlegend=False, hoverinfo="skip",
             ))
@@ -1794,13 +1833,13 @@ with tab2:
         if pac is not None:
             s["xirr"] = mt.xirr(res.cashflows, saldo_fondo, res.end)
         s["ter_cost"] = res.per_fund_gross[col].iloc[-1] - saldo_fondo
-        s["reconstructed"] = t("si") if col in label_splice else t("no")
-        rows[col] = s
+        s["reconstructed"] = t("si") if col in splice_dates else t("no")
+        rows[res.labels[col]] = s
     riga_portafoglio = {
         **summary,
         "final_value": float(res.portfolio.iloc[-1]),
         "ter_cost": res.fee_drag,
-        "reconstructed": t("si") if label_splice else t("no"),
+        "reconstructed": t("si") if splice_dates else t("no"),
     }
     if pac is not None:
         riga_portafoglio["xirr"] = tasso_xirr
@@ -1850,7 +1889,7 @@ with tab2:
             },
         },
     )
-    if label_splice:
+    if splice_dates:
         st.caption(t("confronto.footnote"))
 
 with tab3:
@@ -1866,11 +1905,12 @@ with tab3:
         hovertemplate=f"%{{x|{FMT_DATA}}}<br>%{{y:.2f}}%<extra></extra>",
     ))
     for i, col in enumerate(res.per_fund_nav.columns):
+        nome = res.labels[col]
         d = mt.drawdown_series(res.per_fund_nav[col])
         dd_fig.add_trace(go.Scatter(
-            x=d.index, y=d.values * 100, name=col,
+            x=d.index, y=d.values * 100, name=nome,
             line=dict(color=PALETTE[(i + 1) % len(PALETTE)], width=1), opacity=0.7,
-            hovertemplate="%{y:.2f}%<extra>" + col + "</extra>",
+            hovertemplate="%{y:.2f}%<extra>" + nome + "</extra>",
         ))
     if portfolio_splice is not None and portfolio_splice > res.start:
         dd_fig.add_vline(
@@ -1889,7 +1929,7 @@ with tab3:
     st.markdown(t("drawdown.yearly_header"))
     yearly = pd.DataFrame({t("drawdown.legend_portafoglio"): mt.calendar_year_returns(res.nav)})
     for col in res.per_fund_nav.columns:
-        yearly[col] = mt.calendar_year_returns(res.per_fund_nav[col])
+        yearly[res.labels[col]] = mt.calendar_year_returns(res.per_fund_nav[col])
     ybars = go.Figure()
     for i, col in enumerate(yearly.columns):
         ybars.add_trace(go.Bar(
@@ -1908,7 +1948,7 @@ with tab4:
     out = pd.DataFrame({
         t("dati.col_netto"): res.portfolio,
         t("dati.col_lordo"): res.portfolio_gross,
-    }).join(res.per_fund.add_prefix(t("dati.col_solo_prefix")))
+    }).join(res.per_fund.rename(columns=res.labels).add_prefix(t("dati.col_solo_prefix")))
     st.dataframe(out.tail(500).iloc[::-1].round(2), width="stretch", height=420)
     st.download_button(
         t("dati.download_button"),

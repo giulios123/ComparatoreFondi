@@ -13,6 +13,7 @@ import pandas as pd
 
 from comparatore import metrics as mt
 from comparatore.engine import (
+    BacktestInputError,
     Frequency,
     Holding,
     Pac,
@@ -20,6 +21,8 @@ from comparatore.engine import (
     contribution_schedule,
     run_backtest,
     simulate,
+    valida_holdings,
+    valida_prezzi,
 )
 
 
@@ -223,6 +226,141 @@ class PicTests(unittest.TestCase):
         self.assertGreater(res.pic.iloc[-1], res.portfolio.iloc[-1])
         atteso = prezzi["A"] / prezzi["A"].iloc[0] * totale
         np.testing.assert_allclose(res.pic.to_numpy(), atteso.to_numpy(), rtol=1e-9)
+
+
+class ValidaPrezziTests(unittest.TestCase):
+    """`simulate()` valida in modo stretto: e' l'ultima barriera prima del
+    calcolo, quindi respinge anche cio' che un `run_backtest` corretto non
+    dovrebbe mai lasciar passare."""
+
+    def test_prezzo_zero_respinto(self):
+        prezzi = _prezzi(10, {"A": 0.001})
+        prezzi.iloc[3, 0] = 0.0
+        with self.assertRaises(BacktestInputError) as ctx:
+            simulate(prezzi, {"A": 1.0}, 10_000.0)
+        self.assertEqual(ctx.exception.kind, "quote_non_valide")
+        self.assertIn("A", ctx.exception.symbols)
+
+    def test_prezzo_negativo_respinto(self):
+        prezzi = _prezzi(10, {"A": 0.001})
+        prezzi.iloc[3, 0] = -5.0
+        with self.assertRaises(BacktestInputError) as ctx:
+            simulate(prezzi, {"A": 1.0}, 10_000.0)
+        self.assertEqual(ctx.exception.kind, "quote_non_valide")
+
+    def test_prezzo_infinito_respinto(self):
+        prezzi = _prezzi(10, {"A": 0.001})
+        prezzi.iloc[3, 0] = np.inf
+        with self.assertRaises(BacktestInputError) as ctx:
+            simulate(prezzi, {"A": 1.0}, 10_000.0)
+        self.assertEqual(ctx.exception.kind, "quote_non_valide")
+
+    def test_nan_residuo_respinto_da_simulate(self):
+        # Prima di questo lavoro `np.nan_to_num` trasformava questo NaN in un
+        # rendimento nullo invece di segnalarlo (audit-codebase-2026-08-01.md,
+        # P1): qui deve invece bloccare, non produrre una curva silenziosa.
+        prezzi = _prezzi(10, {"A": 0.001})
+        prezzi.iloc[3, 0] = np.nan
+        with self.assertRaises(BacktestInputError) as ctx:
+            simulate(prezzi, {"A": 1.0}, 10_000.0)
+        self.assertEqual(ctx.exception.kind, "quote_non_valide")
+
+    def test_nan_ammesso_con_consenti_nan(self):
+        # I buchi di calendario sono legittimi finche' non sono ancora stati
+        # chiusi dal ffill di run_backtest: qui non deve sollevare.
+        prezzi = _prezzi(10, {"A": 0.001})
+        prezzi.iloc[3, 0] = np.nan
+        valida_prezzi(prezzi, consenti_nan=True)
+
+    def test_date_duplicate_respinte(self):
+        prezzi = _prezzi(10, {"A": 0.001})
+        indice = prezzi.index.to_list()
+        indice[1] = indice[0]
+        prezzi.index = pd.DatetimeIndex(indice)
+        with self.assertRaises(BacktestInputError) as ctx:
+            valida_prezzi(prezzi)
+        self.assertEqual(ctx.exception.kind, "date_duplicate")
+
+
+class ValidaHoldingsTests(unittest.TestCase):
+    def test_simbolo_duplicato_respinto(self):
+        holdings = [
+            Holding(symbol="A", label="Fondo A", weight=0.5),
+            Holding(symbol="A", label="Fondo A bis", weight=0.5),
+        ]
+        with self.assertRaises(BacktestInputError) as ctx:
+            valida_holdings(holdings, ["A"])
+        self.assertEqual(ctx.exception.kind, "simboli_duplicati")
+
+    def test_simbolo_senza_colonna_prezzi_respinto(self):
+        holdings = [Holding(symbol="A", label="Fondo A", weight=1.0)]
+        with self.assertRaises(BacktestInputError) as ctx:
+            valida_holdings(holdings, ["B"])
+        self.assertEqual(ctx.exception.kind, "simboli_senza_prezzi")
+        self.assertEqual(ctx.exception.symbols, ["A"])
+
+    def test_peso_nan_respinto(self):
+        holdings = [Holding(symbol="A", label="Fondo A", weight=float("nan"))]
+        with self.assertRaises(BacktestInputError) as ctx:
+            valida_holdings(holdings, ["A"])
+        self.assertEqual(ctx.exception.kind, "pesi_non_validi")
+
+    def test_peso_negativo_respinto(self):
+        holdings = [
+            Holding(symbol="A", label="A", weight=-0.2),
+            Holding(symbol="B", label="B", weight=1.2),
+        ]
+        with self.assertRaises(BacktestInputError) as ctx:
+            valida_holdings(holdings, ["A", "B"])
+        self.assertEqual(ctx.exception.kind, "pesi_non_validi")
+
+    def test_somma_pesi_zero_respinta(self):
+        holdings = [
+            Holding(symbol="A", label="A", weight=0.0),
+            Holding(symbol="B", label="B", weight=0.0),
+        ]
+        with self.assertRaises(BacktestInputError) as ctx:
+            valida_holdings(holdings, ["A", "B"])
+        self.assertEqual(ctx.exception.kind, "pesi_non_validi")
+
+
+class EtichetteDuplicateTests(unittest.TestCase):
+    def test_label_duplicate_con_pac_non_solleva_e_disambigua(self):
+        # Riproduzione esatta del finding P1: due strumenti diversi con lo
+        # stesso nome visuale, PAC attivo. Prima di questo lavoro
+        # `run_backtest` rinominava le colonne con l'etichetta e
+        # `nav_curve()` sollevava ValueError per un broadcasting incompatibile
+        # fra le due colonne duplicate.
+        prezzi = _prezzi(400, {"AAA": 0.0006, "BBB": -0.0002})
+        holdings = [
+            Holding(symbol="AAA", label="Stesso Nome", weight=0.5),
+            Holding(symbol="BBB", label="Stesso Nome", weight=0.5),
+        ]
+        pac = Pac(amount=100.0, frequency=Frequency.MONTHLY)
+        res = run_backtest(prezzi, holdings, 10_000.0, Rebalance.NONE, pac=pac)
+
+        self.assertEqual(set(res.per_fund.columns), {"AAA", "BBB"})
+        self.assertEqual(res.labels["AAA"], "Stesso Nome (AAA)")
+        self.assertEqual(res.labels["BBB"], "Stesso Nome (BBB)")
+
+    def test_etichetta_univoca_resta_il_nome_semplice(self):
+        prezzi = _prezzi(30, {"A": 0.001})
+        holdings = [Holding(symbol="A", label="Fondo A", weight=1.0)]
+        res = run_backtest(prezzi, holdings, 10_000.0, pac=None)
+        self.assertEqual(res.labels, {"A": "Fondo A"})
+
+
+class RunBacktestValidazioneTests(unittest.TestCase):
+    def test_fondo_senza_colonna_prezzi_blocca_il_backtest(self):
+        prezzi = _prezzi(30, {"A": 0.001})
+        holdings = [
+            Holding(symbol="A", label="A", weight=0.5),
+            Holding(symbol="B", label="B", weight=0.5),
+        ]
+        with self.assertRaises(BacktestInputError) as ctx:
+            run_backtest(prezzi, holdings, 10_000.0, pac=None)
+        self.assertEqual(ctx.exception.kind, "simboli_senza_prezzi")
+        self.assertEqual(ctx.exception.symbols, ["B"])
 
 
 if __name__ == "__main__":
