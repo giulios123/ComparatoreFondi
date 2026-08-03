@@ -352,6 +352,24 @@ MESSAGGI: dict[str, str] = {
     ),
     "coverage_warning": "{symbol} : données disponibles seulement à partir du {data}",
 
+    # --- Intégrité du backtest --------------------------------------------------------
+    "engine.error_quote_non_valide": (
+        "Cours invalides (zéro, négatifs ou non finis) pour : {elenco}."
+    ),
+    "engine.error_date_duplicate": "Dates dupliquées dans l'historique pour : {elenco}.",
+    "engine.error_simboli_duplicati": "Symboles dupliqués dans le portefeuille : {elenco}.",
+    "engine.error_simboli_senza_prezzi": "Aucune donnée de prix disponible pour : {elenco}.",
+    "engine.error_pesi_non_validi": "Pondération invalide pour : {elenco}.",
+    "integrita.error_fondi_assenti": (
+        "🚫 Le backtest ne peut pas démarrer : aucune donnée de prix pour "
+        "{elenco}. Un problème temporaire de la source changerait sinon "
+        "l'allocation réellement simulée sans que vous l'ayez choisi."
+    ),
+    "integrita.allocazione_reale": (
+        "En retirant ces fonds, le portefeuille deviendrait : {elenco}."
+    ),
+    "integrita.button_rimuovi": "Retirer les fonds sans données et continuer",
+
     # --- Résultats du backtest --------------------------------------------------------
     "results.subheader": "Résultats · {inizio} → {fine}",
     "results.reconstructed_info": (

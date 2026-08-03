@@ -360,6 +360,24 @@ MESSAGGI: dict[str, str] = {
     ),
     "coverage_warning": "{symbol}: Daten erst ab {data} verfügbar",
 
+    # --- Integrität des Backtests --------------------------------------------------------
+    "engine.error_quote_non_valide": (
+        "Ungültige Kurse (null, negativ oder nicht endlich) für: {elenco}."
+    ),
+    "engine.error_date_duplicate": "Doppelte Daten in der Kurshistorie für: {elenco}.",
+    "engine.error_simboli_duplicati": "Doppelte Symbole im Portfolio: {elenco}.",
+    "engine.error_simboli_senza_prezzi": "Keine Kursdaten verfügbar für: {elenco}.",
+    "engine.error_pesi_non_validi": "Ungültige Gewichtung für: {elenco}.",
+    "integrita.error_fondi_assenti": (
+        "🚫 Der Backtest kann nicht starten: keine Kursdaten für {elenco}. Ein "
+        "vorübergehendes Problem der Quelle würde sonst die tatsächlich "
+        "simulierte Allokation ändern, ohne dass Sie es entscheiden."
+    ),
+    "integrita.allocazione_reale": (
+        "Ohne diese Fonds würde das Portfolio so aussehen: {elenco}."
+    ),
+    "integrita.button_rimuovi": "Fonds ohne Daten entfernen und fortfahren",
+
     # --- Backtest-Ergebnisse --------------------------------------------------------
     "results.subheader": "Ergebnisse · {inizio} → {fine}",
     "results.reconstructed_info": (

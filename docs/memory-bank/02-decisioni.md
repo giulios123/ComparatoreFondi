@@ -305,3 +305,40 @@ con dati non-Python. Rimandata, non scartata per sempre: se il progetto dovesse
 mai distribuirsi anche via PyPI, e' la prima cosa da rivedere.
 **Traccia.** `comparatore/__init__.py`, `desktop/comparatore.spec`,
 `tests/test_versione.py`.
+
+### 21 · Il simbolo è la chiave interna del backtest, e un portafoglio incompleto non si simula
+
+*Agosto 2026 — spec [`002-integrita-backtest`](../spec-driven/specs/002-integrita-backtest/spec.md)*
+
+**Contesto.** L'[audit tecnico del 1 agosto 2026](../audit-codebase-2026-08-01.md)
+ha confermato tre modi in cui il backtest poteva mostrare un risultato
+apparentemente valido ma riferito a un portafoglio diverso da quello impostato:
+un fondo senza prezzi risolti veniva escluso dagli `Holding` e il motore
+rinormalizzava in silenzio i pesi dei rimasti; `simulate()` passava i rapporti
+di prezzo per `np.nan_to_num(nan=1, posinf=1, neginf=1)`, trasformando quote
+zero, negative o infinite in un rendimento giornaliero nullo invece di
+respingerle; `run_backtest()` rinominava le colonne con l'etichetta visuale
+prima di costruire `per_fund_nav`, cosicché due strumenti con lo stesso nome
+producevano colonne duplicate e `nav_curve()` sollevava un errore di
+broadcasting con il PAC attivo.
+**Scelta.** Il motore diventa l'ultima barriera: `valida_prezzi()` rifiuta
+zero, negativi, infiniti e (fuori dalla finestra di `ffill`) `NaN`;
+`valida_holdings()` rifiuta simboli duplicati, simboli senza colonna prezzi e
+pesi non validi o a somma zero — entrambe sollevano `BacktestInputError`,
+sottoclasse di `ValueError` con `kind` e `symbols` strutturati perché
+l'interfaccia possa tradurre l'errore con `t()`. Le colonne di
+`per_fund`/`per_fund_gross`/`per_fund_nav`/`contributions` restano indicizzate
+per **simbolo** fino alla fine del calcolo; `BacktestResult.labels` è l'unica
+traduzione verso un nome leggibile, disambiguata (`Nome (SIMBOLO)`) quando due
+fondi condividono l'etichetta. In `app.py`, un fondo del portafoglio senza
+prezzi risolti blocca il backtest con `st.stop()`: l'unica via per procedere è
+un'azione esplicita (`rimuovi_fondi_assenti()`) che li toglie e rinormalizza i
+pesi, riusando `pesi.rinormalizza()`.
+**Conseguenze.** "I fondi selezionati" e "i fondi simulati" sono sempre lo
+stesso insieme: non è più possibile ottenere un backtest completo su un
+sottoinsieme del portafoglio senza che sia una scelta esplicita. Chi aggiunge
+una fonte dati o un percorso che costruisce `Holding` non può più permettersi
+di "saltare" un fondo senza prezzi confidando nella rinormalizzazione a valle.
+**Traccia.** `comparatore/engine.py` (`BacktestInputError`, `valida_prezzi`,
+`valida_holdings`, `etichette_uniche`); `app.py` (guardia prima della
+costruzione degli `Holding`, `rimuovi_fondi_assenti`); spec `002`.

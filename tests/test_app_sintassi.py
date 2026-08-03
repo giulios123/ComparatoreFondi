@@ -107,6 +107,55 @@ class TestSintassiApp(unittest.TestCase):
         self.assertIn("api_keys_store.masked(value)", sorgente)
         self.assertIn('t("api_keys.saved_caption",', sorgente)
 
+    def test_guardia_fondi_assenti_blocca_prima_del_backtest(self):
+        """Un fondo senza prezzi risolti non deve sparire in silenzio dagli
+        `Holding` costruiti per il backtest (audit-codebase-2026-08-01.md,
+        P1): la guardia su 'assenti' deve fermare l'esecuzione con
+        `st.stop()` prima che `run_backtest()` venga chiamato."""
+        sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+        tree = ast.parse(sorgente, filename="app.py")
+
+        def chain(node):
+            parts = []
+            while isinstance(node, ast.Attribute):
+                parts.append(node.attr)
+                node = node.value
+            if isinstance(node, ast.Name):
+                parts.append(node.id)
+                return list(reversed(parts))
+            return None
+
+        guardie = [
+            n for n in ast.walk(tree)
+            if isinstance(n, ast.If)
+            and isinstance(n.test, ast.Name) and n.test.id == "assenti"
+        ]
+        self.assertTrue(guardie, "manca il blocco 'if assenti:'")
+        guardia = guardie[0]
+        stop_calls = [
+            n for n in ast.walk(guardia)
+            if isinstance(n, ast.Call) and chain(n.func) == ["st", "stop"]
+        ]
+        self.assertTrue(stop_calls, "la guardia sui fondi assenti non chiama st.stop()")
+
+        backtest_calls = [
+            n.lineno
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Name) and n.func.id == "run_backtest"
+        ]
+        self.assertTrue(backtest_calls)
+        self.assertLess(guardia.lineno, min(backtest_calls))
+
+    def test_colonne_del_backtest_restano_per_simbolo(self):
+        """Il motore non deve tornare a rinominare le colonne di `per_fund` /
+        `contributions` con l'etichetta visuale: due fondi con lo stesso nome
+        rompevano il PAC (audit-codebase-2026-08-01.md, P1). `res.labels' e'
+        l'unica traduzione verso un nome leggibile ammessa."""
+        sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn("res.labels", sorgente)
+        self.assertNotIn("label_splice", sorgente)
+
 
 if __name__ == "__main__":
     unittest.main()

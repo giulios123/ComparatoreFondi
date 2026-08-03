@@ -335,6 +335,27 @@ MESSAGGI: dict[str, str] = {
     ),
     "coverage_warning": "{symbol}: dati disponibili solo dal {data}",
 
+    # --- Integrità del backtest -----------------------------------------------------
+    # Traduzioni di `comparatore.engine.BacktestInputError`, una per `kind`:
+    # l'ultima barriera del motore prima di simulare un portafoglio diverso
+    # da quello impostato (vedi audit-codebase-2026-08-01.md, P1).
+    "engine.error_quote_non_valide": (
+        "Quote non valide (zero, negative o non finite) per: {elenco}."
+    ),
+    "engine.error_date_duplicate": "Date duplicate nella serie storica per: {elenco}.",
+    "engine.error_simboli_duplicati": "Simboli duplicati nel portafoglio: {elenco}.",
+    "engine.error_simboli_senza_prezzi": "Nessun prezzo disponibile per: {elenco}.",
+    "engine.error_pesi_non_validi": "Peso non valido per: {elenco}.",
+    "integrita.error_fondi_assenti": (
+        "🚫 Il backtest non può partire: nessun dato di prezzo per {elenco}. "
+        "Un problema temporaneo della fonte cambierebbe l'allocazione "
+        "realmente simulata senza che tu lo scelga."
+    ),
+    "integrita.allocazione_reale": (
+        "Rimuovendo questi fondi il portafoglio diventerebbe: {elenco}."
+    ),
+    "integrita.button_rimuovi": "Rimuovi i fondi senza dati e continua",
+
     # --- Risultati del backtest --------------------------------------------------------
     "results.subheader": "Risultati · {inizio} → {fine}",
     "results.reconstructed_info": (
