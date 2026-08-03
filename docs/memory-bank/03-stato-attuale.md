@@ -43,7 +43,40 @@ confronta con i fondi pensione COVIP.
   affrontò. Aggiunto `prices.sort_index()` all'inizio di `simulate()` per
   robustezza verso CSV caricati con date disordinate, e guardia in
   `valida_prezzi()` che solleva se l'indice non è ordinato (per catturare
-  anomalie). Test aggiunti in `ValidaPrezziTests` (164 test totali, tutti verdi).
+  anomalie). Test aggiunti in `ValidaPrezziTests`.
+- **Valutazione hosting** — [documento del 3 agosto](../valutazione-hosting-2026-08-03.md)
+  sull'impatto di ospitare l'app su un sito web (scenario valutato: istanza
+  pubblica con chiavi dell'utente). Conclusione: BYO-key non basta da sola,
+  perché copre solo le fonti a chiave (EODHD, Twelve Data) e non quelle senza
+  (Yahoo, justETF, OpenFIGI), interrogate dal server a nome di visitatori
+  anonimi. Ha aperto due spec, entrambe ancora in bozza, non implementate:
+  [`003-confine-importazione`](../spec-driven/specs/003-confine-importazione/spec.md)
+  (valida semanticamente import JSON e CSV — il P2 dell'audit, prerequisito
+  anche per l'hosting) e
+  [`004-istanza-multiutente`](../spec-driven/specs/004-istanza-multiutente/spec.md)
+  (modalità ospitata dietro `COMPARATORE_HOSTED`: chiavi/preferenze
+  per-sessione, cache partizionata per chiave, justETF disattivato).
+- **GitHub Action pinnate a SHA, permessi per-job** — chiude il secondo P2
+  dell'audit. Le 5 action distinte nei tre workflow ora referenziano un
+  commit SHA (`# vX.Y.Z` in commento), non più un tag mobile;
+  `desktop-build.yml` non ha più `contents: write` a livello di workflow, solo
+  il job `release` lo dichiara. Decisione 22.
+- **P3 chiusi**: `keys.save()`/`prefs.save()`/`cache.write()`/`write_meta()`
+  passano tutti da un file temporaneo nella stessa cartella e `os.replace`
+  (atomico) invece di scrivere e basta — per le chiavi, `chmod 600` avviene
+  ora *prima* che il file compaia al percorso finale, chiudendo la finestra in
+  cui erano leggibili a permessi di default. Le tre celle `unsafe_allow_html`
+  nella ricerca (metadati grezzi dei provider) sono diventate `st.caption()`.
+- **Copertura test delle fonti esterne**: prima non esisteva alcun mock nella
+  suite. Aggiunto `tests/fixtures.py` (una `FakeResponse` minima per
+  `unittest.mock.patch("requests.get"/"post", ...)`) più test per
+  `yahoo.py`, `twelvedata.py`, `fx.py` (sia il percorso BCE via `requests` sia
+  il ripiego Yahoo via `yfinance`), `openfigi.py`, `justetf.py`, il confine di
+  rete di `covip.py`, e i percorsi HTTP di `eodhd.py` che mancavano. Il
+  parsing dei fogli COVIP (`_parse_rendimenti`/`_parse_isc`) resta fuori:
+  dipende da un layout di celle unite che servirebbe una fixture più grande
+  per imitare fedelmente, non è dove l'audit segnalava copertura zero. 235
+  test totali, tutti verdi.
 
 ## Aperto, e noto
 
@@ -51,7 +84,8 @@ confronta con i fondi pensione COVIP.
 |---|---|
 | **App non firmate** | Gatekeeper e SmartScreen avvisano. Decisione 17: costa 99 $/anno + 70-250 $/anno, rimandata |
 | **macOS solo arm64** | La build CI gira su `macos-latest`; per Intel/universal va adattato il workflow |
-| **Import e CI** | L'[audit tecnico](../audit-codebase-2026-08-01.md) ha confermato validazione semantica insufficiente nell'import JSON (P2, non ancora affrontato) e action GitHub fissate a tag mutabili invece che a SHA (P2, non ancora affrontato). |
+| **Import senza validazione semantica** | P2 dell'audit, non ancora implementato: spec [`003-confine-importazione`](../spec-driven/specs/003-confine-importazione/spec.md) scritta, in bozza |
+| **Hosting su un sito web** | Valutato ma non deciso: vedi [valutazione hosting](../valutazione-hosting-2026-08-03.md) e spec [`004-istanza-multiutente`](../spec-driven/specs/004-istanza-multiutente/spec.md) (in bozza). Resta aperta anche la decisione se disattivare Yahoo/OpenFIGI in modalità ospitata, non solo justETF |
 
 ## Da sapere per lavorarci
 
@@ -68,9 +102,17 @@ confronta con i fondi pensione COVIP.
 
 Nessuno è deciso — sono le direzioni che il lavoro fatto finora lascia aperte:
 
-1. Eseguire la roadmap P2 dell'[audit tecnico](../audit-codebase-2026-08-01.md):
-   validazione semantica dell'import JSON e pin SHA delle GitHub Action.
-2. Completare gli screenshot del README con la scheda dei fondi pensione.
-3. Valutare la firma del codice se l'app esce dalla cerchia di utenti fidati.
-4. Se il progetto dovesse mai distribuirsi anche via PyPI, rivedere la
+1. Implementare le spec [`003-confine-importazione`](../spec-driven/specs/003-confine-importazione/spec.md)
+   e [`004-istanza-multiutente`](../spec-driven/specs/004-istanza-multiutente/spec.md)
+   (in quest'ordine: la seconda si appoggia alla prima per l'input ostile).
+   Entrambe sono ferme allo stadio di spec+piano+attività, nessun codice
+   scritto: la decisione se e quando implementarle non è stata presa qui.
+2. Decidere se e come ospitare l'app su un sito web — la
+   [valutazione](../valutazione-hosting-2026-08-03.md) mappa i requisiti, non
+   sceglie lo scenario. Se si procede, resta anche da produrre gli artefatti
+   di deploy veri e propri (config `[server]` di Streamlit, container, reverse
+   proxy): dichiarati fuori ambito dalla valutazione stessa.
+3. Completare gli screenshot del README con la scheda dei fondi pensione.
+4. Valutare la firma del codice se l'app esce dalla cerchia di utenti fidati.
+5. Se il progetto dovesse mai distribuirsi anche via PyPI, rivedere la
    decisione 20 (aggiungere un `[build-system]`, che oggi manca di proposito).
