@@ -240,6 +240,12 @@ def valida_prezzi(prices: pd.DataFrame, *, consenti_nan: bool = False) -> None:
             f"Date duplicate nella serie storica: {', '.join(duplicate)}.",
         )
 
+    if not prices.index.is_monotonic_increasing:
+        raise BacktestInputError(
+            "indice_non_ordinato", [],
+            "L'indice delle date non è ordinato in senso crescente.",
+        )
+
     valori = prices.to_numpy(dtype=float)
     mancante = np.isnan(valori)
     non_valido = (~mancante) & ~((valori > 0) & np.isfinite(valori))
@@ -331,6 +337,7 @@ def simulate(
     instalment of `pac`, if given, is invested at the target weights - the
     same way the initial capital is - the day it lands.
     """
+    prices = prices.sort_index()
     valida_prezzi(prices)
     cols = list(prices.columns)
     w = np.array([weights.get(c, 0.0) for c in cols], dtype=float)

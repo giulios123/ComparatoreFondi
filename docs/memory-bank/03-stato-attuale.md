@@ -38,6 +38,12 @@ confronta con i fondi pensione COVIP.
   chiave interna delle colonne per tutto il calcolo, quindi due fondi con lo
   stesso nome non rompono più il PAC (`BacktestResult.labels` per la vista).
   Decisione 21.
+- **Validazione ordine indice** — fix di una lacuna nella spec 002: l'audit
+  richiede esplicitamente di "validare **indici monotoni**", che la spec non
+  affrontò. Aggiunto `prices.sort_index()` all'inizio di `simulate()` per
+  robustezza verso CSV caricati con date disordinate, e guardia in
+  `valida_prezzi()` che solleva se l'indice non è ordinato (per catturare
+  anomalie). Test aggiunti in `ValidaPrezziTests` (164 test totali, tutti verdi).
 
 ## Aperto, e noto
 

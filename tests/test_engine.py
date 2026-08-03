@@ -281,6 +281,34 @@ class ValidaPrezziTests(unittest.TestCase):
             valida_prezzi(prezzi)
         self.assertEqual(ctx.exception.kind, "date_duplicate")
 
+    def test_indice_non_ordinato_ordinato_da_simulate(self):
+        # I prezzi arrivano non ordinati; simulate() deve ordinarli
+        # automaticamente prima di usarli (audit richiede ordine monotono).
+        prezzi_ordinati = _prezzi(10, {"A": 0.001, "B": -0.0005})
+        valore_atteso, _ = simulate(prezzi_ordinati, {"A": 0.6, "B": 0.4}, 10_000.0)
+
+        # Disordina le righe: l'indice e i prezzi si mescolano insieme.
+        # simulate() deve riordinarli internamente.
+        prezzi_disordinati = prezzi_ordinati.sample(frac=1, random_state=42)
+
+        valore_disordinato, _ = simulate(
+            prezzi_disordinati, {"A": 0.6, "B": 0.4}, 10_000.0
+        )
+        # Dopo riordino interno di simulate(), il risultato deve essere identico.
+        np.testing.assert_allclose(
+            valore_disordinato.sort_index().to_numpy(),
+            valore_atteso.to_numpy(),
+        )
+
+    def test_indice_non_ordinato_respinto_da_valida_prezzi(self):
+        # Se valida_prezzi() riceve un indice non ordinato (es. da una
+        # chiamata diretta che salta simulate()), deve sollevare.
+        prezzi = _prezzi(10, {"A": 0.001})
+        prezzi_disordinati = prezzi.iloc[[0, 2, 1, 3, 4, 5, 6, 7, 8, 9]]
+        with self.assertRaises(BacktestInputError) as ctx:
+            valida_prezzi(prezzi_disordinati)
+        self.assertEqual(ctx.exception.kind, "indice_non_ordinato")
+
 
 class ValidaHoldingsTests(unittest.TestCase):
     def test_simbolo_duplicato_respinto(self):
