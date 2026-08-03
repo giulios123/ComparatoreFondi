@@ -16,18 +16,22 @@ on:
       - "v*.*.*"
   workflow_dispatch: {}
 
-permissions:
-  contents: write
+# Nessun permesso al livello di workflow: solo il job `release` pubblica
+# qualcosa e dichiara `contents: write` per conto proprio. I job di build si
+# limitano a leggere il repository.
+permissions: {}
 
 jobs:
   build-macos:
     name: Build macOS (.app)
     runs-on: macos-latest # Apple Silicon (arm64)
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Installa uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
           python-version: "3.13"
           enable-cache: true
@@ -45,7 +49,7 @@ jobs:
           ditto -c -k --keepParent ComparatoreFondi.app ComparatoreFondi-macOS.zip
 
       - name: Carica artefatto
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ComparatoreFondi-macOS
           path: dist/ComparatoreFondi-macOS.zip
@@ -53,11 +57,13 @@ jobs:
   build-windows:
     name: Build Windows (.exe)
     runs-on: windows-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Installa uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
           python-version: "3.13"
           enable-cache: true
@@ -72,7 +78,7 @@ jobs:
         run: Compress-Archive -Path dist/ComparatoreFondi -DestinationPath dist/ComparatoreFondi-Windows.zip
 
       - name: Carica artefatto
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ComparatoreFondi-Windows
           path: dist/ComparatoreFondi-Windows.zip
@@ -82,14 +88,16 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     needs: [build-macos, build-windows]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Scarica gli artefatti di entrambe le piattaforme
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: artefatti
 
       - name: Pubblica su GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: |
             artefatti/ComparatoreFondi-macOS/ComparatoreFondi-macOS.zip

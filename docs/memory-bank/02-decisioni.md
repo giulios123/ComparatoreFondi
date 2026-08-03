@@ -342,3 +342,34 @@ di "saltare" un fondo senza prezzi confidando nella rinormalizzazione a valle.
 **Traccia.** `comparatore/engine.py` (`BacktestInputError`, `valida_prezzi`,
 `valida_holdings`, `etichette_uniche`); `app.py` (guardia prima della
 costruzione degli `Holding`, `rimuovi_fondi_assenti`); spec `002`.
+
+### 22 · Le GitHub Action sono pinnate a SHA, non a tag
+
+*Agosto 2026*
+
+**Contesto.** Il [P2 dell'audit del 1 agosto](../audit-codebase-2026-08-01.md)
+sulla supply chain CI restava aperto: le 5 action distinte usate nei tre
+workflow (`checkout`, `setup-uv`, `upload-artifact`, `download-artifact`,
+`action-gh-release`) erano referenziate con tag mutabili (`@v4`, `@v5`, `@v2`).
+Un tag può essere spostato su un commit diverso dal proprietario del
+repository upstream (o da chi ne compromette l'account); un SHA no. In più,
+`desktop-build.yml` dichiarava `contents: write` a livello di workflow,
+ereditato da tutti e tre i job anche se solo `release` pubblica qualcosa.
+**Scelta.** Ogni `uses:` è ora `owner/repo@<sha-completo> # vX.Y.Z`: lo SHA è
+quello del tag major già in uso (v4/v5/v2), non un aggiornamento di versione —
+bump di comportamento e hardening della supply chain sono due cambi distinti,
+non si fanno nello stesso commit. Il commento con la versione leggibile resta
+per chi legge il diff senza dover risolvere lo SHA a mano. In
+`desktop-build.yml`, `permissions:` di workflow è diventato `{}`; ogni job
+dichiara il proprio: `contents: read` per `build-macos`/`build-windows`,
+`contents: write` solo per `release`.
+**Conseguenze.** Aggiornare un'action ora richiede risolvere il nuovo SHA (con
+`gh api repos/<owner>/<repo>/tags` o equivalente) invece di cambiare un
+numero — un passo in più, deliberato: è la differenza fra "mi fido del tag
+oggi" e "mi fido di questo commit preciso, per sempre". Nessun automatismo
+(es. Dependabot per le SHA pin) è stato introdotto in questa passata: se il
+progetto vuole automatizzare gli aggiornamenti, va scelto esplicitamente,
+perché un aggiornamento automatico di uno SHA pinnato senza revisione umana
+vanifica in parte il motivo per cui si pinna.
+**Traccia.** `.github/workflows/desktop-build.yml`,
+`.github/workflows/tests.yml`, `.github/workflows/license-audit.yml`.
