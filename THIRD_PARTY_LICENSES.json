@@ -79,7 +79,7 @@
   },
   {
     "name": "GitPython",
-    "version": "3.1.57",
+    "version": "3.1.58",
     "license": "BSD-3-Clause",
     "url": "https://github.com/gitpython-developers/GitPython"
   },
@@ -292,6 +292,12 @@
     "version": "2026.6.3",
     "license": "MIT",
     "url": "https://github.com/crate-py/rpds"
+  },
+  {
+    "name": "ruff",
+    "version": "0.16.1",
+    "license": "MIT",
+    "url": "https://docs.astral.sh/ruff"
   },
   {
     "name": "six",
