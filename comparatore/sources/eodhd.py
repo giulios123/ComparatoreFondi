@@ -246,7 +246,10 @@ class EodhdSource:
             exact = [
                 hit for hit in hits
                 if hit.exchange.upper() == exchange
-                and to_yahoo_symbol(hit.symbol).upper() == symbol.upper()
+                and (
+                    hit.symbol.upper() == symbol.upper()
+                    or to_yahoo_symbol(hit.symbol).upper() == symbol.upper()
+                )
             ]
             # Restituire il ticker Yahoo in caso di mancata corrispondenza era
             # pericoloso: EODHD lo avrebbe poi interrogato come se fosse un
@@ -284,7 +287,10 @@ class EodhdSource:
             # si usa il ranking europeo qui sotto.
             exact = [
                 hit for hit in hits
-                if to_yahoo_symbol(hit.symbol).upper() == symbol.upper()
+                if (
+                    hit.symbol.upper() == symbol.upper()
+                    or to_yahoo_symbol(hit.symbol).upper() == symbol.upper()
+                )
             ]
             if not exact:
                 cache.write_meta(
@@ -313,6 +319,46 @@ class EodhdSource:
             },
         )
         return resolved
+
+    def resolve_metadata_symbol(self, symbol: str, isin: str = "") -> str | None:
+        """Trova una quotazione dello stesso strumento per i soli metadati.
+
+        EODHD non pubblica sempre ogni piazza: per esempio puo' avere
+        VWCE.XETRA ma non VWCE.MI. Per il TER e' sicuro usare una quotazione
+        alternativa quando l'ISIN coincide; questa scorciatoia non viene usata
+        da prices(), che continua ad accettare solo il mapping esatto della
+        piazza originale.
+        """
+        resolved = self.resolve_symbol(symbol, isin)
+        if resolved:
+            return resolved
+
+        query = (isin or symbol.rsplit(".", 1)[0]).strip().upper()
+        hits = self.search(query, limit=20, funds_only=False)
+        if is_isin(isin):
+            candidates = [
+                hit for hit in hits
+                if (hit.isin or "").upper() == isin.upper()
+            ]
+        else:
+            code = symbol.rsplit(".", 1)[0].upper()
+            candidates = [
+                hit for hit in hits
+                if hit.symbol.rsplit(".", 1)[0].upper() == code
+                and hit.quote_type.upper() in {"ETF", "FUND", "MUTUALFUND"}
+            ]
+        if not candidates:
+            return None
+
+        def rank(instrument) -> int:
+            exchange = (instrument.exchange or "").upper()
+            return (
+                self._EXCHANGE_RANK.index(exchange)
+                if exchange in self._EXCHANGE_RANK
+                else len(self._EXCHANGE_RANK)
+            )
+
+        return sorted(candidates, key=rank)[0].symbol
 
     def prices(
         self,

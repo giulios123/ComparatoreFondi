@@ -163,6 +163,9 @@ class TestSintassiApp(unittest.TestCase):
         self.assertIn("ter_warning.retry_button", sorgente)
         self.assertIn("pic_costs.estimate_pic_costs", sorgente)
         self.assertIn("pac is None", sorgente)
+        self.assertIn("fmt_money(pic_estimate.buy_cost, base_ccy, decimals=2)", sorgente)
+        self.assertIn("fmt_money(pic_estimate.sell_cost, base_ccy, decimals=2)", sorgente)
+        self.assertIn("justetf=bool(st.session_state.enable_justetf)", sorgente)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ import tempfile
 import unittest
 
 from comparatore import cache
+from comparatore.sources.base import Instrument
 from comparatore.sources.eodhd import EodhdSource, to_yahoo_symbol
 
 
@@ -25,6 +26,36 @@ class ToYahooSymbolTests(unittest.TestCase):
         # tradurlo darebbe lo stesso identico simbolo, quindi "" (nessun
         # secondo giro su Yahoo inutile), non un simbolo identico a se' stesso.
         self.assertEqual(to_yahoo_symbol("VWCE.MI"), "")
+
+
+class ResolveSymbolTests(unittest.TestCase):
+    def test_milan_ticker_accepts_same_eodhd_symbol(self) -> None:
+        source = EodhdSource(api_key="x")
+        source.search = lambda *args, **kwargs: [  # type: ignore[method-assign]
+            Instrument("VWCE.MI", "VWCE", "ETF", exchange="MI")
+        ]
+        self.assertEqual(source.resolve_symbol("VWCE.MI"), "VWCE.MI")
+
+    def test_milan_ticker_rejects_a_different_listing(self) -> None:
+        source = EodhdSource(api_key="x")
+        source.search = lambda *args, **kwargs: [  # type: ignore[method-assign]
+            Instrument("VWCE.XETRA", "VWCE", "ETF", exchange="XETRA")
+        ]
+        self.assertIsNone(source.resolve_symbol("VWCE.MI"))
+
+    def test_metadata_fallback_uses_same_isin_on_another_listing(self) -> None:
+        source = EodhdSource(api_key="x")
+        source.resolve_symbol = lambda *args, **kwargs: None  # type: ignore[method-assign]
+        source.search = lambda *args, **kwargs: [  # type: ignore[method-assign]
+            Instrument(
+                "VWCE.XETRA", "VWCE", "ETF",
+                exchange="XETRA", isin="IE00BK5BQT80",
+            )
+        ]
+        self.assertEqual(
+            source.resolve_metadata_symbol("VWCE.MI", "IE00BK5BQT80"),
+            "VWCE.XETRA",
+        )
 
 
 class FundamentalsBlockedTests(unittest.TestCase):

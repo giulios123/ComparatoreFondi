@@ -24,7 +24,9 @@ portafoglio corrente da Directa e chi valuta un PIC con un piano commissionale.
 
 1. Un tentativo TER distingue a video almeno: trovato, TER assente, fonte non
    configurata, fundamentals EODHD bloccato, simbolo non risolto ed errore
-   temporaneo; il fondo conserva fonte e provenienza del valore mostrato.
+   temporaneo; se l'utente ha attivato justETF, questa entra come fallback
+   esplicito per i metadati ETF. Il fondo conserva fonte e provenienza del
+   valore mostrato.
 2. Un comando di riprova rilancia i TER mancanti senza sovrascrivere un valore
    inserito manualmente; configurare una chiave, modificare l'ISIN o importare
    da Directa rilancia automaticamente i soli valori mancanti.
@@ -33,7 +35,8 @@ portafoglio corrente da Directa e chi valuta un PIC con un piano commissionale.
    i controvalori attuali e nessuna riga viene scartata senza motivo visibile.
 4. Il prospetto PIC accetta regole indipendenti di acquisto e vendita (nessuna,
    fissa, percentuale con minimo/massimo), riserva il carico dentro il budget,
-   calcola lo scarico per posizione e mostra montante netto e costi separati.
+   calcola lo scarico per posizione e mostra montante netto e costi separati,
+   con gli importi delle commissioni alla precisione monetaria della valuta.
 5. Con PAC attivo il prospetto commissioni resta nascosto e il backtest,
    curve e metriche esistenti restano invariati.
 6. I portafogli esportati prima della modifica continuano a caricarsi; le
@@ -43,7 +46,8 @@ portafoglio corrente da Directa e chi valuta un PIC con un piano commissionale.
 
 ## Non-obiettivi
 
-- Nuovi provider TER, scraping justETF o integrazione con le API Directa.
+- Nuovi provider TER o integrazione con le API Directa. justETF resta l'unica
+  eccezione opt-in, limitata al TER/metadati e soggetta ai suoi termini.
 - Ricostruzione delle operazioni storiche, fiscalita' o liquidita' Directa.
 - Applicazione delle commissioni alle rate PAC o modifica delle metriche del
   motore di backtest.

@@ -312,18 +312,29 @@ def cached_search(query: str, funds_only: bool, eodhd: str, td: str) -> list[dic
 
 
 @st.cache_data(show_spinner=False, ttl=300)
-def cached_metadata(symbol: str, isin: str, eodhd: str, refresh_rev: int = 0) -> dict:
-    reg = Registry(eodhd_key=eodhd)
+def cached_metadata(
+    symbol: str,
+    isin: str,
+    eodhd: str,
+    refresh_rev: int = 0,
+    justetf: bool = False,
+) -> dict:
+    reg = Registry(eodhd_key=eodhd, enable_justetf=justetf)
     resolution = reg.metadata_resolution(symbol, isin)
     result = vars(resolution.instrument).copy()
     result["ter_attempts"] = [vars(attempt) for attempt in resolution.attempts]
     return result
 
 
-def fmt_money(v: float, ccy: str) -> str:
+def fmt_money(v: float, ccy: str, decimals: int = 0) -> str:
     sep = i18n.separatore_migliaia(LINGUA)
-    numero = f"{v:,.0f}"
-    if sep != ",":
+    numero = f"{v:,.{decimals}f}"
+    if decimals:
+        intero, frazione = numero.rsplit(".", 1)
+        if sep != ",":
+            intero = intero.replace(",", sep)
+        numero = f"{intero}{i18n.separatore_decimale(LINGUA)}{frazione}"
+    elif sep != ",":
         numero = numero.replace(",", sep)
     return f"{SYMBOLS.get(ccy, '')}{numero}"
 
@@ -475,7 +486,8 @@ def add_fund(symbol: str, name: str, isin: str = ""):
         st.toast(t("toast.fund_exists", symbol=symbol), icon="⚠️")
         return
     meta = cached_metadata(
-        symbol, isin, api_key("EODHD_API_KEY"), st.session_state.ter_refresh_rev
+        symbol, isin, api_key("EODHD_API_KEY"), st.session_state.ter_refresh_rev,
+        justetf=bool(st.session_state.enable_justetf),
     )
     fund_name = meta.get("name") or name
     proxy = px.suggest_proxy(fund_name, symbol)
@@ -630,8 +642,20 @@ def _cambia_lingua() -> None:
 
 
 def _cambia_justetf() -> None:
-    """Ricorda l'opt-in (o la sua revoca) fra un avvio e l'altro."""
+    """Ricorda l'opt-in e riprova i TER mancanti quando viene attivato."""
     _salva_preferenze()
+    st.session_state.ter_refresh_rev += 1
+    if st.session_state.enable_justetf:
+        for fondo in st.session_state.selected:
+            if fondo.get("ter_origin", "missing") == "missing":
+                _aggiorna_ter(
+                    fondo,
+                    cached_metadata(
+                        fondo["symbol"], fondo.get("isin", ""),
+                        api_key("EODHD_API_KEY"), st.session_state.ter_refresh_rev,
+                        justetf=True,
+                    ),
+                )
 
 
 # --------------------------------------------------------------------------
@@ -819,6 +843,7 @@ with st.sidebar:
                             cached_metadata(
                                 fondo["symbol"], fondo.get("isin", ""),
                                 api_key("EODHD_API_KEY"), st.session_state.ter_refresh_rev,
+                                justetf=bool(st.session_state.enable_justetf),
                             ),
                         )
                 st.toast(t("api_keys.saved_toast"), icon="🔑")
@@ -1113,6 +1138,7 @@ with st.sidebar:
                             meta = cached_metadata(
                                 candidato["symbol"], posizione.isin or candidato.get("isin", ""),
                                 api_key("EODHD_API_KEY"), st.session_state.ter_refresh_rev,
+                                justetf=bool(st.session_state.enable_justetf),
                             )
                             nome = meta.get("name") or posizione.name or candidato.get("name", "")
                             alloc, fonte_alloc = classifica(nome, candidato["symbol"], meta)
@@ -1421,6 +1447,7 @@ for fondo, (_, row) in zip(st.session_state.selected, edited.iterrows()):
                 cached_metadata(
                     fondo["symbol"], isin_nuovo, api_key("EODHD_API_KEY"),
                     st.session_state.ter_refresh_rev,
+                    justetf=bool(st.session_state.enable_justetf),
                 ),
             )
     fondo["source"] = row["source"]
@@ -1513,7 +1540,7 @@ missing_ter = [f["symbol"] for f in st.session_state.selected
 ter_sources = [
     f"{f['symbol']}: {i18n.etichetta_fonte(LINGUA, f.get('ter_origin', ''))}"
     for f in st.session_state.selected
-    if f.get("ter_origin") in {"manual", "yahoo", "eodhd"}
+    if f.get("ter_origin") in {"manual", "yahoo", "justetf", "eodhd"}
 ]
 if ter_sources:
     st.caption(t("ter_warning.sources", elenco="; ".join(ter_sources)))
@@ -1548,6 +1575,7 @@ if missing_ter:
                 cached_metadata(
                     fondo["symbol"], fondo.get("isin", ""), api_key("EODHD_API_KEY"),
                     st.session_state.ter_refresh_rev,
+                    justetf=bool(st.session_state.enable_justetf),
                 ),
             )
         st.rerun()
@@ -1770,9 +1798,18 @@ if st.session_state.pic_costs_enabled and pac is None:
             st.caption(t("costs.pic_result_caption"))
             metric_a, metric_b, metric_c, metric_d = st.columns(4)
             metric_a.metric(t("costs.pic_budget"), fmt_money(pic_estimate.budget, base_ccy))
-            metric_b.metric(t("costs.pic_buy_total"), fmt_money(pic_estimate.buy_cost, base_ccy))
-            metric_c.metric(t("costs.pic_sell_total"), fmt_money(pic_estimate.sell_cost, base_ccy))
-            metric_d.metric(t("costs.pic_net_final"), fmt_money(pic_estimate.final_net, base_ccy))
+            metric_b.metric(
+                t("costs.pic_buy_total"),
+                fmt_money(pic_estimate.buy_cost, base_ccy, decimals=2),
+            )
+            metric_c.metric(
+                t("costs.pic_sell_total"),
+                fmt_money(pic_estimate.sell_cost, base_ccy, decimals=2),
+            )
+            metric_d.metric(
+                t("costs.pic_net_final"),
+                fmt_money(pic_estimate.final_net, base_ccy, decimals=2),
+            )
             st.dataframe(
                 pd.DataFrame([
                     {
@@ -1797,6 +1834,36 @@ if st.session_state.pic_costs_enabled and pac is None:
                     t("costs.pic_column_item"): t("costs.pic_column_item"),
                     t("costs.pic_column_value"): st.column_config.NumberColumn(
                         t("costs.pic_column_value"), format="%.2f",
+                    ),
+                },
+            )
+            dettagli_pic = [
+                {
+                    t("costs.pic_column_side"): t("costs.pic_buy_title"),
+                    t("costs.pic_column_symbol"): line.symbol,
+                    t("costs.pic_column_notional"): line.notional,
+                    t("costs.pic_column_fee"): line.fee,
+                }
+                for line in pic_estimate.buy_lines
+            ] + [
+                {
+                    t("costs.pic_column_side"): t("costs.pic_sell_title"),
+                    t("costs.pic_column_symbol"): line.symbol,
+                    t("costs.pic_column_notional"): line.notional,
+                    t("costs.pic_column_fee"): line.fee,
+                }
+                for line in pic_estimate.sell_lines
+            ]
+            st.dataframe(
+                pd.DataFrame(dettagli_pic),
+                hide_index=True,
+                width="stretch",
+                column_config={
+                    t("costs.pic_column_notional"): st.column_config.NumberColumn(
+                        t("costs.pic_column_notional"), format="%.2f",
+                    ),
+                    t("costs.pic_column_fee"): st.column_config.NumberColumn(
+                        t("costs.pic_column_fee"), format="%.2f",
                     ),
                 },
             )

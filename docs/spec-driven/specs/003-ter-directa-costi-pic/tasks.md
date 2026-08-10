@@ -8,6 +8,7 @@ Riferimento: [`spec.md`](spec.md) · [`plan.md`](plan.md)
 - [x] Correggere mapping Yahoo/EODHD e retry/cache dei metadati.
 - [x] Implementare parser e modelli normalizzati Directa.
 - [x] Integrare anteprima, mappatura, risoluzione e import nell'app.
+- [x] Usare justETF come fallback TER solo con opt-in esplicito.
 - [x] Implementare regole e stima costi PIC.
 - [x] Integrare editor, persistenza e prospetto localizzato.
 - [x] Aggiornare i quattro cataloghi e backfill JSON.
@@ -18,6 +19,7 @@ Riferimento: [`spec.md`](spec.md) · [`plan.md`](plan.md)
 - [x] Test Directa CSV/XLSX e diagnostica righe.
 - [x] Test commissioni, budget, arrotondamento e montante netto.
 - [x] Test compatibilita' portfolio e guardie AST.
+- [x] Regressioni su piazza MI e visualizzazione delle commissioni alla precisione monetaria.
 
 ## Verifica dei criteri di accettazione
 

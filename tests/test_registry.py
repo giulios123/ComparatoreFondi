@@ -138,7 +138,23 @@ class RegistryMetadataTests(unittest.TestCase):
         )
         result = registry.metadata_resolution("TEST")
         self.assertEqual(result.attempts[0].outcome, "found")
-        self.assertEqual(result.attempts[1].outcome, "not_configured")
+        self.assertEqual(
+            next(attempt for attempt in result.attempts if attempt.source == "eodhd").outcome,
+            "not_configured",
+        )
+
+    def test_metadata_resolution_uses_opt_in_justetf_before_eodhd(self) -> None:
+        registry = Registry(enable_justetf=True)
+        registry.yahoo = _MetadataSource(Instrument("TEST", "Test Fund", "ETF"))
+        registry.justetf = _MetadataSource(
+            Instrument(
+                "TEST", "Test Fund", "ETF",
+                ter=0.0014, ter_source="justetf", ter_origin="justetf",
+            )
+        )
+        result = registry.metadata_resolution("TEST", "IE00B3XXRP09")
+        self.assertEqual(result.instrument.ter_origin, "justetf")
+        self.assertEqual(result.attempts[1].outcome, "found")
 
 
 if __name__ == "__main__":

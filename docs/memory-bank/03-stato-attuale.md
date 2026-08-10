@@ -47,9 +47,12 @@ confronta con i fondi pensione COVIP.
 - **TER, import Directa e costi PIC** — spec
   [`003-ter-directa-costi-pic`](../spec-driven/specs/003-ter-directa-costi-pic/spec.md):
   il recupero dei metadati conserva tentativi e provenienza, ha retry esplicito
-  e corregge il mapping Yahoo → EODHD; CSV/XLSX Directa si importano con
+  e corregge il mapping Yahoo → EODHD; con opt-in justETF può usare anche il
+  TER dalla pagina profilo dell'ETF; CSV/XLSX Directa si importano con
   mappatura guidata; il PIC espone un prospetto separato per carico e scarico
-  senza alterare il backtest. I test sono 177.
+  senza alterare il backtest. I test sono 184; il mapping delle piazze MI
+  distingue una quotazione EODHD identica e gli importi delle commissioni
+  mostrano i centesimi.
 
 ## Aperto, e noto
 

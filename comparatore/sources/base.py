@@ -56,7 +56,7 @@ class Instrument:
     # dopo l'aggiunta al portafoglio. Valorizzato da `Registry.search()`,
     # vuoto per gli `Instrument` costruiti altrove (es. `metadata()`).
     source: str = ""
-    # Provenienza normalizzata del valore: "yahoo", "eodhd" o "".
+    # Provenienza normalizzata del valore: "yahoo", "justetf", "eodhd" o "".
     # `ter_source` resta il dettaglio storico del campo restituito dalla fonte.
     ter_origin: str = ""
 

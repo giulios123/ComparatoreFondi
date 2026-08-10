@@ -354,7 +354,9 @@ backtest non aveva un modo per stimare i costi di carico e scarico di un PIC.
 
 **Scelta.** I metadati espongono tentativi e provenienza, con retry esplicito,
 cache negativa breve e mapping Yahoo → EODHD corretto; il valore TER manuale
-resta autorevole. Directa si importa da CSV/XLSX con anteprima e mappatura delle
+resta autorevole. Se l'utente ha attivato l'opt-in, justETF è un fallback
+limitato ai metadati degli ETF per ISIN, con fonte distinta e senza entrare nel
+motore prezzi. Directa si importa da CSV/XLSX con anteprima e mappatura delle
 colonne, usando controvalori correnti e sostituendo il portafoglio. Le API
 Directa restano fuori scope. Le commissioni PIC sono due regole globali
 (carico/scarico) e producono un prospetto separato: il motore e le metriche

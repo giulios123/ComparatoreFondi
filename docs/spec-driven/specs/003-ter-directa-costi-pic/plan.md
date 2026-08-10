@@ -29,7 +29,7 @@ scarico. L'interfaccia mostra il prospetto senza cambiare il motore.
 | Alternativa | Perché no |
 |---|---|
 | API Directa | Richiedono abilitazione e autorizzazione alla redistribuzione |
-| Scraping justETF | Fonte opt-in e endpoint TER non documentato; fuori scope |
+| Nuovi endpoint/provider TER | justETF resta l'unico fallback opt-in; nuovi provider restano fuori scope |
 | Formato Directa fisso | Non esiste un campione pubblico stabile; la mappatura tollera varianti |
 | Commissioni dentro `engine.run_backtest` | Cambierebbero metrica e curva, contro il requisito del prospetto separato |
 

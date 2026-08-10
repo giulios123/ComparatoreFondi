@@ -208,12 +208,37 @@ class Registry:
         # Yahoo, se manca ancora quella dimensione. Senza chiave `available()`
         # e' False e non parte nessuna chiamata.
         manca_area = "area" not in (info.allocation or {})
+        if info.ter is None and self.enable_justetf and not info.isin and self.eodhd.available():
+            # La ricerca EODHD resta disponibile anche quando il piano blocca
+            # l'endpoint fundamentals: serve qui solo a passare l'ISIN a justETF.
+            eod_symbol = self.eodhd.resolve_metadata_symbol(symbol)
+            if eod_symbol:
+                ticker = symbol.rsplit(".", 1)[0].upper()
+                for hit in self.eodhd.search(ticker, limit=20, funds_only=False):
+                    if hit.symbol.upper() == eod_symbol.upper() and hit.isin:
+                        info.isin = hit.isin
+                        break
+
+        if info.ter is None and self.enable_justetf:
+            justetf_info = self.justetf.metadata(symbol, info.isin)
+            if justetf_info is not None:
+                if info.ter is None and justetf_info.ter is not None:
+                    info.ter = justetf_info.ter
+                    info.ter_source = justetf_info.ter_source
+                    info.ter_origin = justetf_info.ter_origin
+                if info.name == symbol and justetf_info.name:
+                    info.name = justetf_info.name
+                info.isin = info.isin or justetf_info.isin
+
         if (info.ter is None or not info.allocation or manca_area) and self.eodhd.available():
             # Il simbolo di Yahoo non e' quello di EODHD (VWCE.DE contro
             # VWCE.XETRA): senza la traduzione la richiesta cadrebbe nel vuoto
             # proprio nei casi in cui la fonte servirebbe. La corrispondenza
             # resta in cache, quindi si paga una volta sola per strumento.
-            eod_symbol = self.eodhd.resolve_symbol(symbol, info.isin)
+            resolver = getattr(
+                self.eodhd, "resolve_metadata_symbol", self.eodhd.resolve_symbol
+            )
+            eod_symbol = resolver(symbol, info.isin)
             if eod_symbol:
                 richer = self.eodhd.metadata(eod_symbol)
                 if richer is not None:
@@ -255,6 +280,20 @@ class Registry:
         elif yahoo_outcome not in {"no_ter", "temporary_error"}:
             yahoo_outcome = "temporary_error" if yahoo_empty else "no_ter"
         attempts.append(MetadataAttempt("yahoo", yahoo_outcome))
+
+        if not self.enable_justetf:
+            justetf_outcome = "not_configured"
+        elif info.ter_origin == "justetf":
+            justetf_outcome = "found"
+        else:
+            justetf_outcome = getattr(
+                self.justetf, "last_metadata_outcome", "temporary_error"
+            )
+            if justetf_outcome not in {
+                "found", "no_ter", "symbol_unresolved", "temporary_error"
+            }:
+                justetf_outcome = "temporary_error"
+        attempts.append(MetadataAttempt("justetf", justetf_outcome))
 
         if info.ter_origin == "eodhd":
             eodhd_outcome = "found"
