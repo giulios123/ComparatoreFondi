@@ -485,10 +485,12 @@ def _aggiorna_ter(fondo: dict, meta: dict) -> bool:
     if fondo.get("ter_origin") == "manual":
         return False
     ter = meta.get("ter")
+    fondo["ter_attempts"] = meta.get("ter_attempts", [])
     if ter is None:
-        fondo["ter_origin"] = "missing"
-        fondo["ter_auto"] = False
-        fondo["ter_attempts"] = meta.get("ter_attempts", [])
+        # Non degradare un TER già presente per errori temporanei delle fonti.
+        if fondo.get("ter_origin", "missing") == "missing":
+            fondo["ter_origin"] = "missing"
+            fondo["ter_auto"] = False
         return False
     fondo["ter"] = float(ter) * 100
     fondo["ter_origin"] = meta.get("ter_origin") or "auto"
