@@ -3,13 +3,25 @@
 from __future__ import annotations
 
 import datetime as dt
+import math
 import os
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from comparatore import __version__, covip, fx, i18n, licenses, pesi, portfolio_io, prefs
+from comparatore import (
+    __version__,
+    covip,
+    directa_io,
+    fx,
+    i18n,
+    licenses,
+    pesi,
+    pic_costs,
+    portfolio_io,
+    prefs,
+)
 from comparatore import allocazione as al
 from comparatore import cache as disk_cache
 from comparatore import horizons as hz
@@ -41,6 +53,30 @@ if "selected" not in st.session_state:
     st.session_state.selected = []  # dizionari: symbol, name, isin, weight, ...
 if "csv_series" not in st.session_state:
     st.session_state.csv_series = {}  # chiave -> (serie, valuta)
+if "directa_upload_visto" not in st.session_state:
+    st.session_state.directa_upload_visto = None
+if "directa_file" not in st.session_state:
+    st.session_state.directa_file = None
+if "directa_filename" not in st.session_state:
+    st.session_state.directa_filename = ""
+if "directa_sheet" not in st.session_state:
+    st.session_state.directa_sheet = "CSV"
+if "directa_header_row" not in st.session_state:
+    st.session_state.directa_header_row = 0
+if "ter_refresh_rev" not in st.session_state:
+    st.session_state.ter_refresh_rev = 0
+if "ter_refresh_pending" not in st.session_state:
+    st.session_state.ter_refresh_pending = False
+if "pic_costs_enabled" not in st.session_state:
+    st.session_state.pic_costs_enabled = False
+for _key, _value in {
+    "pic_buy_mode": "none", "pic_buy_amount": 0.0, "pic_buy_rate_pct": 0.0,
+    "pic_buy_min": 0.0, "pic_buy_max": 0.0,
+    "pic_sell_mode": "none", "pic_sell_amount": 0.0, "pic_sell_rate_pct": 0.0,
+    "pic_sell_min": 0.0, "pic_sell_max": 0.0,
+}.items():
+    if _key not in st.session_state:
+        st.session_state[_key] = _value
 # Le date vivono nello stato perche' i pulsanti rapidi le riscrivono. I widget
 # le leggono solo tramite `key`: passare anche `value` farebbe litigare
 # Streamlit fra valore predefinito e stato. Stesso trattamento per
@@ -275,10 +311,13 @@ def cached_search(query: str, funds_only: bool, eodhd: str, td: str) -> list[dic
     return [vars(i) for i in reg.search(query, limit=15, funds_only=funds_only)]
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
-def cached_metadata(symbol: str, isin: str, eodhd: str) -> dict:
+@st.cache_data(show_spinner=False, ttl=300)
+def cached_metadata(symbol: str, isin: str, eodhd: str, refresh_rev: int = 0) -> dict:
     reg = Registry(eodhd_key=eodhd)
-    return vars(reg.metadata(symbol, isin))
+    resolution = reg.metadata_resolution(symbol, isin)
+    result = vars(resolution.instrument).copy()
+    result["ter_attempts"] = [vars(attempt) for attempt in resolution.attempts]
+    return result
 
 
 def fmt_money(v: float, ccy: str) -> str:
@@ -328,6 +367,42 @@ def metric_help(risk_free: float, initial_value: float, ccy: str) -> dict[str, s
     }
 
 
+def _regola_commissione(prefix: str, titolo: str) -> pic_costs.TransactionFeeRule:
+    """Editor comune per carico e scarico, con percentuali nello stato UI."""
+    st.markdown(f"**{titolo}**")
+    mode = st.selectbox(
+        t("costs.mode_label"), [m.value for m in pic_costs.TransactionFeeMode],
+        key=f"pic_{prefix}_mode", format_func=lambda v: t(f"costs.mode_{v}"),
+        filter_mode=None,
+    )
+    if mode == pic_costs.TransactionFeeMode.FIXED.value:
+        return pic_costs.TransactionFeeRule(
+            mode=pic_costs.TransactionFeeMode.FIXED,
+            amount=st.number_input(
+                t("costs.fixed_label"), min_value=0.0, step=0.50, format="%.2f",
+                key=f"pic_{prefix}_amount",
+            ),
+        )
+    if mode == pic_costs.TransactionFeeMode.PERCENTAGE.value:
+        rate = st.number_input(
+            t("costs.rate_label"), min_value=0.0, max_value=100.0, step=0.05,
+            format="%.3f", key=f"pic_{prefix}_rate_pct",
+        )
+        minimum = st.number_input(
+            t("costs.minimum_label"), min_value=0.0, step=0.50, format="%.2f",
+            key=f"pic_{prefix}_min",
+        )
+        maximum = st.number_input(
+            t("costs.maximum_label"), min_value=0.0, step=0.50, format="%.2f",
+            key=f"pic_{prefix}_max", help=t("costs.maximum_help"),
+        )
+        return pic_costs.TransactionFeeRule(
+            mode=pic_costs.TransactionFeeMode.PERCENTAGE,
+            rate=rate / 100, minimum=minimum, maximum=maximum or None,
+        )
+    return pic_costs.TransactionFeeRule()
+
+
 def classifica(nome: str, symbol: str, meta: dict) -> tuple[dict, str]:
     """Classificazione dello strumento e provenienza del dato.
 
@@ -343,11 +418,65 @@ def classifica(nome: str, symbol: str, meta: dict) -> tuple[dict, str]:
     return al.unisci(da_fonte, da_nome), meta.get("allocation_source") or "nome"
 
 
+def _fondo_da_meta(
+    symbol: str,
+    name: str,
+    isin: str,
+    meta: dict,
+    proxy=None,
+    alloc: dict | None = None,
+    alloc_fonte: str = "nome",
+    holdings: list | None = None,
+) -> dict:
+    """Forma persistita comune a ricerca e import Directa."""
+    holdings = holdings or meta.get("holdings") or []
+    alloc = dict(alloc or meta.get("allocation") or {})
+    alloc["paese"] = al.paesi_da_posizioni(holdings)
+    ter = meta.get("ter")
+    return {
+        "symbol": symbol,
+        "name": meta.get("name") or name or symbol,
+        "currency": meta.get("currency") or "",
+        "isin": (isin or meta.get("isin") or "").upper(),
+        "weight": 0.0,
+        "ter": (ter or 0.0) * 100,
+        "ter_auto": ter is not None,
+        "ter_origin": meta.get("ter_origin") or ("auto" if ter is not None else "missing"),
+        "ter_attempts": meta.get("ter_attempts", []),
+        "extra": 0.0,
+        "source": AUTO,
+        "proxy": proxy.symbol if proxy else NO_PROXY,
+        "alloc": alloc,
+        "alloc_fonte": alloc_fonte or meta.get("allocation_source") or "nome",
+        "alloc_manuale": {d: "" for d in al.DIMENSIONI},
+        "holdings": holdings,
+    }
+
+
+def _aggiorna_ter(fondo: dict, meta: dict) -> bool:
+    """Aggiorna solo un TER automatico, lasciando intatto l'override manuale."""
+    if fondo.get("ter_origin") == "manual":
+        return False
+    ter = meta.get("ter")
+    if ter is None:
+        fondo["ter_origin"] = "missing"
+        fondo["ter_auto"] = False
+        fondo["ter_attempts"] = meta.get("ter_attempts", [])
+        return False
+    fondo["ter"] = float(ter) * 100
+    fondo["ter_origin"] = meta.get("ter_origin") or "auto"
+    fondo["ter_auto"] = True
+    fondo["ter_attempts"] = meta.get("ter_attempts", [])
+    return True
+
+
 def add_fund(symbol: str, name: str, isin: str = ""):
     if any(f["symbol"] == symbol for f in st.session_state.selected):
         st.toast(t("toast.fund_exists", symbol=symbol), icon="⚠️")
         return
-    meta = cached_metadata(symbol, isin, api_key("EODHD_API_KEY"))
+    meta = cached_metadata(
+        symbol, isin, api_key("EODHD_API_KEY"), st.session_state.ter_refresh_rev
+    )
     fund_name = meta.get("name") or name
     proxy = px.suggest_proxy(fund_name, symbol)
     alloc, alloc_fonte = classifica(fund_name, symbol, meta)
@@ -361,22 +490,11 @@ def add_fund(symbol: str, name: str, isin: str = ""):
         [f["weight"] for f in st.session_state.selected] + [0.0],
         fissi={n - 1: 100.0 / n},
     )
-    st.session_state.selected.append({
-        "symbol": symbol,
-        "name": fund_name,
-        "currency": meta.get("currency") or "",
-        "isin": (isin or meta.get("isin") or "").upper(),
-        "weight": 0.0,
-        "ter": (meta.get("ter") or 0.0) * 100,  # in percentuale per l'interfaccia
-        "ter_auto": meta.get("ter") is not None,
-        "extra": 0.0,
-        "source": AUTO,
-        "proxy": proxy.symbol if proxy else NO_PROXY,
-        "alloc": alloc,  # {dimensione: {bucket: quota}}, dedotta + "paese" stimato
-        "alloc_fonte": alloc_fonte,  # "eodhd" | "yahoo" | "nome"
-        "alloc_manuale": {d: "" for d in al.DIMENSIONI},  # "" = usa la dedotta
-        "holdings": holdings,  # prime posizioni: expander e stima del paese
-    })
+    st.session_state.selected.append(_fondo_da_meta(
+        symbol=symbol,
+        name=fund_name, isin=isin, meta=meta, proxy=proxy,
+        alloc=alloc, alloc_fonte=alloc_fonte, holdings=holdings,
+    ))
     # I fondi gia' presenti mantengono i loro rapporti reciproci: aggiungere
     # non deve piu' cancellare un'allocazione impostata a mano (era il
     # comportamento di `equalize_weights()`, chiamata qui in precedenza).
@@ -384,6 +502,42 @@ def add_fund(symbol: str, name: str, isin: str = ""):
         fondo["weight"] = peso
     st.session_state.composizione_rev += 1
     st.toast(t("toast.fund_added", symbol=symbol), icon="✅")
+
+
+def _colonna_suggerita(colonne: list[str], *parole: str) -> str:
+    """Preseleziona un'intestazione ovvia senza imporre il formato Directa."""
+    for colonna in colonne:
+        normalizzata = colonna.casefold().replace(" ", "_")
+        if any(parola in normalizzata for parola in parole):
+            return colonna
+    return ""
+
+
+def _risultati_directa(posizione: directa_io.DirectaPosition) -> list[dict]:
+    query = posizione.isin or posizione.ticker
+    risultati = cached_search(
+        query, True, api_key("EODHD_API_KEY"), api_key("TWELVEDATA_API_KEY")
+    )
+    if posizione.isin:
+        esatti = [r for r in risultati if (r.get("isin") or "").upper() == posizione.isin]
+        if esatti:
+            return esatti
+    ticker = posizione.ticker.upper()
+    esatti = [r for r in risultati if (r.get("symbol") or "").upper() == ticker]
+    return esatti or risultati
+
+
+def _testo_issue_directa(issue: directa_io.DirectaIssue) -> str:
+    """Traduce i codici del parser senza importare la lingua nella libreria."""
+    chiavi = {
+        "invalid_isin": "directa.issue_invalid_isin",
+        "missing_identifier": "directa.issue_missing_identifier",
+        "invalid_value": "directa.issue_invalid_value",
+        "invalid_quantity": "directa.issue_invalid_quantity",
+        "invalid_average": "directa.issue_invalid_average",
+    }
+    chiave = chiavi.get(issue.code)
+    return t(chiave) if chiave else issue.message
 
 
 def equalize_weights():
@@ -601,6 +755,18 @@ with st.sidebar:
     show_gross = st.checkbox(
         t("costs.show_gross_checkbox"), key="show_gross"
     )
+    with st.expander(t("costs.pic_expander")):
+        st.caption(t("costs.pic_caption"))
+        st.checkbox(t("costs.pic_enable"), key="pic_costs_enabled")
+        if st.session_state.pic_costs_enabled:
+            cost_col_a, cost_col_b = st.columns(2)
+            with cost_col_a:
+                pic_buy_rule = _regola_commissione("buy", t("costs.buy_title"))
+            with cost_col_b:
+                pic_sell_rule = _regola_commissione("sell", t("costs.sell_title"))
+        else:
+            pic_buy_rule = pic_costs.TransactionFeeRule()
+            pic_sell_rule = pic_costs.TransactionFeeRule()
 
     st.divider()
     st.subheader(t("history.subheader"))
@@ -645,6 +811,16 @@ with st.sidebar:
                     "TWELVEDATA_API_KEY": td_input.strip(),
                 }
                 api_keys_store.save(st.session_state.api_keys)
+                st.session_state.ter_refresh_rev += 1
+                for fondo in st.session_state.selected:
+                    if fondo.get("ter_origin", "missing") == "missing":
+                        _aggiorna_ter(
+                            fondo,
+                            cached_metadata(
+                                fondo["symbol"], fondo.get("isin", ""),
+                                api_key("EODHD_API_KEY"), st.session_state.ter_refresh_rev,
+                            ),
+                        )
                 st.toast(t("api_keys.saved_toast"), icon="🔑")
                 st.rerun()
         saved_keys = []
@@ -755,6 +931,212 @@ with st.sidebar:
                 file_name="THIRD_PARTY_NOTICES.txt", mime="text/plain",
             )
 
+    with st.expander(t("directa.expander")):
+        st.caption(t("directa.caption"))
+        directa_upload = st.file_uploader(
+            t("directa.upload_label"), type=["csv", "xlsx"], key="directa_upload"
+        )
+        if directa_upload is not None:
+            if directa_upload.file_id != st.session_state.directa_upload_visto:
+                st.session_state.directa_upload_visto = directa_upload.file_id
+                st.session_state.directa_file = directa_upload.getvalue()
+                st.session_state.directa_filename = directa_upload.name
+                st.session_state.directa_sheet = "CSV"
+                st.session_state.directa_header_row = 0
+            try:
+                fogli = directa_io.sheet_names(
+                    st.session_state.directa_file, st.session_state.directa_filename
+                )
+                if st.session_state.directa_sheet not in fogli:
+                    st.session_state.directa_sheet = fogli[0]
+                if len(fogli) > 1:
+                    st.selectbox(t("directa.sheet_label"), fogli, key="directa_sheet")
+                frame_directa = directa_io.read_table(
+                    st.session_state.directa_file,
+                    st.session_state.directa_filename,
+                    sheet=st.session_state.directa_sheet,
+                    header_row=st.session_state.directa_header_row,
+                )
+            except directa_io.DirectaParseError as exc:
+                st.error(t("directa.file_error", errore=str(exc)))
+                frame_directa = None
+            if frame_directa is not None:
+                st.number_input(
+                    t("directa.header_row_label"), min_value=0, max_value=20, step=1,
+                    key="directa_header_row", help=t("directa.header_row_help"),
+                )
+                # La riga delle intestazioni viene riletta al rerun successivo
+                # quando l'utente la cambia; cosi' il widget resta nel suo ordine
+                # naturale e non si assegnano chiavi Streamlit gia' istanziate.
+                colonne = list(frame_directa.columns)
+                nessuna = t("directa.no_column")
+                opzioni = [nessuna] + colonne
+                col_a, col_b = st.columns(2)
+                map_value = col_a.selectbox(
+                    t("directa.value_column"), colonne,
+                    key=f"directa_value_{st.session_state.directa_upload_visto}",
+                )
+                map_isin = col_b.selectbox(
+                    t("directa.isin_column"), opzioni,
+                    index=(opzioni.index(_colonna_suggerita(colonne, "isin"))
+                           if _colonna_suggerita(colonne, "isin") in opzioni else 0),
+                    key=f"directa_isin_{st.session_state.directa_upload_visto}",
+                )
+                col_c, col_d = st.columns(2)
+                map_ticker = col_c.selectbox(
+                    t("directa.ticker_column"), opzioni,
+                    index=(
+                        opzioni.index(_colonna_suggerita(colonne, "ticker", "symbol", "codice"))
+                        if _colonna_suggerita(colonne, "ticker", "symbol", "codice") in opzioni
+                        else 0
+                    ),
+                    key=f"directa_ticker_{st.session_state.directa_upload_visto}",
+                )
+                map_name = col_d.selectbox(
+                    t("directa.name_column"), opzioni,
+                    index=(
+                        opzioni.index(_colonna_suggerita(colonne, "nome", "descrizione", "name"))
+                        if _colonna_suggerita(colonne, "nome", "descrizione", "name") in opzioni
+                        else 0
+                    ),
+                    key=f"directa_name_{st.session_state.directa_upload_visto}",
+                )
+                col_e, col_f = st.columns(2)
+                map_currency = col_e.selectbox(
+                    t("directa.currency_column"), opzioni,
+                    key=f"directa_currency_{st.session_state.directa_upload_visto}",
+                )
+                directa_ccy = col_f.selectbox(
+                    t("directa.value_currency"), CURRENCIES, key="directa_value_currency",
+                    filter_mode=None,
+                )
+                col_g, col_h = st.columns(2)
+                map_quantity = col_g.selectbox(
+                    t("directa.quantity_column"), opzioni,
+                    index=(
+                        opzioni.index(_colonna_suggerita(colonne, "quantita", "quantity"))
+                        if _colonna_suggerita(colonne, "quantita", "quantity") in opzioni else 0
+                    ),
+                    key=f"directa_quantity_{st.session_state.directa_upload_visto}",
+                )
+                map_average = col_h.selectbox(
+                    t("directa.average_column"), opzioni,
+                    index=(
+                        opzioni.index(_colonna_suggerita(colonne, "carico", "medio", "average"))
+                        if _colonna_suggerita(colonne, "carico", "medio", "average") in opzioni
+                        else 0
+                    ),
+                    key=f"directa_average_{st.session_state.directa_upload_visto}",
+                )
+                mapping = directa_io.DirectaColumnMap(
+                    value=map_value,
+                    isin="" if map_isin == nessuna else map_isin,
+                    ticker="" if map_ticker == nessuna else map_ticker,
+                    name="" if map_name == nessuna else map_name,
+                    currency="" if map_currency == nessuna else map_currency,
+                    quantity="" if map_quantity == nessuna else map_quantity,
+                    average_price="" if map_average == nessuna else map_average,
+                )
+                try:
+                    parsed_directa = directa_io.parse_positions(frame_directa, mapping)
+                except directa_io.DirectaParseError as exc:
+                    st.warning(t("directa.mapping_error", errore=str(exc)), icon="⚠️")
+                    parsed_directa = None
+                if parsed_directa is not None:
+                    if parsed_directa.issues:
+                        st.warning(
+                            t("directa.issues", n=len(parsed_directa.issues)), icon="⚠️"
+                        )
+                        st.dataframe(
+                            pd.DataFrame([
+                                {
+                                    t("directa.issue_row"): issue.row,
+                                    t("directa.issue_column"): issue.column,
+                                    t("directa.issue_message"): _testo_issue_directa(issue),
+                                }
+                                for issue in parsed_directa.issues
+                            ]),
+                            hide_index=True, width="stretch",
+                        )
+                    if parsed_directa.positions:
+                        st.dataframe(
+                            pd.DataFrame([
+                                {
+                                    t("directa.preview_identifier"): p.identifier,
+                                    t("directa.preview_name"): p.name or p.ticker or p.isin,
+                                    t("directa.preview_value"): p.current_value,
+                                }
+                                for p in parsed_directa.positions
+                            ]),
+                            hide_index=True, width="stretch",
+                        )
+                    scelte_directa = {}
+                    irrisolti = []
+                    for posizione in parsed_directa.positions:
+                        candidati = _risultati_directa(posizione)
+                        if not candidati:
+                            irrisolti.append(posizione)
+                            continue
+                        labels = [
+                            f"{c.get('name') or c.get('symbol')} ({c.get('symbol')})"
+                            for c in candidati
+                        ]
+                        scelta = st.selectbox(
+                            t(
+                                "directa.instrument_label",
+                                nome=posizione.name or posizione.identifier,
+                            ),
+                            range(len(candidati)),
+                            format_func=lambda i, labels=labels: labels[i],
+                            key=f"directa_choice_{posizione.identifier}_{st.session_state.directa_upload_visto}",
+                        )
+                        scelte_directa[posizione.identifier] = candidati[scelta]
+                    escludi = st.checkbox(t("directa.exclude_unresolved"), key="directa_exclude")
+                    if irrisolti:
+                        st.warning(
+                            t(
+                                "directa.unresolved",
+                                elenco=", ".join(p.identifier for p in irrisolti),
+                            ),
+                            icon="🚫",
+                        )
+                    pronto = bool(scelte_directa) and (
+                        not irrisolti or escludi
+                    ) and (not parsed_directa.issues or escludi)
+                    if st.button(t("directa.import_button"), disabled=not pronto, width="stretch"):
+                        fondi_directa = []
+                        valori = []
+                        for posizione in parsed_directa.positions:
+                            candidato = scelte_directa.get(posizione.identifier)
+                            if candidato is None:
+                                continue
+                            meta = cached_metadata(
+                                candidato["symbol"], posizione.isin or candidato.get("isin", ""),
+                                api_key("EODHD_API_KEY"), st.session_state.ter_refresh_rev,
+                            )
+                            nome = meta.get("name") or posizione.name or candidato.get("name", "")
+                            alloc, fonte_alloc = classifica(nome, candidato["symbol"], meta)
+                            fondo = _fondo_da_meta(
+                                candidato["symbol"], nome,
+                                posizione.isin or candidato.get("isin", ""), meta,
+                                proxy=px.suggest_proxy(nome, candidato["symbol"]),
+                                alloc=alloc, alloc_fonte=fonte_alloc,
+                            )
+                            fondo["currency"] = directa_ccy
+                            fondi_directa.append(fondo)
+                            valori.append(posizione.current_value)
+                        if fondi_directa:
+                            for fondo, peso in zip(fondi_directa, pesi.rinormalizza(valori)):
+                                fondo["weight"] = peso
+                            st.session_state._pending_state.update({
+                                "selected": fondi_directa,
+                                "initial_value": float(sum(valori)),
+                                "base_ccy": directa_ccy,
+                            })
+                            st.session_state.composizione_rev += 1
+                            st.toast(t("directa.import_success", n=len(fondi_directa)), icon="💼")
+                            st.rerun()
+
     with st.expander(t("portfolio_io.expander")):
         st.caption(t("portfolio_io.caption"))
         importato = st.file_uploader(
@@ -819,6 +1201,27 @@ with st.sidebar:
                 # salvato, senza che nulla lo segnali.
                 if isinstance(parametri_importati.get("pac_enabled"), bool):
                     pending["pac_enabled"] = parametri_importati["pac_enabled"]
+                if isinstance(parametri_importati.get("pic_costs_enabled"), bool):
+                    pending["pic_costs_enabled"] = parametri_importati["pic_costs_enabled"]
+                else:
+                    # I file precedenti all'introduzione del prospetto non
+                    # contengono regole: importarli deve spegnere un eventuale
+                    # profilo rimasto attivo nella sessione corrente.
+                    pending["pic_costs_enabled"] = False
+                modes = {m.value for m in pic_costs.TransactionFeeMode}
+                for key in ("pic_buy_mode", "pic_sell_mode"):
+                    if parametri_importati.get(key) in modes:
+                        pending[key] = parametri_importati[key]
+                    else:
+                        pending[key] = pic_costs.TransactionFeeMode.NONE.value
+                for key in (
+                    "pic_buy_amount", "pic_buy_rate_pct", "pic_buy_min", "pic_buy_max",
+                    "pic_sell_amount", "pic_sell_rate_pct", "pic_sell_min", "pic_sell_max",
+                ):
+                    value = parametri_importati.get(key)
+                    if isinstance(value, (int, float)) and not isinstance(value, bool):
+                        if math.isfinite(float(value)) and float(value) >= 0:
+                            pending[key] = float(value)
                 if isinstance(parametri_importati.get("pac_amount"), (int, float)):
                     pending["pac_amount"] = float(parametri_importati["pac_amount"])
                 if parametri_importati.get("pac_frequency") in PAC_FREQUENCY_OPTIONS:
@@ -1000,10 +1403,26 @@ edited = st.data_editor(
 # Scritti subito e incondizionatamente: se peso/importo sono cambiati nello
 # stesso batch (vedi sotto), il `st.rerun()` di quel ramo interromperebbe lo
 # script prima di un eventuale secondo passaggio su questi campi.
+_TOLLERANZA = 0.005
 for fondo, (_, row) in zip(st.session_state.selected, edited.iterrows()):
-    fondo["ter"] = float(row["ter"])
+    ter_nuovo = float(row["ter"])
+    if abs(ter_nuovo - float(fondo.get("ter", 0.0))) > _TOLLERANZA:
+        fondo["ter_origin"] = "manual"
+        fondo["ter_auto"] = False
+    fondo["ter"] = ter_nuovo
     fondo["extra"] = float(row["extra"])
-    fondo["isin"] = (row["isin"] or "").strip().upper()
+    isin_nuovo = (row["isin"] or "").strip().upper()
+    if isin_nuovo != fondo.get("isin", ""):
+        fondo["isin"] = isin_nuovo
+        if fondo.get("ter_origin") != "manual":
+            st.session_state.ter_refresh_rev += 1
+            _aggiorna_ter(
+                fondo,
+                cached_metadata(
+                    fondo["symbol"], isin_nuovo, api_key("EODHD_API_KEY"),
+                    st.session_state.ter_refresh_rev,
+                ),
+            )
     fondo["source"] = row["source"]
     fondo["proxy"] = row["proxy"]
 
@@ -1012,7 +1431,6 @@ pesi_modificati = edited["peso"].tolist()
 importi_originali = editor_df["importo"].tolist()
 importi_modificati = edited["importo"].tolist()
 
-_TOLLERANZA = 0.005
 importo_cambiato = any(
     abs(nuovo - vecchio) > _TOLLERANZA
     for nuovo, vecchio in zip(importi_modificati, importi_originali)
@@ -1060,6 +1478,17 @@ parametri_correnti = {
     "pac_limit_window": st.session_state.pac_limit_window,
     "pac_start": st.session_state.pac_start.isoformat(),
     "pac_end": st.session_state.pac_end.isoformat(),
+    "pic_costs_enabled": st.session_state.pic_costs_enabled,
+    "pic_buy_mode": st.session_state.pic_buy_mode,
+    "pic_buy_amount": st.session_state.pic_buy_amount,
+    "pic_buy_rate_pct": st.session_state.pic_buy_rate_pct,
+    "pic_buy_min": st.session_state.pic_buy_min,
+    "pic_buy_max": st.session_state.pic_buy_max,
+    "pic_sell_mode": st.session_state.pic_sell_mode,
+    "pic_sell_amount": st.session_state.pic_sell_amount,
+    "pic_sell_rate_pct": st.session_state.pic_sell_rate_pct,
+    "pic_sell_min": st.session_state.pic_sell_min,
+    "pic_sell_max": st.session_state.pic_sell_max,
 }
 payload = portfolio_io.dump(st.session_state.selected, parametri_correnti)
 with portfolio_export:
@@ -1080,7 +1509,14 @@ b3.metric(t("editor.total_weight_metric"), f"{total_weight:.1f}%")
 b4.metric(t("editor.total_value_metric"), fmt_money(st.session_state.initial_value, base_ccy))
 
 missing_ter = [f["symbol"] for f in st.session_state.selected
-               if f["ter"] == 0 and not f["ter_auto"]]
+               if f.get("ter_origin", "missing") == "missing"]
+ter_sources = [
+    f"{f['symbol']}: {i18n.etichetta_fonte(LINGUA, f.get('ter_origin', ''))}"
+    for f in st.session_state.selected
+    if f.get("ter_origin") in {"manual", "yahoo", "eodhd"}
+]
+if ter_sources:
+    st.caption(t("ter_warning.sources", elenco="; ".join(ter_sources)))
 if missing_ter:
     eodhd_probe = Registry(eodhd_key=api_key("EODHD_API_KEY")).eodhd
     if eodhd_probe.available() and eodhd_probe.fundamentals_blocked():
@@ -1091,6 +1527,30 @@ if missing_ter:
         t("ter_warning.message", elenco=", ".join(missing_ter), motivo=motivo),
         icon="ℹ️",
     )
+    for fondo in st.session_state.selected:
+        if fondo.get("ter_origin", "missing") != "missing":
+            continue
+        tentativi = fondo.get("ter_attempts") or []
+        if tentativi:
+            esiti = " · ".join(
+                f"{i18n.etichetta_fonte(LINGUA, a.get('source', ''))}: "
+                f"{i18n.etichetta_esito(LINGUA, a.get('outcome', ''))}"
+                for a in tentativi
+            )
+            st.caption(t("ter_warning.attempts", symbol=fondo["symbol"], esiti=esiti))
+    if b5.button(t("ter_warning.retry_button"), width="stretch"):
+        st.session_state.ter_refresh_rev += 1
+        for fondo in st.session_state.selected:
+            if fondo.get("ter_origin", "missing") != "missing":
+                continue
+            _aggiorna_ter(
+                fondo,
+                cached_metadata(
+                    fondo["symbol"], fondo.get("isin", ""), api_key("EODHD_API_KEY"),
+                    st.session_state.ter_refresh_rev,
+                ),
+            )
+        st.rerun()
 
 if total_weight <= 0:
     st.error(t("weight.error_zero"))
@@ -1291,6 +1751,55 @@ except BacktestInputError as exc:
 except ValueError as exc:
     st.error(str(exc))
     st.stop()
+
+pic_estimate = None
+if st.session_state.pic_costs_enabled and pac is None:
+    try:
+        pic_estimate = pic_costs.estimate_pic_costs(
+            initial_value,
+            {f["symbol"]: f["weight"] / 100 for f in st.session_state.selected},
+            {symbol: float(value) for symbol, value in res.contributions.iloc[-1].items()},
+            pic_buy_rule,
+            pic_sell_rule,
+            currency=base_ccy,
+        )
+    except pic_costs.PicCostError as exc:
+        st.error(t("costs.pic_error", errore=str(exc)))
+    else:
+        with st.expander(t("costs.pic_result_expander"), expanded=True):
+            st.caption(t("costs.pic_result_caption"))
+            metric_a, metric_b, metric_c, metric_d = st.columns(4)
+            metric_a.metric(t("costs.pic_budget"), fmt_money(pic_estimate.budget, base_ccy))
+            metric_b.metric(t("costs.pic_buy_total"), fmt_money(pic_estimate.buy_cost, base_ccy))
+            metric_c.metric(t("costs.pic_sell_total"), fmt_money(pic_estimate.sell_cost, base_ccy))
+            metric_d.metric(t("costs.pic_net_final"), fmt_money(pic_estimate.final_net, base_ccy))
+            st.dataframe(
+                pd.DataFrame([
+                    {
+                        t("costs.pic_column_item"): t("costs.pic_line_investable"),
+                        t("costs.pic_column_value"): pic_estimate.investable,
+                    },
+                    {
+                        t("costs.pic_column_item"): t("costs.pic_line_before_sell"),
+                        t("costs.pic_column_value"): pic_estimate.final_before_sell,
+                    },
+                    {
+                        t("costs.pic_column_item"): t("costs.pic_line_without"),
+                        t("costs.pic_column_value"): pic_estimate.final_without_costs,
+                    },
+                    {
+                        t("costs.pic_column_item"): t("costs.pic_line_difference"),
+                        t("costs.pic_column_value"): pic_estimate.difference,
+                    },
+                ]),
+                hide_index=True, width="stretch",
+                column_config={
+                    t("costs.pic_column_item"): t("costs.pic_column_item"),
+                    t("costs.pic_column_value"): st.column_config.NumberColumn(
+                        t("costs.pic_column_value"), format="%.2f",
+                    ),
+                },
+            )
 
 st.divider()
 st.subheader(

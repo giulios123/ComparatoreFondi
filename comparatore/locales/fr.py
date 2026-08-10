@@ -727,6 +727,78 @@ MESSAGGI: dict[str, str] = {
         "et la fiscalité ne sont pas pris en compte. Les performances "
         "passées ne préjugent pas des performances futures."
     ),
+
+    "directa.expander": "Importer un portefeuille Directa",
+    "directa.caption": (
+        "Chargez un CSV/XLSX, mappez les colonnes et vérifiez l'aperçu avant l'import."
+    ),
+    "directa.upload_label": "Fichier exporté de Directa",
+    "directa.sheet_label": "Feuille",
+    "directa.header_row_label": "Ligne d'en-tête (0 = première ligne)",
+    "directa.header_row_help": (
+        "Si des lignes descriptives précèdent le tableau, indiquez ici la ligne d'en-tête."
+    ),
+    "directa.file_error": "Fichier Directa illisible : {errore}",
+    "directa.no_column": "(aucune)",
+    "directa.value_column": "Colonne valeur actuelle",
+    "directa.isin_column": "Colonne ISIN",
+    "directa.ticker_column": "Colonne ticker",
+    "directa.name_column": "Colonne nom",
+    "directa.currency_column": "Colonne devise (optionnelle)",
+    "directa.quantity_column": "Colonne quantité (optionnelle)",
+    "directa.average_column": "Colonne prix de revient (optionnelle)",
+    "directa.preview_identifier": "Identifiant",
+    "directa.preview_name": "Nom",
+    "directa.preview_value": "Valeur actuelle",
+    "directa.issue_row": "Ligne",
+    "directa.issue_column": "Colonne",
+    "directa.issue_message": "Problème",
+    "directa.issue_invalid_isin": "ISIN non valide.",
+    "directa.issue_missing_identifier": "ISIN ou ticker manquant.",
+    "directa.issue_invalid_value": "La valeur actuelle doit être positive.",
+    "directa.issue_invalid_quantity": "La quantité doit être positive.",
+    "directa.issue_invalid_average": "Le prix moyen de revient doit être positif.",
+    "directa.value_currency": "Devise des valeurs",
+    "directa.mapping_error": "Mappage incomplet : {errore}",
+    "directa.issues": "{n} lignes ne peuvent pas être importées",
+    "directa.instrument_label": "Cotation pour {nome}",
+    "directa.exclude_unresolved": "Exclure explicitement les lignes non importables",
+    "directa.unresolved": "Sans cotation ou non pris en charge : {elenco}",
+    "directa.import_button": "Importer les positions résolues",
+    "directa.import_success": "{n} positions Directa importées",
+    "costs.pic_expander": "Frais d'entrée et de sortie du PIC",
+    "costs.pic_caption": "Estimation séparée : le backtest et ses métriques ne changent pas.",
+    "costs.pic_enable": "Calculer l'estimation des frais PIC",
+    "costs.mode_label": "Type de frais",
+    "costs.mode_none": "Aucun frais",
+    "costs.mode_fixed": "Montant fixe par ordre",
+    "costs.mode_percentage": "Pourcentage par ordre",
+    "costs.fixed_label": "Montant fixe",
+    "costs.rate_label": "Pourcentage %",
+    "costs.minimum_label": "Minimum",
+    "costs.maximum_label": "Maximum (0 = sans limite)",
+    "costs.maximum_help": "Zéro signifie qu'aucun plafond ne s'applique.",
+    "costs.buy_title": "Entrée",
+    "costs.sell_title": "Sortie",
+    "costs.pic_error": "Impossible de calculer les frais PIC : {errore}",
+    "costs.pic_result_expander": "Impact estimé des commissions PIC",
+    "costs.pic_result_caption": (
+        "Les frais d'entrée sont réservés dans le budget ; les frais de sortie "
+        "sont calculés par fonds."
+    ),
+    "costs.pic_budget": "Budget",
+    "costs.pic_buy_total": "Total entrée",
+    "costs.pic_sell_total": "Total sortie",
+    "costs.pic_net_final": "Montant net",
+    "costs.pic_line_investable": "Capital réellement investi",
+    "costs.pic_line_before_sell": "Montant avant sortie",
+    "costs.pic_line_without": "Montant sans frais",
+    "costs.pic_line_difference": "Différence totale",
+    "costs.pic_column_item": "Élément",
+    "costs.pic_column_value": "Valeur",
+    "ter_warning.retry_button": "Réessayer la récupération du TER",
+    "ter_warning.attempts": "{symbol} : {esiti}",
+    "ter_warning.sources": "Source TER : {elenco}",
 }
 
 METRICHE: dict[str, str] = {
@@ -753,6 +825,11 @@ ESITI: dict[str, str] = {
     "no_data": "aucune donnée",
     "not_configured": "non configurée",
     "isin_required": "ISIN requis",
+    "found": "trouvé",
+    "no_ter": "TER absent",
+    "blocked": "bloqué par le forfait",
+    "symbol_unresolved": "symbole non résolu",
+    "temporary_error": "erreur temporaire",
 }
 
 TERMINI: dict[str, str] = {
@@ -805,6 +882,8 @@ TERMINI: dict[str, str] = {
 
 FONTI: dict[str, str] = {
     "auto": "Automatique",
+    "manual": "Saisie manuelle",
+    "missing": "Indisponible",
     "yahoo": "Yahoo Finance",
     "justetf": "justETF",
     "eodhd": "EODHD",

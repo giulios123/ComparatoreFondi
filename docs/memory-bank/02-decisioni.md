@@ -342,3 +342,27 @@ di "saltare" un fondo senza prezzi confidando nella rinormalizzazione a valle.
 **Traccia.** `comparatore/engine.py` (`BacktestInputError`, `valida_prezzi`,
 `valida_holdings`, `etichette_uniche`); `app.py` (guardia prima della
 costruzione degli `Holding`, `rimuovi_fondi_assenti`); spec `002`.
+
+### 22 · TER riprovabile, Directa a mappatura guidata e costi PIC fuori dal motore
+
+*Agosto 2026 — spec [`003-ter-directa-costi-pic`](../spec-driven/specs/003-ter-directa-costi-pic/spec.md)*
+
+**Contesto.** Yahoo ed EODHD non hanno copertura uniforme del TER e un errore
+temporaneo veniva mostrato come dato assente e conservato nella cache. Directa
+non offre uno schema pubblico stabile per l'export del portafoglio, mentre il
+backtest non aveva un modo per stimare i costi di carico e scarico di un PIC.
+
+**Scelta.** I metadati espongono tentativi e provenienza, con retry esplicito,
+cache negativa breve e mapping Yahoo → EODHD corretto; il valore TER manuale
+resta autorevole. Directa si importa da CSV/XLSX con anteprima e mappatura delle
+colonne, usando controvalori correnti e sostituendo il portafoglio. Le API
+Directa restano fuori scope. Le commissioni PIC sono due regole globali
+(carico/scarico) e producono un prospetto separato: il motore e le metriche
+restano invariati, e il carico viene riservato dentro il budget.
+
+**Conseguenze.** L'app spiega perché il TER non è disponibile e offre una via
+di riprova; un file Directa può essere adattato anche se cambiano intestazioni;
+il confronto dei costi non viene confuso con il TER o con le metriche annuali.
+
+**Traccia.** `comparatore/sources/registry.py`, `comparatore/directa_io.py`,
+`comparatore/pic_costs.py`, `app.py`, spec `003`.

@@ -156,6 +156,14 @@ class TestSintassiApp(unittest.TestCase):
         self.assertIn("res.labels", sorgente)
         self.assertNotIn("label_splice", sorgente)
 
+    def test_nuovi_flussi_restano_nell_interfaccia(self):
+        sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn("directa_io.parse_positions", sorgente)
+        self.assertIn("cached_metadata(", sorgente)
+        self.assertIn("ter_warning.retry_button", sorgente)
+        self.assertIn("pic_costs.estimate_pic_costs", sorgente)
+        self.assertIn("pac is None", sorgente)
+
 
 if __name__ == "__main__":
     unittest.main()

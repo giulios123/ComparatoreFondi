@@ -705,6 +705,80 @@ MESSAGGI: dict[str, str] = {
         "ingresso/uscita, spread né fiscalità. Le performance passate non sono "
         "indicative di quelle future."
     ),
+
+    # --- Import Directa e costi PIC ----------------------------------------------------
+    "directa.expander": "Importa portafoglio Directa",
+    "directa.caption": (
+        "Carica CSV/XLSX, mappa le colonne e controlla l'anteprima prima dell'import."
+    ),
+    "directa.upload_label": "File esportato da Directa",
+    "directa.sheet_label": "Foglio",
+    "directa.header_row_label": "Riga delle intestazioni (0 = prima riga)",
+    "directa.header_row_help": (
+        "Se il file ha righe descrittive prima della tabella, indica qui la riga "
+        "delle intestazioni."
+    ),
+    "directa.file_error": "File Directa non leggibile: {errore}",
+    "directa.no_column": "(nessuna)",
+    "directa.value_column": "Colonna controvalore attuale",
+    "directa.isin_column": "Colonna ISIN",
+    "directa.ticker_column": "Colonna ticker",
+    "directa.name_column": "Colonna nome",
+    "directa.currency_column": "Colonna valuta (opzionale)",
+    "directa.quantity_column": "Colonna quantità (opzionale)",
+    "directa.average_column": "Colonna prezzo di carico (opzionale)",
+    "directa.preview_identifier": "Identificatore",
+    "directa.preview_name": "Nome",
+    "directa.preview_value": "Controvalore",
+    "directa.issue_row": "Riga",
+    "directa.issue_column": "Colonna",
+    "directa.issue_message": "Problema",
+    "directa.issue_invalid_isin": "ISIN non valido.",
+    "directa.issue_missing_identifier": "Manca ISIN o ticker.",
+    "directa.issue_invalid_value": "Il controvalore deve essere positivo.",
+    "directa.issue_invalid_quantity": "La quantità deve essere positiva.",
+    "directa.issue_invalid_average": "Il prezzo medio di carico deve essere positivo.",
+    "directa.value_currency": "Valuta dei controvalori",
+    "directa.mapping_error": "Mappatura incompleta: {errore}",
+    "directa.issues": "{n} righe non importabili",
+    "directa.instrument_label": "Quotazione per {nome}",
+    "directa.exclude_unresolved": "Escludi esplicitamente le righe non importabili",
+    "directa.unresolved": "Senza quotazione o non supportati: {elenco}",
+    "directa.import_button": "Importa le posizioni risolte",
+    "directa.import_success": "Importate {n} posizioni Directa",
+    "costs.pic_expander": "Costi di carico e scarico PIC",
+    "costs.pic_caption": "Prospetto separato: il backtest e le sue metriche non cambiano.",
+    "costs.pic_enable": "Calcola il prospetto costi PIC",
+    "costs.mode_label": "Tipo di costo",
+    "costs.mode_none": "Nessun costo",
+    "costs.mode_fixed": "Importo fisso per ordine",
+    "costs.mode_percentage": "Percentuale per ordine",
+    "costs.fixed_label": "Importo fisso",
+    "costs.rate_label": "Percentuale %",
+    "costs.minimum_label": "Minimo",
+    "costs.maximum_label": "Massimo (0 = nessun limite)",
+    "costs.maximum_help": "Il massimo a zero significa che non viene applicato alcun tetto.",
+    "costs.buy_title": "Carico",
+    "costs.sell_title": "Scarico",
+    "costs.pic_error": "Impossibile calcolare i costi PIC: {errore}",
+    "costs.pic_result_expander": "Impatto stimato delle commissioni PIC",
+    "costs.pic_result_caption": (
+        "Il carico e' riservato dentro il budget; lo scarico e' calcolato "
+        "sul montante di ogni fondo."
+    ),
+    "costs.pic_budget": "Budget",
+    "costs.pic_buy_total": "Carico totale",
+    "costs.pic_sell_total": "Scarico totale",
+    "costs.pic_net_final": "Montante netto",
+    "costs.pic_line_investable": "Capitale realmente investito",
+    "costs.pic_line_before_sell": "Montante prima dello scarico",
+    "costs.pic_line_without": "Montante senza costi",
+    "costs.pic_line_difference": "Differenza complessiva",
+    "costs.pic_column_item": "Voce",
+    "costs.pic_column_value": "Valore",
+    "ter_warning.retry_button": "Riprova il recupero TER",
+    "ter_warning.attempts": "{symbol}: {esiti}",
+    "ter_warning.sources": "Fonte TER: {elenco}",
 }
 
 # Traduzione dei nomi di metrica: chiavi = quelle di `comparatore.metrics.summarize()`
@@ -735,6 +809,11 @@ ESITI: dict[str, str] = {
     "no_data": "nessun dato",
     "not_configured": "non configurata",
     "isin_required": "serve l'ISIN",
+    "found": "trovato",
+    "no_ter": "TER assente",
+    "blocked": "bloccata dal piano",
+    "symbol_unresolved": "simbolo non risolto",
+    "temporary_error": "errore temporaneo",
 }
 
 # Traduzione dei termini di dominio: bucket di `comparatore.allocazione`
@@ -792,6 +871,8 @@ TERMINI: dict[str, str] = {
 # ("nome" per la classificazione dedotta dal nome, senza fonte dati).
 FONTI: dict[str, str] = {
     "auto": "Automatica",
+    "manual": "Inserito manualmente",
+    "missing": "Non disponibile",
     "yahoo": "Yahoo Finance",
     "justetf": "justETF",
     "eodhd": "EODHD",

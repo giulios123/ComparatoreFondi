@@ -22,6 +22,16 @@ class TestDumpLoad(unittest.TestCase):
         self.assertIn("alloc_manuale", fondi[0])
         self.assertEqual(fondi[0]["alloc_manuale"], {"classe": "", "area": "", "settore": ""})
 
+    def test_load_backfills_ter_origin_without_losing_manual_value(self):
+        testo = pio.dump([dict(FONDO_MINIMO, ter=0.37, ter_auto=False)], {})
+        fondi, _ = pio.load(testo)
+        self.assertEqual(fondi[0]["ter_origin"], "manual")
+
+    def test_load_backfills_missing_ter_origin(self):
+        testo = pio.dump([dict(FONDO_MINIMO, ter=0.0, ter_auto=False)], {})
+        fondi, _ = pio.load(testo)
+        self.assertEqual(fondi[0]["ter_origin"], "missing")
+
     def test_load_accepts_bytes(self):
         testo = pio.dump([dict(FONDO_MINIMO)], {})
         fondi, _ = pio.load(testo.encode("utf-8"))

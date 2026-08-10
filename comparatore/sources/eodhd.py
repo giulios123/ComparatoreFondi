@@ -65,6 +65,7 @@ class EodhdSource:
 
     def __init__(self, api_key: str | None = None) -> None:
         self.api_key = (api_key or os.environ.get("EODHD_API_KEY") or "").strip()
+        self.last_metadata_outcome = "not_configured" if not self.api_key else "temporary_error"
 
     def available(self) -> bool:
         return bool(self.api_key)
@@ -136,6 +137,7 @@ class EodhdSource:
 
     def metadata(self, symbol: str) -> Instrument | None:
         if not self.available():
+            self.last_metadata_outcome = "not_configured"
             return None
         try:
             r = requests.get(
@@ -151,11 +153,18 @@ class EodhdSource:
                 # puo' vederlo". Riverificato ogni giorno, cosi' un upgrade di
                 # piano si riflette da solo senza bisogno di riavviare l'app.
                 cache.write_meta("eodhd-fundamentals-blocked", {"bloccato": True})
+                self.last_metadata_outcome = "blocked"
                 return None
             r.raise_for_status()
             payload = r.json() or {}
         except Exception:
+            # Un 403 precedente non deve continuare a spiegare un errore
+            # temporaneo per un'intera giornata: l'esito piu' recente vince.
+            cache.write_meta("eodhd-fundamentals-blocked", {"bloccato": False})
+            self.last_metadata_outcome = "temporary_error"
             return None
+
+        cache.write_meta("eodhd-fundamentals-blocked", {"bloccato": False})
 
         general = payload.get("General") or {}
         etf_data = payload.get("ETF_Data") or {}
@@ -185,6 +194,7 @@ class EodhdSource:
         # `Sector_Weights`: e' l'unica fonte che dice *che cosa* e' uno
         # strumento, e la chiamata e' gia' stata pagata per il TER.
         alloc = allocazione.classifica_da_eodhd(etf_data)
+        self.last_metadata_outcome = "found" if ter is not None else "no_ter"
 
         return Instrument(
             symbol=symbol,
@@ -194,6 +204,7 @@ class EodhdSource:
             currency=(general.get("CurrencyCode") or "").upper(),
             ter=ter,
             ter_source="eodhd" if ter is not None else "",
+            ter_origin="eodhd" if ter is not None else "",
             isin=(general.get("ISIN") or "").upper(),
             allocation=alloc,
             allocation_source="eodhd" if alloc else "",
@@ -218,8 +229,31 @@ class EodhdSource:
         """
         code = (isin or symbol or "").strip().upper()
         if not is_isin(code):
-            # Gia' un simbolo di borsa: si usa com'e'.
-            return symbol
+            # Un ticker Yahoo puo' avere una piazza diversa da quella EODHD
+            # (VWCE.DE contro VWCE.XETRA). Si cerca il codice EODHD solo quando
+            # la conversione della piazza e' univoca; altrimenti si mantiene
+            # il comportamento precedente e si prova il simbolo originale.
+            if "." not in symbol:
+                return symbol
+            ticker, yahoo_exchange = symbol.rsplit(".", 1)
+            exchange = {
+                "DE": "XETRA", "MI": "MI", "AS": "AS", "F": "F",
+                "L": "LSE", "PA": "PA", "SW": "SW", "MC": "MC",
+            }.get(yahoo_exchange)
+            if not exchange:
+                return symbol
+            hits = self.search(ticker, limit=20, funds_only=False)
+            exact = [
+                hit for hit in hits
+                if hit.exchange.upper() == exchange
+                and to_yahoo_symbol(hit.symbol).upper() == symbol.upper()
+            ]
+            # Restituire il ticker Yahoo in caso di mancata corrispondenza era
+            # pericoloso: EODHD lo avrebbe poi interrogato come se fosse un
+            # proprio simbolo, mascherando un mapping fallito come un errore
+            # generico della fonte. Per le piazze riconoscibili, nessun match
+            # esatto significa davvero "simbolo non risolto".
+            return exact[0].symbol if exact else None
 
         retention_days = cache.restricted_retention_days()
         cached = cache.read_meta(f"eodhd-sym/{code}", retention_days)
@@ -241,6 +275,24 @@ class EodhdSource:
                 return None
 
         hits = self.search(code, limit=10, funds_only=False)
+        if "." in symbol and symbol.rsplit(".", 1)[1].upper() in {
+            "DE", "MI", "AS", "F", "L", "PA", "SW", "MC",
+        }:
+            # L'ISIN può avere più quotazioni. L'ordine di EODHD non è una
+            # garanzia: si accetta soltanto quella che torna esattamente al
+            # ticker Yahoo originale, e solo in assenza di piazza nel ticker
+            # si usa il ranking europeo qui sotto.
+            exact = [
+                hit for hit in hits
+                if to_yahoo_symbol(hit.symbol).upper() == symbol.upper()
+            ]
+            if not exact:
+                cache.write_meta(
+                    f"eodhd-sym/{code}",
+                    {"symbol": "", "visto": dt.datetime.now().isoformat(timespec="seconds")},
+                )
+                return None
+            hits = exact
         resolved = None
         if hits:
             def rank(instrument) -> int:

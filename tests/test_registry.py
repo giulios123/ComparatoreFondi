@@ -131,6 +131,15 @@ class RegistryMetadataTests(unittest.TestCase):
         )
         self.assertEqual(info.allocation_source, "yahoo")
 
+    def test_metadata_resolution_reports_found_and_unconfigured(self) -> None:
+        registry = Registry()
+        registry.yahoo = _MetadataSource(
+            Instrument("TEST", "Test Fund", "ETF", ter=0.002, ter_source="annual")
+        )
+        result = registry.metadata_resolution("TEST")
+        self.assertEqual(result.attempts[0].outcome, "found")
+        self.assertEqual(result.attempts[1].outcome, "not_configured")
+
 
 if __name__ == "__main__":
     unittest.main()
