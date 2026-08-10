@@ -232,12 +232,18 @@ MESSAGGI: dict[str, str] = {
     "editor.col_simbolo": "Symbol",
     "editor.col_isin": "ISIN",
     "editor.col_valuta": "Currency",
+    "editor.col_distribuzione": "Distribution",
+    "editor.col_replica": "Replication",
     "editor.col_peso": "Weight %",
     "editor.col_importo": "Amount ({ccy})",
     "editor.col_ter": "TER %",
     "editor.col_extra": "Extra costs %",
     "editor.col_fonte": "Source",
     "editor.col_proxy": "History proxy",
+    "metadata.distribution_accumulating": "Accumulating",
+    "metadata.distribution_distributing": "Distributing",
+    "metadata.replication_physical": "Physical",
+    "metadata.replication_synthetic": "Synthetic",
     "editor.rimuovi_help": (
         "Removes the fund from the portfolio and redistributes its weight to the "
         "others, keeping their proportions."
@@ -691,6 +697,84 @@ MESSAGGI: dict[str, str] = {
         "taxation are not considered. Past performance is not indicative "
         "of future results."
     ),
+
+    "directa.expander": "Import Directa portfolio",
+    "directa.caption": "Upload CSV/XLSX, map the columns and review the preview before importing.",
+    "directa.upload_label": "File exported from Directa",
+    "directa.sheet_label": "Sheet",
+    "directa.header_row_label": "Header row (0 = first row)",
+    "directa.header_row_help": "If descriptive rows precede the table, select the header row here.",
+    "directa.file_error": "Directa file could not be read: {errore}",
+    "directa.movements_file": (
+        "This is a movements export, not a positions export: it contains "
+        "trades and fees but no current market value. To import the portfolio, "
+        "use Directa's positions/portfolio export."
+    ),
+    "directa.no_column": "(none)",
+    "directa.value_column": "Current value column",
+    "directa.isin_column": "ISIN column",
+    "directa.ticker_column": "Ticker column",
+    "directa.name_column": "Name column",
+    "directa.currency_column": "Currency column (optional)",
+    "directa.quantity_column": "Quantity column (optional)",
+    "directa.average_column": "Average cost column (optional)",
+    "directa.preview_identifier": "Identifier",
+    "directa.preview_name": "Name",
+    "directa.preview_value": "Current value",
+    "directa.issue_row": "Row",
+    "directa.issue_column": "Column",
+    "directa.issue_message": "Problem",
+    "directa.issue_invalid_isin": "Invalid ISIN.",
+    "directa.issue_missing_identifier": "ISIN or ticker is missing.",
+    "directa.issue_summary_row": "Summary row without an instrument: exclude it from the import.",
+    "directa.issue_invalid_value": "Current value must be positive.",
+    "directa.issue_invalid_quantity": "Quantity must be positive.",
+    "directa.issue_invalid_average": "Average loading price must be positive.",
+    "directa.value_currency": "Value currency",
+    "directa.mapping_error": "Incomplete mapping: {errore}",
+    "directa.issues": "{n} rows cannot be imported",
+    "directa.instrument_label": "Listing for {nome}",
+    "directa.exclude_unresolved": "Explicitly exclude rows that cannot be imported",
+    "directa.unresolved": "Without a listing or unsupported: {elenco}",
+    "directa.import_button": "Import resolved positions",
+    "directa.import_success": "Imported {n} Directa positions",
+    "costs.pic_expander": "PIC entry and exit costs",
+    "costs.pic_caption": "Separate estimate: the backtest and its metrics do not change.",
+    "costs.pic_enable": "Calculate the PIC cost estimate",
+    "costs.mode_label": "Cost type",
+    "costs.mode_none": "No cost",
+    "costs.mode_fixed": "Fixed amount per order",
+    "costs.mode_percentage": "Percentage per order",
+    "costs.fixed_label": "Fixed amount",
+    "costs.rate_label": "Percentage %",
+    "costs.minimum_label": "Minimum",
+    "costs.maximum_label": "Maximum (0 = no limit)",
+    "costs.maximum_help": "Zero means no maximum cap is applied.",
+    "costs.buy_title": "Entry",
+    "costs.sell_title": "Exit",
+    "costs.pic_error": "PIC costs could not be calculated: {errore}",
+    "costs.pic_result_expander": "Estimated impact of PIC commissions",
+    "costs.pic_result_caption": (
+        "Entry costs are reserved inside the budget; exit costs are "
+        "calculated per fund's final value."
+    ),
+    "costs.pic_budget": "Budget",
+    "costs.pic_buy_total": "Total entry",
+    "costs.pic_sell_total": "Total exit",
+    "costs.pic_net_final": "Net amount",
+    "costs.pic_line_investable": "Actually invested",
+    "costs.pic_line_before_sell": "Amount before exit",
+    "costs.pic_line_without": "Amount without costs",
+    "costs.pic_line_difference": "Total difference",
+    "costs.pic_column_item": "Item",
+    "costs.pic_column_value": "Value",
+    "costs.pic_column_side": "Operation",
+    "costs.pic_column_symbol": "Symbol",
+    "costs.pic_column_notional": "Order value",
+    "costs.pic_column_fee": "Fee",
+    "ter_warning.retry_button": "Retry TER retrieval",
+    "ter_warning.attempts": "{symbol}: {esiti}",
+    "ter_warning.sources": "TER source: {elenco}",
 }
 
 METRICHE: dict[str, str] = {
@@ -717,6 +801,11 @@ ESITI: dict[str, str] = {
     "no_data": "no data",
     "not_configured": "not configured",
     "isin_required": "ISIN required",
+    "found": "found",
+    "no_ter": "TER unavailable",
+    "blocked": "blocked by plan",
+    "symbol_unresolved": "symbol not resolved",
+    "temporary_error": "temporary error",
 }
 
 TERMINI: dict[str, str] = {
@@ -769,6 +858,8 @@ TERMINI: dict[str, str] = {
 
 FONTI: dict[str, str] = {
     "auto": "Automatic",
+    "manual": "Entered manually",
+    "missing": "Not available",
     "yahoo": "Yahoo Finance",
     "justetf": "justETF",
     "eodhd": "EODHD",

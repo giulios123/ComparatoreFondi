@@ -78,6 +78,9 @@ class YahooSource:
     name = "yahoo"
     label = "Yahoo Finance"
 
+    def __init__(self) -> None:
+        self.last_metadata_outcome = "temporary_error"
+
     def available(self) -> bool:
         return True
 
@@ -160,6 +163,12 @@ class YahooSource:
             # aggiunta.
             allocation, holdings = _fund_composition(ticker)
 
+        self.last_metadata_outcome = (
+            "temporary_error"
+            if name == symbol and not currency and not quote_type and ter is None and not allocation
+            else "found" if ter is not None else "no_ter"
+        )
+
         return Instrument(
             symbol=symbol,
             name=name,
@@ -169,6 +178,7 @@ class YahooSource:
             currency=currency,
             ter=ter,
             ter_source=source,
+            ter_origin="yahoo" if ter is not None else "",
             allocation=allocation,
             allocation_source="yahoo" if allocation else "",
             holdings=holdings,

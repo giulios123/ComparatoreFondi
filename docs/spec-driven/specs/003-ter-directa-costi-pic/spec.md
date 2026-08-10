@@ -1,0 +1,77 @@
+# 003 · TER affidabili, import Directa e costi PIC
+
+*Stato: fatta — 10 agosto 2026*
+
+## Problema
+
+Il TER viene letto durante l'aggiunta del fondo, ma le fonti hanno copertura
+irregolare, gli errori temporanei vengono confusi con un TER assente e il
+risultato negativo resta in cache. Se l'utente configura una chiave o corregge
+l'ISIN dopo l'aggiunta, il fondo gia' presente non viene riprovato.
+
+Directa mostra posizioni con ISIN e controvalore, ma l'app non sa importarli da
+un file e non esiste un formato pubblico stabile da assumere senza un campione.
+
+Il PIC non espone il costo di carico e scarico: l'utente puo' quindi confrontare
+montanti che ignorano commissioni fisse o percentuali con minimo e massimo.
+
+## Chi lo incontra
+
+Chi aggiunge ETF o fondi con una fonte TER intermittente, chi ricostruisce il
+portafoglio corrente da Directa e chi valuta un PIC con un piano commissionale.
+
+## Criteri di accettazione
+
+1. Un tentativo TER distingue a video almeno: trovato, TER assente, fonte non
+   configurata, fundamentals EODHD bloccato, simbolo non risolto ed errore
+   temporaneo; se l'utente ha attivato justETF, questa diventa la fonte TER
+   preferita per i metadati ETF identificati da ISIN. Un valore TER inserito
+   manualmente non viene sostituito e il fondo conserva fonte e provenienza
+   del valore mostrato.
+2. Un comando di riprova rilancia i TER mancanti senza sovrascrivere un valore
+   inserito manualmente; configurare una chiave, modificare l'ISIN o importare
+   da Directa rilancia automaticamente i soli valori mancanti.
+3. Un file CSV o XLSX puo' essere caricato, mappato in anteprima e importato
+   dopo aver risolto o escluso esplicitamente ogni riga; capitale e pesi usano
+   i controvalori attuali e nessuna riga viene scartata senza motivo visibile.
+   Gli export Directa dei movimenti riconoscono automaticamente l'intestazione
+   anche dopo righe descrittive, ma vengono indicati come storico operazioni e
+   non possono essere usati come portafoglio finche' non contengono un
+   controvalore attuale.
+4. Quando disponibili dai metadati della fonte, la posizione mostra la politica
+   di distribuzione (accumulazione/distribuzione) e il metodo di replica
+   (fisica/sintetica); i campi sono persistiti e i portafogli precedenti li
+   assumono non disponibili.
+5. Il prospetto PIC accetta regole indipendenti di acquisto e vendita (nessuna,
+   fissa, percentuale con minimo/massimo), riserva il carico dentro il budget,
+   calcola lo scarico per posizione e mostra montante netto e costi separati,
+   con gli importi delle commissioni alla precisione monetaria della valuta.
+6. Con PAC attivo il prospetto commissioni resta nascosto e il backtest,
+   curve e metriche esistenti restano invariati.
+7. I portafogli esportati prima della modifica continuano a caricarsi; le
+   nuove opzioni e la provenienza TER vengono esportate senza chiavi segrete.
+8. I test standard e `ruff check .` restano puliti e la libreria non importa
+   Streamlit.
+
+## Non-obiettivi
+
+- Nuovi provider TER o integrazione con le API Directa. justETF resta l'unica
+  eccezione opt-in, limitata al TER/metadati e soggetta ai suoi termini.
+- Ricostruzione delle operazioni storiche, fiscalita' o liquidita' Directa.
+- Applicazione delle commissioni alle rate PAC o modifica delle metriche del
+  motore di backtest.
+
+## Vincoli
+
+- `comparatore/` resta indipendente da Streamlit; ogni testo a video passa da
+  `t()` e viene aggiunto ai quattro cataloghi.
+- L'import Directa usa una mappatura guidata; i nomi osservati nei campioni
+  reali servono solo a preselezionare le colonne e non diventano un contratto
+  rigido del parser.
+- Il portafoglio importato sostituisce quello corrente e usa la valuta indicata
+  dall'utente per i controvalori.
+- Il valore manuale del TER e' autorevole anche quando e' zero.
+
+## Domande aperte
+
+- Nessuna.

@@ -156,6 +156,24 @@ class TestSintassiApp(unittest.TestCase):
         self.assertIn("res.labels", sorgente)
         self.assertNotIn("label_splice", sorgente)
 
+    def test_nuovi_flussi_restano_nell_interfaccia(self):
+        sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn("directa_io.parse_positions", sorgente)
+        self.assertIn("cached_metadata(", sorgente)
+        self.assertIn("ter_warning.retry_button", sorgente)
+        self.assertIn("pic_costs.estimate_pic_costs", sorgente)
+        self.assertIn("pac is None", sorgente)
+        self.assertIn("fmt_money(pic_estimate.buy_cost, base_ccy, decimals=2)", sorgente)
+        self.assertIn("fmt_money(pic_estimate.sell_cost, base_ccy, decimals=2)", sorgente)
+        self.assertIn("justetf=bool(st.session_state.enable_justetf)", sorgente)
+        self.assertIn("directa_io.suggest_header_row", sorgente)
+        self.assertIn("directa_io.detect_export_kind", sorgente)
+        self.assertIn('tipo_export != "movements"', sorgente)
+        self.assertIn('"distribution_policy": meta.get("distribution_policy")', sorgente)
+        self.assertIn('t("editor.col_distribuzione")', sorgente)
+        self.assertIn('t("editor.col_replica")', sorgente)
+        self.assertIn("_mancano_metadati_etf(fondo)", sorgente)
+
 
 if __name__ == "__main__":
     unittest.main()

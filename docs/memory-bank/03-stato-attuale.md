@@ -1,6 +1,6 @@
 # Stato attuale
 
-*Aggiornato: 3 agosto 2026*
+*Aggiornato: 10 agosto 2026*
 
 ## Dove siamo
 
@@ -44,6 +44,22 @@ confronta con i fondi pensione COVIP.
   robustezza verso CSV caricati con date disordinate, e guardia in
   `valida_prezzi()` che solleva se l'indice non è ordinato (per catturare
   anomalie). Test aggiunti in `ValidaPrezziTests` (164 test totali, tutti verdi).
+- **TER, import Directa e costi PIC** — spec
+  [`003-ter-directa-costi-pic`](../spec-driven/specs/003-ter-directa-costi-pic/spec.md):
+  il recupero dei metadati conserva tentativi e provenienza, ha retry esplicito
+  e corregge il mapping Yahoo → EODHD; con opt-in justETF può usare anche il
+  TER dalla pagina profilo dell'ETF come fonte preferita con opt-in, senza
+  sovrascrivere un TER manuale; CSV/XLSX Directa si importano con
+  mappatura guidata. Il parser riconosce anche intestazioni dopo righe
+  descrittive, preseleziona gli alias con accenti e distingue gli export
+  "Movimenti" dagli export di posizioni: lo storico non viene interpretato
+  come controvalore attuale. Le posizioni Directa riconoscono anche i totali di
+  coda come righe da escludere esplicitamente. Per gli ETF, con justETF abilitato,
+  vengono conservate politica di distribuzione e metodo di replica, visibili
+  nell'editor; i vecchi JSON ricevono n/d. Il PIC espone un prospetto separato
+  per carico e scarico senza alterare il backtest. I test sono 188; il mapping
+  delle piazze MI distingue una quotazione EODHD identica e gli importi delle
+  commissioni mostrano i centesimi.
 
 ## Aperto, e noto
 
@@ -51,7 +67,7 @@ confronta con i fondi pensione COVIP.
 |---|---|
 | **App non firmate** | Gatekeeper e SmartScreen avvisano. Decisione 17: costa 99 $/anno + 70-250 $/anno, rimandata |
 | **macOS solo arm64** | La build CI gira su `macos-latest`; per Intel/universal va adattato il workflow |
-| **Import e CI** | L'[audit tecnico](../audit-codebase-2026-08-01.md) ha confermato validazione semantica insufficiente nell'import JSON (P2, non ancora affrontato) e action GitHub fissate a tag mutabili invece che a SHA (P2, non ancora affrontato). |
+| **Import JSON e CI** | L'[audit tecnico](../audit-codebase-2026-08-01.md) ha confermato validazione semantica insufficiente nell'import JSON (P2, non ancora affrontato) e action GitHub fissate a tag mutabili invece che a SHA (P2, non ancora affrontato). L'import Directa ha invece validazione propria e mappatura guidata. |
 
 ## Da sapere per lavorarci
 

@@ -31,6 +31,7 @@ _CATALOGHI = {"it": it, "en": en, "fr": fr, "de": de}
 # Separatore delle migliaia per `fmt_money()`: con `format="%.0f"` (nessun
 # decimale) e' l'unico aspetto della formattazione numerica che cambia.
 SEPARATORE_MIGLIAIA = {"it": ".", "en": ",", "fr": " ", "de": "."}
+SEPARATORE_DECIMALE = {"it": ",", "en": ".", "fr": ",", "de": ","}
 
 # Formato di `st.date_input` e dei pattern `strftime`/hovertemplate Plotly.
 FORMATO_DATA = {"it": "DD/MM/YYYY", "en": "MM/DD/YYYY", "fr": "DD/MM/YYYY", "de": "DD.MM.YYYY"}
@@ -176,3 +177,7 @@ def formato_mese_anno(lingua: str) -> str:
 
 def separatore_migliaia(lingua: str) -> str:
     return SEPARATORE_MIGLIAIA.get(lingua, SEPARATORE_MIGLIAIA[DEFAULT])
+
+
+def separatore_decimale(lingua: str) -> str:
+    return SEPARATORE_DECIMALE.get(lingua, SEPARATORE_DECIMALE[DEFAULT])

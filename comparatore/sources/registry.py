@@ -45,6 +45,22 @@ class Attempt:
 
 
 @dataclass
+class MetadataAttempt:
+    source: str
+    # "found" | "no_ter" | "not_configured" | "blocked" |
+    # "symbol_unresolved" | "temporary_error"
+    outcome: str
+    detail: str = ""
+
+
+@dataclass
+class MetadataResolution:
+    symbol: str
+    instrument: Instrument
+    attempts: list[MetadataAttempt] = field(default_factory=list)
+
+
+@dataclass
 class Resolution:
     symbol: str
     series: PriceSeries | None
@@ -177,6 +193,7 @@ class Registry:
                         info.name = alt.name
                     if info.ter is None:
                         info.ter, info.ter_source = alt.ter, alt.ter_source
+                        info.ter_origin = alt.ter_origin
                     if not info.quote_type:
                         info.quote_type = alt.quote_type
                     if not info.allocation and alt.allocation:
@@ -191,31 +208,137 @@ class Registry:
         # Yahoo, se manca ancora quella dimensione. Senza chiave `available()`
         # e' False e non parte nessuna chiamata.
         manca_area = "area" not in (info.allocation or {})
+        if (
+            self.enable_justetf
+            and not info.isin
+            and (
+                info.ter is None
+                or not info.distribution_policy
+                or not info.replication_method
+                or info.ter_origin != "justetf"
+            )
+            and self.eodhd.available()
+        ):
+            # La ricerca EODHD resta disponibile anche quando il piano blocca
+            # l'endpoint fundamentals: serve qui solo a passare l'ISIN a justETF.
+            eod_symbol = self.eodhd.resolve_metadata_symbol(symbol)
+            if eod_symbol:
+                ticker = symbol.rsplit(".", 1)[0].upper()
+                for hit in self.eodhd.search(ticker, limit=20, funds_only=False):
+                    if hit.symbol.upper() == eod_symbol.upper() and hit.isin:
+                        info.isin = hit.isin
+                        break
+
+        if self.enable_justetf and (
+            info.ter is None
+            or not info.distribution_policy
+            or not info.replication_method
+            or info.ter_origin != "justetf"
+        ):
+            justetf_info = self.justetf.metadata(symbol, info.isin)
+            if justetf_info is not None:
+                # L'opt-in esplicito rende justETF la fonte TER preferita per
+                # l'ISIN; l'override manuale viene protetto piu' avanti
+                # nell'app, quando il valore entra nel portafoglio.
+                if justetf_info.ter is not None:
+                    info.ter = justetf_info.ter
+                    info.ter_source = justetf_info.ter_source
+                    info.ter_origin = justetf_info.ter_origin
+                if not info.distribution_policy:
+                    info.distribution_policy = justetf_info.distribution_policy
+                if not info.replication_method:
+                    info.replication_method = justetf_info.replication_method
+                if info.name == symbol and justetf_info.name:
+                    info.name = justetf_info.name
+                info.isin = info.isin or justetf_info.isin
+
         if (info.ter is None or not info.allocation or manca_area) and self.eodhd.available():
             # Il simbolo di Yahoo non e' quello di EODHD (VWCE.DE contro
             # VWCE.XETRA): senza la traduzione la richiesta cadrebbe nel vuoto
             # proprio nei casi in cui la fonte servirebbe. La corrispondenza
             # resta in cache, quindi si paga una volta sola per strumento.
-            eod_symbol = self.eodhd.resolve_symbol(symbol, info.isin) or symbol
-            richer = self.eodhd.metadata(eod_symbol)
-            if richer is not None:
-                if info.ter is None and richer.ter is not None:
-                    info.ter, info.ter_source = richer.ter, richer.ter_source
-                if richer.allocation:
-                    # EODHD vince per dimensione quando la copre (percentuali
-                    # vere), Yahoo colma quelle che EODHD non ha - tipicamente
-                    # `area`, che Yahoo non espone mai. Stessa combinazione
-                    # che `app.classifica()` fa poi col nome.
-                    fuso = allocazione.unisci(richer.allocation, info.allocation)
-                    if fuso != info.allocation:
-                        info.allocation = fuso
-                        if fuso == richer.allocation:
-                            info.allocation_source = richer.allocation_source
-            if not info.currency:
-                # Stesso ripiego di `EodhdSource.prices()`: `/fundamentals`
-                # puo' essere bloccato dal piano (403), `/search` no.
-                info.currency = self.eodhd.currency_from_search(eod_symbol)
+            resolver = getattr(
+                self.eodhd, "resolve_metadata_symbol", self.eodhd.resolve_symbol
+            )
+            eod_symbol = resolver(symbol, info.isin)
+            if eod_symbol:
+                richer = self.eodhd.metadata(eod_symbol)
+                if richer is not None:
+                    if info.ter is None and richer.ter is not None:
+                        info.ter, info.ter_source = richer.ter, richer.ter_source
+                        info.ter_origin = richer.ter_origin
+                    if richer.allocation:
+                        # EODHD vince per dimensione quando la copre (percentuali
+                        # vere), Yahoo colma quelle che EODHD non ha - tipicamente
+                        # `area`, che Yahoo non espone mai. Stessa combinazione
+                        # che `app.classifica()` fa poi col nome.
+                        fuso = allocazione.unisci(richer.allocation, info.allocation)
+                        if fuso != info.allocation:
+                            info.allocation = fuso
+                            if fuso == richer.allocation:
+                                info.allocation_source = richer.allocation_source
+                if not info.currency:
+                    # Stesso ripiego di `EodhdSource.prices()`: `/fundamentals`
+                    # puo' essere bloccato dal piano (403), `/search` no.
+                    info.currency = self.eodhd.currency_from_search(eod_symbol)
         return info
+
+    def metadata_resolution(self, symbol: str, isin: str = "") -> MetadataResolution:
+        """Metadati compatibili con una diagnostica leggibile dall'interfaccia.
+
+        Il metodo riusa `metadata()` per non duplicare la fusione Yahoo/EODHD;
+        gli esiti descrivono il risultato osservabile senza esporre traceback o
+        dettagli delle chiavi API.
+        """
+        info = self.metadata(symbol, isin)
+        attempts: list[MetadataAttempt] = []
+        yahoo_empty = (
+            info.name == symbol and not info.currency and not info.quote_type
+            and info.ter is None and not info.allocation
+        )
+        yahoo_outcome = getattr(self.yahoo, "last_metadata_outcome", "")
+        if info.ter_origin == "yahoo" or (info.ter is not None and info.ter_origin == ""):
+            yahoo_outcome = "found"
+        elif yahoo_outcome not in {"no_ter", "temporary_error"}:
+            yahoo_outcome = "temporary_error" if yahoo_empty else "no_ter"
+        attempts.append(MetadataAttempt("yahoo", yahoo_outcome))
+
+        if not self.enable_justetf:
+            justetf_outcome = "not_configured"
+        elif info.ter_origin == "justetf":
+            justetf_outcome = "found"
+        else:
+            justetf_outcome = getattr(
+                self.justetf, "last_metadata_outcome", "temporary_error"
+            )
+            if justetf_outcome not in {
+                "found", "no_ter", "symbol_unresolved", "temporary_error"
+            }:
+                justetf_outcome = "temporary_error"
+        attempts.append(MetadataAttempt("justetf", justetf_outcome))
+
+        if info.ter_origin == "eodhd":
+            eodhd_outcome = "found"
+        elif not self.eodhd.available():
+            eodhd_outcome = "not_configured"
+        else:
+            eodhd_outcome = getattr(self.eodhd, "last_metadata_outcome", "temporary_error")
+            if eodhd_outcome == "temporary_error" and getattr(
+                self.eodhd, "fundamentals_blocked", lambda: False
+            )():
+                eodhd_outcome = "blocked"
+            if eodhd_outcome == "temporary_error":
+                exchange = symbol.rsplit(".", 1)[-1].upper() if "." in symbol else ""
+                known_yahoo_exchange = exchange in {
+                    "DE", "MI", "AS", "F", "L", "PA", "SW", "MC",
+                }
+                risolto = self.eodhd.resolve_symbol(symbol, isin)
+                if (is_isin(isin or symbol) or known_yahoo_exchange) and not risolto:
+                    eodhd_outcome = "symbol_unresolved"
+            if eodhd_outcome not in {"found", "no_ter", "blocked", "symbol_unresolved"}:
+                eodhd_outcome = "temporary_error"
+        attempts.append(MetadataAttempt("eodhd", eodhd_outcome))
+        return MetadataResolution(symbol=symbol, instrument=info, attempts=attempts)
 
     # ---------------------------------------------------------------- prezzi
 

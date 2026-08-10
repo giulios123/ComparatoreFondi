@@ -110,6 +110,10 @@ class TestEtichette(unittest.TestCase):
     def test_etichetta_esito(self):
         self.assertEqual(i18n.etichetta_esito("en", "no_data"), "no data")
 
+    def test_separatore_decimale_per_importi_monetari(self):
+        self.assertEqual(i18n.separatore_decimale("it"), ",")
+        self.assertEqual(i18n.separatore_decimale("en"), ".")
+
 
 if __name__ == "__main__":
     unittest.main()

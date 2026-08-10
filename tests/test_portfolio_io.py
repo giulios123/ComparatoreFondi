@@ -13,6 +13,8 @@ class TestDumpLoad(unittest.TestCase):
         fondi_ricaricati, parametri_ricaricati = pio.load(testo)
         self.assertEqual(fondi_ricaricati[0]["symbol"], "VWCE.DE")
         self.assertEqual(fondi_ricaricati[0]["ter"], 0.22)
+        self.assertEqual(fondi_ricaricati[0]["distribution_policy"], "")
+        self.assertEqual(fondi_ricaricati[0]["replication_method"], "")
         self.assertEqual(parametri_ricaricati, parametri)
 
     def test_load_backfills_alloc(self):
@@ -21,6 +23,16 @@ class TestDumpLoad(unittest.TestCase):
         self.assertIn("alloc", fondi[0])
         self.assertIn("alloc_manuale", fondi[0])
         self.assertEqual(fondi[0]["alloc_manuale"], {"classe": "", "area": "", "settore": ""})
+
+    def test_load_backfills_ter_origin_without_losing_manual_value(self):
+        testo = pio.dump([dict(FONDO_MINIMO, ter=0.37, ter_auto=False)], {})
+        fondi, _ = pio.load(testo)
+        self.assertEqual(fondi[0]["ter_origin"], "manual")
+
+    def test_load_backfills_missing_ter_origin(self):
+        testo = pio.dump([dict(FONDO_MINIMO, ter=0.0, ter_auto=False)], {})
+        fondi, _ = pio.load(testo)
+        self.assertEqual(fondi[0]["ter_origin"], "missing")
 
     def test_load_accepts_bytes(self):
         testo = pio.dump([dict(FONDO_MINIMO)], {})

@@ -45,8 +45,16 @@ def assicura_alloc(fund: dict) -> dict:
     fund["alloc"].setdefault("paese", al.paesi_da_posizioni(holdings))
     fund.setdefault("currency", "")
     fund.setdefault("isin", "")
+    fund.setdefault("distribution_policy", "")
+    fund.setdefault("replication_method", "")
     fund.setdefault("ter", 0.0)
     fund.setdefault("ter_auto", False)
+    if not isinstance(fund.get("ter_attempts"), list):
+        fund["ter_attempts"] = []
+    if "ter_origin" not in fund:
+        fund["ter_origin"] = (
+            "auto" if fund.get("ter_auto") else "manual" if fund.get("ter") else "missing"
+        )
     fund.setdefault("extra", 0.0)
     fund.setdefault("source", "auto")
     fund.setdefault("proxy", "(nessuno)")
