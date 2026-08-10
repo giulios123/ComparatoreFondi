@@ -29,6 +29,7 @@ from __future__ import annotations
 import datetime as dt
 import html
 import re
+import unicodedata
 
 import pandas as pd
 import requests
@@ -41,6 +42,16 @@ PROFILE_URL = "https://www.justetf.com/it/etf-profile.html"
 TIMEOUT = 30
 _TER_VALUE_RE = re.compile(
     r'data-testid=["\']etf-profile-header_ter-value["\'][^>]*>\s*([^<]+)',
+    re.IGNORECASE,
+)
+_DISTRIBUTION_VALUE_RE = re.compile(
+    r'data-testid=["\']etf-profile-header_distribution-policy-value["\']'
+    r'[^>]*>\s*([^<]+)',
+    re.IGNORECASE,
+)
+_REPLICATION_VALUE_RE = re.compile(
+    r'data-testid=["\']etf-profile-header_replication-value["\']'
+    r'[^>]*>\s*([^<]+)',
     re.IGNORECASE,
 )
 _TITLE_RE = re.compile(r"<h1[^>]*>(.*?)</h1>", re.IGNORECASE | re.DOTALL)
@@ -75,7 +86,9 @@ class JustEtfSource:
             self.last_metadata_outcome = "symbol_unresolved"
             return None
 
-        key = f"justetf/meta/{code}"
+        # La versione nel nome evita di riusare il vecchio cache record che
+        # conteneva solo TER e nome, prima delle caratteristiche ETF.
+        key = f"justetf/meta/v2/{code}"
         cached = cache.read_meta(key, retention_days=1)
         if cached is not None:
             self.last_metadata_outcome = cached.get("outcome", "no_ter")
@@ -87,6 +100,8 @@ class JustEtfSource:
                 ter_source="justetf" if cached.get("ter") is not None else "",
                 ter_origin="justetf" if cached.get("ter") is not None else "",
                 isin=code,
+                distribution_policy=cached.get("distribution_policy") or "",
+                replication_method=cached.get("replication_method") or "",
             )
 
         try:
@@ -113,9 +128,26 @@ class JustEtfSource:
         )
         ter_match = _TER_VALUE_RE.search(response.text)
         ter = _parse_percentage(ter_match.group(1)) if ter_match else None
+        distribution_match = _DISTRIBUTION_VALUE_RE.search(response.text)
+        replication_match = _REPLICATION_VALUE_RE.search(response.text)
+        distribution_policy = _parse_distribution_policy(
+            distribution_match.group(1) if distribution_match else ""
+        )
+        replication_method = _parse_replication_method(
+            replication_match.group(1) if replication_match else ""
+        )
         outcome = "found" if ter is not None else "no_ter"
         self.last_metadata_outcome = outcome
-        cache.write_meta(key, {"name": name, "ter": ter, "outcome": outcome})
+        cache.write_meta(
+            key,
+            {
+                "name": name,
+                "ter": ter,
+                "outcome": outcome,
+                "distribution_policy": distribution_policy,
+                "replication_method": replication_method,
+            },
+        )
         return Instrument(
             symbol=symbol or code,
             name=name,
@@ -124,6 +156,8 @@ class JustEtfSource:
             ter_source="justetf" if ter is not None else "",
             ter_origin="justetf" if ter is not None else "",
             isin=code,
+            distribution_policy=distribution_policy,
+            replication_method=replication_method,
         )
 
     def prices(
@@ -217,3 +251,29 @@ def _parse_percentage(value: str) -> float | None:
     except ValueError:
         return None
     return number / 100 if number >= 0 else None
+
+
+def _normalizza_caratteristica(value: str) -> str:
+    return unicodedata.normalize("NFKD", html.unescape(value or "")).encode(
+        "ascii", "ignore"
+    ).decode("ascii").casefold()
+
+
+def _parse_distribution_policy(value: str) -> str:
+    """Normalizza la dicitura locale in un codice persistibile."""
+    normalizzato = _normalizza_caratteristica(value)
+    if "accumul" in normalizzato or "thesaur" in normalizzato or "capitalis" in normalizzato:
+        return "accumulating"
+    if "distrib" in normalizzato or "ausschutt" in normalizzato:
+        return "distributing"
+    return ""
+
+
+def _parse_replication_method(value: str) -> str:
+    """Riduce la replica a fisica o sintetica senza inventare un valore."""
+    normalizzato = _normalizza_caratteristica(value)
+    if "fisic" in normalizzato or "physical" in normalizzato:
+        return "physical"
+    if "sintetic" in normalizzato or "synthetic" in normalizzato:
+        return "synthetic"
+    return ""

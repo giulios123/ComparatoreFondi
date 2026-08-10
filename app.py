@@ -429,6 +429,17 @@ def classifica(nome: str, symbol: str, meta: dict) -> tuple[dict, str]:
     return al.unisci(da_fonte, da_nome), meta.get("allocation_source") or "nome"
 
 
+def _etichetta_caratteristica(valore: str, gruppo: str) -> str:
+    """Traduce i codici stabili delle caratteristiche ETF oppure mostra n/d."""
+    chiave = {
+        ("distribution", "accumulating"): "metadata.distribution_accumulating",
+        ("distribution", "distributing"): "metadata.distribution_distributing",
+        ("replication", "physical"): "metadata.replication_physical",
+        ("replication", "synthetic"): "metadata.replication_synthetic",
+    }.get((gruppo, valore))
+    return t(chiave) if chiave else t("nd")
+
+
 def _fondo_da_meta(
     symbol: str,
     name: str,
@@ -454,6 +465,8 @@ def _fondo_da_meta(
         "ter_auto": ter is not None,
         "ter_origin": meta.get("ter_origin") or ("auto" if ter is not None else "missing"),
         "ter_attempts": meta.get("ter_attempts", []),
+        "distribution_policy": meta.get("distribution_policy") or "",
+        "replication_method": meta.get("replication_method") or "",
         "extra": 0.0,
         "source": AUTO,
         "proxy": proxy.symbol if proxy else NO_PROXY,
@@ -466,6 +479,9 @@ def _fondo_da_meta(
 
 def _aggiorna_ter(fondo: dict, meta: dict) -> bool:
     """Aggiorna solo un TER automatico, lasciando intatto l'override manuale."""
+    for chiave in ("distribution_policy", "replication_method"):
+        if meta.get(chiave):
+            fondo[chiave] = meta[chiave]
     if fondo.get("ter_origin") == "manual":
         return False
     ter = meta.get("ter")
@@ -479,6 +495,15 @@ def _aggiorna_ter(fondo: dict, meta: dict) -> bool:
     fondo["ter_auto"] = True
     fondo["ter_attempts"] = meta.get("ter_attempts", [])
     return True
+
+
+def _mancano_metadati_etf(fondo: dict) -> bool:
+    """Stabilisce se un cambio fonte puo' ancora arricchire la riga."""
+    return (
+        fondo.get("ter_origin", "missing") == "missing"
+        or not fondo.get("distribution_policy")
+        or not fondo.get("replication_method")
+    )
 
 
 def add_fund(symbol: str, name: str, isin: str = ""):
@@ -518,9 +543,14 @@ def add_fund(symbol: str, name: str, isin: str = ""):
 
 def _colonna_suggerita(colonne: list[str], *parole: str) -> str:
     """Preseleziona un'intestazione ovvia senza imporre il formato Directa."""
-    for colonna in colonne:
-        normalizzata = colonna.casefold().replace(" ", "_")
-        if any(parola in normalizzata for parola in parole):
+    normalizzate = [directa_io.normalizza_intestazione(colonna) for colonna in colonne]
+    cercate = [directa_io.normalizza_intestazione(parola) for parola in parole]
+    for parola in cercate:
+        for colonna, normalizzata in zip(colonne, normalizzate):
+            if normalizzata == parola:
+                return colonna
+    for colonna, normalizzata in zip(colonne, normalizzate):
+        if any(parola in normalizzata for parola in cercate):
             return colonna
     return ""
 
@@ -544,6 +574,7 @@ def _testo_issue_directa(issue: directa_io.DirectaIssue) -> str:
     chiavi = {
         "invalid_isin": "directa.issue_invalid_isin",
         "missing_identifier": "directa.issue_missing_identifier",
+        "summary_row": "directa.issue_summary_row",
         "invalid_value": "directa.issue_invalid_value",
         "invalid_quantity": "directa.issue_invalid_quantity",
         "invalid_average": "directa.issue_invalid_average",
@@ -642,12 +673,16 @@ def _cambia_lingua() -> None:
 
 
 def _cambia_justetf() -> None:
-    """Ricorda l'opt-in e riprova i TER mancanti quando viene attivato."""
+    """Ricorda l'opt-in e riprova i metadati mancanti quando viene attivato."""
     _salva_preferenze()
     st.session_state.ter_refresh_rev += 1
     if st.session_state.enable_justetf:
         for fondo in st.session_state.selected:
-            if fondo.get("ter_origin", "missing") == "missing":
+            if (
+                fondo.get("ter_origin", "missing") != "manual"
+                or not fondo.get("distribution_policy")
+                or not fondo.get("replication_method")
+            ):
                 _aggiorna_ter(
                     fondo,
                     cached_metadata(
@@ -837,7 +872,7 @@ with st.sidebar:
                 api_keys_store.save(st.session_state.api_keys)
                 st.session_state.ter_refresh_rev += 1
                 for fondo in st.session_state.selected:
-                    if fondo.get("ter_origin", "missing") == "missing":
+                    if _mancano_metadati_etf(fondo):
                         _aggiorna_ter(
                             fondo,
                             cached_metadata(
@@ -967,7 +1002,13 @@ with st.sidebar:
                 st.session_state.directa_file = directa_upload.getvalue()
                 st.session_state.directa_filename = directa_upload.name
                 st.session_state.directa_sheet = "CSV"
-                st.session_state.directa_header_row = 0
+                try:
+                    st.session_state.directa_header_row = directa_io.suggest_header_row(
+                        st.session_state.directa_file,
+                        st.session_state.directa_filename,
+                    )
+                except directa_io.DirectaParseError:
+                    st.session_state.directa_header_row = 0
             try:
                 fogli = directa_io.sheet_names(
                     st.session_state.directa_file, st.session_state.directa_filename
@@ -986,6 +1027,9 @@ with st.sidebar:
                 st.error(t("directa.file_error", errore=str(exc)))
                 frame_directa = None
             if frame_directa is not None:
+                tipo_export = directa_io.detect_export_kind(frame_directa)
+                if tipo_export == "movements":
+                    st.warning(t("directa.movements_file"), icon="ℹ️")
                 st.number_input(
                     t("directa.header_row_label"), min_value=0, max_value=20, step=1,
                     key="directa_header_row", help=t("directa.header_row_help"),
@@ -999,6 +1043,16 @@ with st.sidebar:
                 col_a, col_b = st.columns(2)
                 map_value = col_a.selectbox(
                     t("directa.value_column"), colonne,
+                    index=(
+                        colonne.index(_colonna_suggerita(
+                            colonne, "controvalore", "valoreattuale", "marketvalue",
+                            "currentvalue", "valore", "patrimonio", "importo",
+                        ))
+                        if _colonna_suggerita(
+                            colonne, "controvalore", "valoreattuale", "marketvalue",
+                            "currentvalue", "valore", "patrimonio", "importo",
+                        ) in colonne else 0
+                    ),
                     key=f"directa_value_{st.session_state.directa_upload_visto}",
                 )
                 map_isin = col_b.selectbox(
@@ -1020,8 +1074,12 @@ with st.sidebar:
                 map_name = col_d.selectbox(
                     t("directa.name_column"), opzioni,
                     index=(
-                        opzioni.index(_colonna_suggerita(colonne, "nome", "descrizione", "name"))
-                        if _colonna_suggerita(colonne, "nome", "descrizione", "name") in opzioni
+                        opzioni.index(_colonna_suggerita(
+                            colonne, "nome", "descrizione", "strumento", "name",
+                        ))
+                        if _colonna_suggerita(
+                            colonne, "nome", "descrizione", "strumento", "name",
+                        ) in opzioni
                         else 0
                     ),
                     key=f"directa_name_{st.session_state.directa_upload_visto}",
@@ -1029,6 +1087,14 @@ with st.sidebar:
                 col_e, col_f = st.columns(2)
                 map_currency = col_e.selectbox(
                     t("directa.currency_column"), opzioni,
+                    index=(
+                        opzioni.index(_colonna_suggerita(
+                            colonne, "valuta", "divisa", "currency", "ccy",
+                        ))
+                        if _colonna_suggerita(
+                            colonne, "valuta", "divisa", "currency", "ccy",
+                        ) in opzioni else 0
+                    ),
                     key=f"directa_currency_{st.session_state.directa_upload_visto}",
                 )
                 directa_ccy = col_f.selectbox(
@@ -1047,8 +1113,12 @@ with st.sidebar:
                 map_average = col_h.selectbox(
                     t("directa.average_column"), opzioni,
                     index=(
-                        opzioni.index(_colonna_suggerita(colonne, "carico", "medio", "average"))
-                        if _colonna_suggerita(colonne, "carico", "medio", "average") in opzioni
+                        opzioni.index(_colonna_suggerita(
+                            colonne, "prezzomedio", "carico", "medio", "average",
+                        ))
+                        if _colonna_suggerita(
+                            colonne, "prezzomedio", "carico", "medio", "average",
+                        ) in opzioni
                         else 0
                     ),
                     key=f"directa_average_{st.session_state.directa_upload_visto}",
@@ -1063,7 +1133,11 @@ with st.sidebar:
                     average_price="" if map_average == nessuna else map_average,
                 )
                 try:
-                    parsed_directa = directa_io.parse_positions(frame_directa, mapping)
+                    parsed_directa = directa_io.parse_positions(
+                        frame_directa,
+                        mapping,
+                        header_row=st.session_state.directa_header_row,
+                    )
                 except directa_io.DirectaParseError as exc:
                     st.warning(t("directa.mapping_error", errore=str(exc)), icon="⚠️")
                     parsed_directa = None
@@ -1127,7 +1201,7 @@ with st.sidebar:
                         )
                     pronto = bool(scelte_directa) and (
                         not irrisolti or escludi
-                    ) and (not parsed_directa.issues or escludi)
+                    ) and (not parsed_directa.issues or escludi) and tipo_export != "movements"
                     if st.button(t("directa.import_button"), disabled=not pronto, width="stretch"):
                         fondi_directa = []
                         valori = []
@@ -1347,6 +1421,12 @@ editor_df = pd.DataFrame([
         "simbolo": f["symbol"],
         "isin": f.get("isin", ""),
         "valuta": f["currency"],
+        "distribuzione": _etichetta_caratteristica(
+            f.get("distribution_policy", ""), "distribution"
+        ),
+        "replica": _etichetta_caratteristica(
+            f.get("replication_method", ""), "replication"
+        ),
         "peso": f["weight"],
         "importo": f["weight"] / 100 * st.session_state.initial_value,
         "ter": f["ter"],
@@ -1366,7 +1446,7 @@ edited = st.data_editor(
     # affidata a una checkbox invisibile a riposo in una colonna vuota e a
     # un cestino che compariva solo in un overlay al passaggio del mouse.
     num_rows="fixed",
-    disabled=["fondo", "simbolo", "valuta"],
+    disabled=["fondo", "simbolo", "valuta", "distribuzione", "replica"],
     column_config={
         "rimuovi": st.column_config.ButtonColumn(
             t("editor.col_rimuovi"), width="small", pinned=True,
@@ -1377,6 +1457,8 @@ edited = st.data_editor(
         "fondo": t("editor.col_fondo"),
         "simbolo": t("editor.col_simbolo"),
         "valuta": t("editor.col_valuta"),
+        "distribuzione": t("editor.col_distribuzione"),
+        "replica": t("editor.col_replica"),
         "isin": st.column_config.TextColumn(
             t("editor.col_isin"), width="small", help=t("editor.isin_help"),
         ),

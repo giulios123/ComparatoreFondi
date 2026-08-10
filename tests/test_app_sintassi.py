@@ -166,6 +166,13 @@ class TestSintassiApp(unittest.TestCase):
         self.assertIn("fmt_money(pic_estimate.buy_cost, base_ccy, decimals=2)", sorgente)
         self.assertIn("fmt_money(pic_estimate.sell_cost, base_ccy, decimals=2)", sorgente)
         self.assertIn("justetf=bool(st.session_state.enable_justetf)", sorgente)
+        self.assertIn("directa_io.suggest_header_row", sorgente)
+        self.assertIn("directa_io.detect_export_kind", sorgente)
+        self.assertIn('tipo_export != "movements"', sorgente)
+        self.assertIn('"distribution_policy": meta.get("distribution_policy")', sorgente)
+        self.assertIn('t("editor.col_distribuzione")', sorgente)
+        self.assertIn('t("editor.col_replica")', sorgente)
+        self.assertIn("_mancano_metadati_etf(fondo)", sorgente)
 
 
 if __name__ == "__main__":

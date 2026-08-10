@@ -156,6 +156,26 @@ class RegistryMetadataTests(unittest.TestCase):
         self.assertEqual(result.instrument.ter_origin, "justetf")
         self.assertEqual(result.attempts[1].outcome, "found")
 
+    def test_opt_in_justetf_enriches_and_replaces_yahoo_ter(self) -> None:
+        registry = Registry(enable_justetf=True)
+        registry.yahoo = _MetadataSource(
+            Instrument("TEST", "Test Fund", "ETF", ter=0.001)
+        )
+        registry.justetf = _MetadataSource(
+            Instrument(
+                "TEST", "Test Fund", "ETF",
+                ter=0.0017, ter_source="justetf", ter_origin="justetf",
+                distribution_policy="accumulating", replication_method="physical",
+            )
+        )
+
+        info = registry.metadata("TEST", "IE00B3XXRP09")
+
+        self.assertEqual(info.ter, 0.0017)
+        self.assertEqual(info.ter_origin, "justetf")
+        self.assertEqual(info.distribution_policy, "accumulating")
+        self.assertEqual(info.replication_method, "physical")
+
 
 if __name__ == "__main__":
     unittest.main()

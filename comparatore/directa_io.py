@@ -11,6 +11,7 @@ import csv
 import io
 import math
 import re
+import unicodedata
 from dataclasses import dataclass, field
 
 import pandas as pd
@@ -62,6 +63,111 @@ class DirectaParseResult:
     issues: tuple[DirectaIssue, ...] = field(default_factory=tuple)
 
 
+def _text(value) -> str:
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return ""
+    return str(value).strip()
+
+
+def normalizza_intestazione(value) -> str:
+    """Riduce un'intestazione a parole confrontabili anche con gli accenti."""
+    testo = unicodedata.normalize("NFKD", _text(value)).encode(
+        "ascii", "ignore"
+    ).decode("ascii")
+    return re.sub(r"[^a-z0-9]+", "", testo.casefold())
+
+
+def _decode_csv(content: bytes) -> str:
+    for encoding in ("utf-8-sig", "cp1252", "latin1"):
+        try:
+            return content.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise DirectaParseError("Codifica del CSV non riconosciuta.")
+
+
+def _csv_delimiter(text: str) -> str:
+    sample = text[:8192]
+    try:
+        return csv.Sniffer().sniff(sample, delimiters=";,\t|").delimiter
+    except csv.Error:
+        return ";" if sample.count(";") >= sample.count(",") else ","
+
+
+_VALUE_COLUMN_HINTS = {
+    "controvalore", "valore", "valoreattuale", "valoredimercato",
+    "marketvalue", "currentvalue", "patrimonio", "importo", "importoeuro",
+}
+
+
+def _has_value_hint(intestazioni: set[str]) -> bool:
+    return any(
+        hint in column
+        for column in intestazioni
+        for hint in _VALUE_COLUMN_HINTS
+    )
+
+
+def suggest_header_row(
+    content: bytes,
+    filename: str,
+    *,
+    sheet: str | int = 0,
+    max_rows: int = 200,
+) -> int:
+    """Trova la prima riga che sembra un'intestazione di portafoglio Directa.
+
+    Alcuni export hanno conto, date e note prima della tabella. La scansione
+    serve solo a preselezionare la riga nella UI: l'utente puo' comunque
+    correggerla e il parser continua a non imporre uno schema proprietario.
+    """
+    if not content:
+        raise DirectaParseError("Il file Directa e' vuoto.")
+    lower = filename.lower()
+    try:
+        if lower.endswith(".xlsx"):
+            raw = pd.read_excel(
+                io.BytesIO(content), sheet_name=sheet, header=None, nrows=max_rows
+            )
+        elif lower.endswith((".csv", ".txt")):
+            text = _decode_csv(content)
+            raw = pd.read_csv(
+                io.StringIO(text), sep=_csv_delimiter(text), header=None,
+                nrows=max_rows, dtype=str,
+            )
+        else:
+            raise DirectaParseError("Formato Directa non supportato: usa CSV o XLSX.")
+    except DirectaParseError:
+        raise
+    except Exception as exc:
+        raise DirectaParseError("Il file Directa non contiene una tabella leggibile.") from exc
+
+    for index, row in raw.iterrows():
+        intestazioni = {normalizza_intestazione(value) for value in row.tolist()}
+        intestazioni.discard("")
+        ha_identificatore = bool(intestazioni & {"isin", "ticker", "symbol"})
+        ha_valore = _has_value_hint(intestazioni)
+        if ha_identificatore and ha_valore:
+            return int(index)
+    return 0
+
+
+def detect_export_kind(frame: pd.DataFrame) -> str:
+    """Classifica una tabella senza reinterpretare uno storico movimenti."""
+    intestazioni = {normalizza_intestazione(column) for column in frame.columns}
+    if (
+        {"dataoperazione", "tipooperazione"}.issubset(intestazioni)
+        and any(value.startswith("importo") for value in intestazioni)
+    ):
+        return "movements"
+    if (
+        bool(intestazioni & {"isin", "ticker", "symbol"})
+        and _has_value_hint(intestazioni)
+    ):
+        return "positions"
+    return "unknown"
+
+
 def sheet_names(content: bytes, filename: str) -> list[str]:
     """Nomi dei fogli XLSX; per CSV restituisce un unico foglio virtuale."""
     if filename.lower().endswith(".xlsx"):
@@ -91,21 +197,10 @@ def read_table(
         if lower.endswith(".xlsx"):
             frame = pd.read_excel(io.BytesIO(content), sheet_name=sheet, header=header_row)
         elif lower.endswith((".csv", ".txt")):
-            text = None
-            for encoding in ("utf-8-sig", "cp1252", "latin1"):
-                try:
-                    text = content.decode(encoding)
-                    break
-                except UnicodeDecodeError:
-                    continue
-            if text is None:
-                raise DirectaParseError("Codifica del CSV non riconosciuta.")
-            sample = text[:8192]
-            try:
-                delimiter = csv.Sniffer().sniff(sample, delimiters=";,\t|").delimiter
-            except csv.Error:
-                delimiter = ";" if sample.count(";") >= sample.count(",") else ","
-            frame = pd.read_csv(io.StringIO(text), sep=delimiter, header=header_row)
+            text = _decode_csv(content)
+            frame = pd.read_csv(
+                io.StringIO(text), sep=_csv_delimiter(text), header=header_row
+            )
         else:
             raise DirectaParseError("Formato Directa non supportato: usa CSV o XLSX.")
     except DirectaParseError:
@@ -118,17 +213,11 @@ def read_table(
     return frame
 
 
-def _text(value) -> str:
-    if value is None or (isinstance(value, float) and math.isnan(value)):
-        return ""
-    return str(value).strip()
-
-
 _CLEAN_NUMBER = re.compile(r"[^0-9,.'+()\- ]")
 
 
-def parse_number(value) -> float | None:
-    """Numero con separatori italiani o internazionali, o None se vuoto."""
+def parse_number(value, *, prefer_decimal: bool = False) -> float | None:
+    """Numero locale/internazionale; `prefer_decimal` serve ai prezzi a 3 decimali."""
     if value is None or (isinstance(value, float) and math.isnan(value)):
         return None
     if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -147,7 +236,10 @@ def parse_number(value) -> float | None:
         chunks = text.split(separator)
         # Un solo separatore e tre cifre dopo e' quasi sempre migliaia; due o
         # meno cifre rappresentano invece i centesimi della valuta.
-        if len(chunks) == 2 and len(chunks[1]) == 3 and len(chunks[0]) >= 1:
+        if (
+            len(chunks) == 2 and len(chunks[1]) == 3 and len(chunks[0]) >= 1
+            and not prefer_decimal
+        ):
             text = "".join(chunks)
         else:
             text = text.replace(separator, ".")
@@ -164,8 +256,29 @@ def _column(frame: pd.DataFrame, name: str) -> pd.Series:
     return frame[name] if name and name in frame.columns else pd.Series([None] * len(frame))
 
 
-def parse_positions(frame: pd.DataFrame, mapping: DirectaColumnMap) -> DirectaParseResult:
+def _is_summary_row(row, mapping: DirectaColumnMap) -> bool:
+    """Riconosce il totale in coda degli export posizione senza generalizzarlo."""
+    value_column = normalizza_intestazione(mapping.value)
+    if "valore" not in value_column and "controvalore" not in value_column:
+        return False
+    if mapping.name and _text(row.get(mapping.name)):
+        return False
+    if mapping.quantity:
+        quantity = parse_number(row.get(mapping.quantity))
+        if quantity not in (None, 0.0):
+            return False
+    return True
+
+
+def parse_positions(
+    frame: pd.DataFrame,
+    mapping: DirectaColumnMap,
+    *,
+    header_row: int = 0,
+) -> DirectaParseResult:
     """Normalizza le righe mappate e aggrega duplicati per identificatore."""
+    if header_row < 0:
+        raise DirectaParseError("La riga delle intestazioni non puo' essere negativa.")
     if not mapping.value or mapping.value not in frame.columns:
         raise DirectaParseError("Serve una colonna di controvalore attuale.")
     if not mapping.isin and not mapping.ticker:
@@ -173,7 +286,7 @@ def parse_positions(frame: pd.DataFrame, mapping: DirectaColumnMap) -> DirectaPa
 
     issues: list[DirectaIssue] = []
     merged: dict[str, DirectaPosition] = {}
-    for offset, (_, row) in enumerate(frame.iterrows(), start=2):
+    for offset, (_, row) in enumerate(frame.iterrows(), start=header_row + 2):
         row_number = offset
         values = row.tolist()
         if all(not _text(value) for value in values):
@@ -187,6 +300,14 @@ def parse_positions(frame: pd.DataFrame, mapping: DirectaColumnMap) -> DirectaPa
             continue
         ticker = _text(row.get(mapping.ticker)) if mapping.ticker else ""
         if not isin and not ticker:
+            if _is_summary_row(row, mapping):
+                issues.append(
+                    DirectaIssue(
+                        row_number, mapping.value,
+                        "Riga riepilogativa senza uno strumento.", "summary_row",
+                    )
+                )
+                continue
             issues.append(
                 DirectaIssue(
                     row_number, mapping.isin or mapping.ticker,
@@ -214,7 +335,10 @@ def parse_positions(frame: pd.DataFrame, mapping: DirectaColumnMap) -> DirectaPa
                 )
             )
             continue
-        average = parse_number(row.get(mapping.average_price)) if mapping.average_price else None
+        average = (
+            parse_number(row.get(mapping.average_price), prefer_decimal=True)
+            if mapping.average_price else None
+        )
         if mapping.average_price and _text(row.get(mapping.average_price)) and (
             average is None or average <= 0
         ):
@@ -276,8 +400,11 @@ __all__ = [
     "DirectaParseError",
     "DirectaParseResult",
     "DirectaPosition",
+    "detect_export_kind",
+    "normalizza_intestazione",
     "parse_number",
     "parse_positions",
     "read_table",
     "sheet_names",
+    "suggest_header_row",
 ]

@@ -26,6 +26,9 @@ class JustEtfMetadataTests(unittest.TestCase):
                 "text": (
                     '<h1>Vanguard ETF</h1>'
                     '<div data-testid="etf-profile-header_ter-value">0,14% p.a.</div>'
+                    '<div data-testid="etf-profile-header_distribution-policy-value">'
+                    'Accumulazione</div>'
+                    '<div data-testid="etf-profile-header_replication-value">Fisica</div>'
                 ),
             }
         )()
@@ -34,6 +37,8 @@ class JustEtfMetadataTests(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertAlmostEqual(result.ter, 0.0014)
         self.assertEqual(result.ter_origin, "justetf")
+        self.assertEqual(result.distribution_policy, "accumulating")
+        self.assertEqual(result.replication_method, "physical")
 
     def test_requires_isin(self) -> None:
         source = JustEtfSource()

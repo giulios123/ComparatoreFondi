@@ -48,11 +48,18 @@ confronta con i fondi pensione COVIP.
   [`003-ter-directa-costi-pic`](../spec-driven/specs/003-ter-directa-costi-pic/spec.md):
   il recupero dei metadati conserva tentativi e provenienza, ha retry esplicito
   e corregge il mapping Yahoo → EODHD; con opt-in justETF può usare anche il
-  TER dalla pagina profilo dell'ETF; CSV/XLSX Directa si importano con
-  mappatura guidata; il PIC espone un prospetto separato per carico e scarico
-  senza alterare il backtest. I test sono 184; il mapping delle piazze MI
-  distingue una quotazione EODHD identica e gli importi delle commissioni
-  mostrano i centesimi.
+  TER dalla pagina profilo dell'ETF come fonte preferita con opt-in, senza
+  sovrascrivere un TER manuale; CSV/XLSX Directa si importano con
+  mappatura guidata. Il parser riconosce anche intestazioni dopo righe
+  descrittive, preseleziona gli alias con accenti e distingue gli export
+  "Movimenti" dagli export di posizioni: lo storico non viene interpretato
+  come controvalore attuale. Le posizioni Directa riconoscono anche i totali di
+  coda come righe da escludere esplicitamente. Per gli ETF, con justETF abilitato,
+  vengono conservate politica di distribuzione e metodo di replica, visibili
+  nell'editor; i vecchi JSON ricevono n/d. Il PIC espone un prospetto separato
+  per carico e scarico senza alterare il backtest. I test sono 188; il mapping
+  delle piazze MI distingue una quotazione EODHD identica e gli importi delle
+  commissioni mostrano i centesimi.
 
 ## Aperto, e noto
 

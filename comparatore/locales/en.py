@@ -232,12 +232,18 @@ MESSAGGI: dict[str, str] = {
     "editor.col_simbolo": "Symbol",
     "editor.col_isin": "ISIN",
     "editor.col_valuta": "Currency",
+    "editor.col_distribuzione": "Distribution",
+    "editor.col_replica": "Replication",
     "editor.col_peso": "Weight %",
     "editor.col_importo": "Amount ({ccy})",
     "editor.col_ter": "TER %",
     "editor.col_extra": "Extra costs %",
     "editor.col_fonte": "Source",
     "editor.col_proxy": "History proxy",
+    "metadata.distribution_accumulating": "Accumulating",
+    "metadata.distribution_distributing": "Distributing",
+    "metadata.replication_physical": "Physical",
+    "metadata.replication_synthetic": "Synthetic",
     "editor.rimuovi_help": (
         "Removes the fund from the portfolio and redistributes its weight to the "
         "others, keeping their proportions."
@@ -699,6 +705,11 @@ MESSAGGI: dict[str, str] = {
     "directa.header_row_label": "Header row (0 = first row)",
     "directa.header_row_help": "If descriptive rows precede the table, select the header row here.",
     "directa.file_error": "Directa file could not be read: {errore}",
+    "directa.movements_file": (
+        "This is a movements export, not a positions export: it contains "
+        "trades and fees but no current market value. To import the portfolio, "
+        "use Directa's positions/portfolio export."
+    ),
     "directa.no_column": "(none)",
     "directa.value_column": "Current value column",
     "directa.isin_column": "ISIN column",
@@ -715,6 +726,7 @@ MESSAGGI: dict[str, str] = {
     "directa.issue_message": "Problem",
     "directa.issue_invalid_isin": "Invalid ISIN.",
     "directa.issue_missing_identifier": "ISIN or ticker is missing.",
+    "directa.issue_summary_row": "Summary row without an instrument: exclude it from the import.",
     "directa.issue_invalid_value": "Current value must be positive.",
     "directa.issue_invalid_quantity": "Quantity must be positive.",
     "directa.issue_invalid_average": "Average loading price must be positive.",

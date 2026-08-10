@@ -24,24 +24,33 @@ portafoglio corrente da Directa e chi valuta un PIC con un piano commissionale.
 
 1. Un tentativo TER distingue a video almeno: trovato, TER assente, fonte non
    configurata, fundamentals EODHD bloccato, simbolo non risolto ed errore
-   temporaneo; se l'utente ha attivato justETF, questa entra come fallback
-   esplicito per i metadati ETF. Il fondo conserva fonte e provenienza del
-   valore mostrato.
+   temporaneo; se l'utente ha attivato justETF, questa diventa la fonte TER
+   preferita per i metadati ETF identificati da ISIN. Un valore TER inserito
+   manualmente non viene sostituito e il fondo conserva fonte e provenienza
+   del valore mostrato.
 2. Un comando di riprova rilancia i TER mancanti senza sovrascrivere un valore
    inserito manualmente; configurare una chiave, modificare l'ISIN o importare
    da Directa rilancia automaticamente i soli valori mancanti.
 3. Un file CSV o XLSX puo' essere caricato, mappato in anteprima e importato
    dopo aver risolto o escluso esplicitamente ogni riga; capitale e pesi usano
    i controvalori attuali e nessuna riga viene scartata senza motivo visibile.
-4. Il prospetto PIC accetta regole indipendenti di acquisto e vendita (nessuna,
+   Gli export Directa dei movimenti riconoscono automaticamente l'intestazione
+   anche dopo righe descrittive, ma vengono indicati come storico operazioni e
+   non possono essere usati come portafoglio finche' non contengono un
+   controvalore attuale.
+4. Quando disponibili dai metadati della fonte, la posizione mostra la politica
+   di distribuzione (accumulazione/distribuzione) e il metodo di replica
+   (fisica/sintetica); i campi sono persistiti e i portafogli precedenti li
+   assumono non disponibili.
+5. Il prospetto PIC accetta regole indipendenti di acquisto e vendita (nessuna,
    fissa, percentuale con minimo/massimo), riserva il carico dentro il budget,
    calcola lo scarico per posizione e mostra montante netto e costi separati,
    con gli importi delle commissioni alla precisione monetaria della valuta.
-5. Con PAC attivo il prospetto commissioni resta nascosto e il backtest,
+6. Con PAC attivo il prospetto commissioni resta nascosto e il backtest,
    curve e metriche esistenti restano invariati.
-6. I portafogli esportati prima della modifica continuano a caricarsi; le
+7. I portafogli esportati prima della modifica continuano a caricarsi; le
    nuove opzioni e la provenienza TER vengono esportate senza chiavi segrete.
-7. I test standard e `ruff check .` restano puliti e la libreria non importa
+8. I test standard e `ruff check .` restano puliti e la libreria non importa
    Streamlit.
 
 ## Non-obiettivi
@@ -56,8 +65,9 @@ portafoglio corrente da Directa e chi valuta un PIC con un piano commissionale.
 
 - `comparatore/` resta indipendente da Streamlit; ogni testo a video passa da
   `t()` e viene aggiunto ai quattro cataloghi.
-- L'import Directa usa una mappatura guidata finche' non esiste un campione
-  reale, quindi il parser non assume intestazioni proprietarie.
+- L'import Directa usa una mappatura guidata; i nomi osservati nei campioni
+  reali servono solo a preselezionare le colonne e non diventano un contratto
+  rigido del parser.
 - Il portafoglio importato sostituisce quello corrente e usa la valuta indicata
   dall'utente per i controvalori.
 - Il valore manuale del TER e' autorevole anche quando e' zero.

@@ -208,7 +208,17 @@ class Registry:
         # Yahoo, se manca ancora quella dimensione. Senza chiave `available()`
         # e' False e non parte nessuna chiamata.
         manca_area = "area" not in (info.allocation or {})
-        if info.ter is None and self.enable_justetf and not info.isin and self.eodhd.available():
+        if (
+            self.enable_justetf
+            and not info.isin
+            and (
+                info.ter is None
+                or not info.distribution_policy
+                or not info.replication_method
+                or info.ter_origin != "justetf"
+            )
+            and self.eodhd.available()
+        ):
             # La ricerca EODHD resta disponibile anche quando il piano blocca
             # l'endpoint fundamentals: serve qui solo a passare l'ISIN a justETF.
             eod_symbol = self.eodhd.resolve_metadata_symbol(symbol)
@@ -219,13 +229,25 @@ class Registry:
                         info.isin = hit.isin
                         break
 
-        if info.ter is None and self.enable_justetf:
+        if self.enable_justetf and (
+            info.ter is None
+            or not info.distribution_policy
+            or not info.replication_method
+            or info.ter_origin != "justetf"
+        ):
             justetf_info = self.justetf.metadata(symbol, info.isin)
             if justetf_info is not None:
-                if info.ter is None and justetf_info.ter is not None:
+                # L'opt-in esplicito rende justETF la fonte TER preferita per
+                # l'ISIN; l'override manuale viene protetto piu' avanti
+                # nell'app, quando il valore entra nel portafoglio.
+                if justetf_info.ter is not None:
                     info.ter = justetf_info.ter
                     info.ter_source = justetf_info.ter_source
                     info.ter_origin = justetf_info.ter_origin
+                if not info.distribution_policy:
+                    info.distribution_policy = justetf_info.distribution_policy
+                if not info.replication_method:
+                    info.replication_method = justetf_info.replication_method
                 if info.name == symbol and justetf_info.name:
                     info.name = justetf_info.name
                 info.isin = info.isin or justetf_info.isin

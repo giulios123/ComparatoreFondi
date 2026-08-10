@@ -59,6 +59,10 @@ class Instrument:
     # Provenienza normalizzata del valore: "yahoo", "justetf", "eodhd" o "".
     # `ter_source` resta il dettaglio storico del campo restituito dalla fonte.
     ter_origin: str = ""
+    # Caratteristiche ETF: codici stabili, tradotti soltanto dall'interfaccia.
+    # Restano vuoti quando la fonte non li espone (o non e' stata abilitata).
+    distribution_policy: str = ""  # "accumulating" | "distributing" | ""
+    replication_method: str = ""  # "physical" | "synthetic" | ""
 
     @property
     def label(self) -> str:

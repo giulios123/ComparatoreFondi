@@ -235,12 +235,18 @@ MESSAGGI: dict[str, str] = {
     "editor.col_simbolo": "Simbolo",
     "editor.col_isin": "ISIN",
     "editor.col_valuta": "Valuta",
+    "editor.col_distribuzione": "Distribuzione",
+    "editor.col_replica": "Replica",
     "editor.col_peso": "Peso %",
     "editor.col_importo": "Importo ({ccy})",
     "editor.col_ter": "TER %",
     "editor.col_extra": "Costi extra %",
     "editor.col_fonte": "Fonte",
     "editor.col_proxy": "Proxy storico",
+    "metadata.distribution_accumulating": "Accumulazione",
+    "metadata.distribution_distributing": "Distribuzione",
+    "metadata.replication_physical": "Fisica",
+    "metadata.replication_synthetic": "Sintetica",
     "editor.rimuovi_help": (
         "Toglie il fondo dal portafoglio e ridistribuisce il suo peso sugli altri, "
         "mantenendone le proporzioni."
@@ -719,6 +725,11 @@ MESSAGGI: dict[str, str] = {
         "delle intestazioni."
     ),
     "directa.file_error": "File Directa non leggibile: {errore}",
+    "directa.movements_file": (
+        "Questo e' un export dei movimenti, non delle posizioni: contiene "
+        "acquisti e commissioni ma non il controvalore attuale. Per importare "
+        "il portafoglio usa l'export posizioni/portafoglio di Directa."
+    ),
     "directa.no_column": "(nessuna)",
     "directa.value_column": "Colonna controvalore attuale",
     "directa.isin_column": "Colonna ISIN",
@@ -735,6 +746,7 @@ MESSAGGI: dict[str, str] = {
     "directa.issue_message": "Problema",
     "directa.issue_invalid_isin": "ISIN non valido.",
     "directa.issue_missing_identifier": "Manca ISIN o ticker.",
+    "directa.issue_summary_row": "Riga riepilogativa senza uno strumento: escludila dall'import.",
     "directa.issue_invalid_value": "Il controvalore deve essere positivo.",
     "directa.issue_invalid_quantity": "La quantità deve essere positiva.",
     "directa.issue_invalid_average": "Il prezzo medio di carico deve essere positivo.",

@@ -354,17 +354,22 @@ backtest non aveva un modo per stimare i costi di carico e scarico di un PIC.
 
 **Scelta.** I metadati espongono tentativi e provenienza, con retry esplicito,
 cache negativa breve e mapping Yahoo → EODHD corretto; il valore TER manuale
-resta autorevole. Se l'utente ha attivato l'opt-in, justETF è un fallback
-limitato ai metadati degli ETF per ISIN, con fonte distinta e senza entrare nel
-motore prezzi. Directa si importa da CSV/XLSX con anteprima e mappatura delle
-colonne, usando controvalori correnti e sostituendo il portafoglio. Le API
+resta autorevole. Se l'utente ha attivato l'opt-in, justETF è la fonte TER
+preferita per i metadati degli ETF per ISIN, con fonte distinta e senza entrare
+nel motore prezzi. Directa si importa da
+CSV/XLSX con anteprima e mappatura delle colonne, usando controvalori correnti
+e sostituendo il portafoglio. Le API
 Directa restano fuori scope. Le commissioni PIC sono due regole globali
 (carico/scarico) e producono un prospetto separato: il motore e le metriche
-restano invariati, e il carico viene riservato dentro il budget.
+restano invariati, e il carico viene riservato dentro il budget. Con lo stesso
+opt-in justETF fornisce inoltre distribuzione e metodo di replica, che restano
+vuoti se la fonte non li espone.
 
 **Conseguenze.** L'app spiega perché il TER non è disponibile e offre una via
-di riprova; un file Directa può essere adattato anche se cambiano intestazioni;
-il confronto dei costi non viene confuso con il TER o con le metriche annuali.
+di riprova; un file Directa può essere adattato anche se cambiano intestazioni,
+ma uno storico "Movimenti" viene riconosciuto e non viene scambiato per un
+portafoglio a valori correnti; il confronto dei costi non viene confuso con il
+TER o con le metriche annuali.
 
 **Traccia.** `comparatore/sources/registry.py`, `comparatore/directa_io.py`,
 `comparatore/pic_costs.py`, `app.py`, spec `003`.

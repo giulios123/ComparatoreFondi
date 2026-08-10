@@ -246,12 +246,18 @@ MESSAGGI: dict[str, str] = {
     "editor.col_simbolo": "Symbole",
     "editor.col_isin": "ISIN",
     "editor.col_valuta": "Devise",
+    "editor.col_distribuzione": "Distribution",
+    "editor.col_replica": "Réplication",
     "editor.col_peso": "Poids %",
     "editor.col_importo": "Montant ({ccy})",
     "editor.col_ter": "TER %",
     "editor.col_extra": "Coûts extra %",
     "editor.col_fonte": "Source",
     "editor.col_proxy": "Proxy historique",
+    "metadata.distribution_accumulating": "Capitalisation",
+    "metadata.distribution_distributing": "Distribution",
+    "metadata.replication_physical": "Physique",
+    "metadata.replication_synthetic": "Synthétique",
     "editor.rimuovi_help": (
         "Retire le fonds du portefeuille et redistribue son poids sur les "
         "autres, en conservant leurs proportions."
@@ -739,6 +745,11 @@ MESSAGGI: dict[str, str] = {
         "Si des lignes descriptives précèdent le tableau, indiquez ici la ligne d'en-tête."
     ),
     "directa.file_error": "Fichier Directa illisible : {errore}",
+    "directa.movements_file": (
+        "Ce fichier est un export des mouvements, pas des positions : il "
+        "contient les achats et les commissions, mais pas la valeur actuelle. "
+        "Pour importer le portefeuille, utilisez l'export des positions de Directa."
+    ),
     "directa.no_column": "(aucune)",
     "directa.value_column": "Colonne valeur actuelle",
     "directa.isin_column": "Colonne ISIN",
@@ -755,6 +766,9 @@ MESSAGGI: dict[str, str] = {
     "directa.issue_message": "Problème",
     "directa.issue_invalid_isin": "ISIN non valide.",
     "directa.issue_missing_identifier": "ISIN ou ticker manquant.",
+    "directa.issue_summary_row": (
+        "Ligne récapitulative sans instrument : excluez-la de l'importation."
+    ),
     "directa.issue_invalid_value": "La valeur actuelle doit être positive.",
     "directa.issue_invalid_quantity": "La quantité doit être positive.",
     "directa.issue_invalid_average": "Le prix moyen de revient doit être positif.",

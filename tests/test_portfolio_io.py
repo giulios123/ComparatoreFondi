@@ -13,6 +13,8 @@ class TestDumpLoad(unittest.TestCase):
         fondi_ricaricati, parametri_ricaricati = pio.load(testo)
         self.assertEqual(fondi_ricaricati[0]["symbol"], "VWCE.DE")
         self.assertEqual(fondi_ricaricati[0]["ter"], 0.22)
+        self.assertEqual(fondi_ricaricati[0]["distribution_policy"], "")
+        self.assertEqual(fondi_ricaricati[0]["replication_method"], "")
         self.assertEqual(parametri_ricaricati, parametri)
 
     def test_load_backfills_alloc(self):

@@ -251,12 +251,18 @@ MESSAGGI: dict[str, str] = {
     "editor.col_simbolo": "Symbol",
     "editor.col_isin": "ISIN",
     "editor.col_valuta": "Währung",
+    "editor.col_distribuzione": "Ausschüttung",
+    "editor.col_replica": "Replikation",
     "editor.col_peso": "Gewicht %",
     "editor.col_importo": "Betrag ({ccy})",
     "editor.col_ter": "TER %",
     "editor.col_extra": "Zusatzkosten %",
     "editor.col_fonte": "Quelle",
     "editor.col_proxy": "Historien-Proxy",
+    "metadata.distribution_accumulating": "Thesaurierend",
+    "metadata.distribution_distributing": "Ausschüttend",
+    "metadata.replication_physical": "Physisch",
+    "metadata.replication_synthetic": "Synthetisch",
     "editor.rimuovi_help": (
         "Entfernt den Fonds aus dem Portfolio und verteilt sein Gewicht "
         "proportional auf die übrigen."
@@ -756,6 +762,11 @@ MESSAGGI: dict[str, str] = {
         "Wenn beschreibende Zeilen vor der Tabelle stehen, hier die Kopfzeile auswählen."
     ),
     "directa.file_error": "Directa-Datei konnte nicht gelesen werden: {errore}",
+    "directa.movements_file": (
+        "Dies ist ein Bewegungs-Export und kein Positions-Export: Er enthält "
+        "Käufe und Gebühren, aber keinen aktuellen Marktwert. Verwenden Sie "
+        "für den Portfolioimport den Positions-/Portfolio-Export von Directa."
+    ),
     "directa.no_column": "(keine)",
     "directa.value_column": "Spalte aktueller Wert",
     "directa.isin_column": "ISIN-Spalte",
@@ -772,6 +783,7 @@ MESSAGGI: dict[str, str] = {
     "directa.issue_message": "Problem",
     "directa.issue_invalid_isin": "Ungültige ISIN.",
     "directa.issue_missing_identifier": "ISIN oder Ticker fehlt.",
+    "directa.issue_summary_row": "Zusammenfassungszeile ohne Instrument: beim Import ausschließen.",
     "directa.issue_invalid_value": "Der aktuelle Wert muss positiv sein.",
     "directa.issue_invalid_quantity": "Die Menge muss positiv sein.",
     "directa.issue_invalid_average": "Der durchschnittliche Einstandspreis muss positiv sein.",
