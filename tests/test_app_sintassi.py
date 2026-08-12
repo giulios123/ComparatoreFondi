@@ -174,6 +174,19 @@ class TestSintassiApp(unittest.TestCase):
         self.assertIn('t("editor.col_replica")', sorgente)
         self.assertIn("_mancano_metadati_etf(fondo)", sorgente)
 
+    def test_benchmark_e_inflazione_restano_viste_derivate(self):
+        sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn("benchmark_resolution", sorgente)
+        self.assertIn("portfolio_io.normalizza_benchmark", sorgente)
+        self.assertIn("benchmark_config", sorgente)
+        self.assertIn("inflation.fetch_hicp", sorgente)
+        self.assertIn("inflation.deflate_pac", sorgente)
+        self.assertIn("Holding(", sorgente)
+        holding_start = sorgente.index("holdings = [")
+        holding_end = sorgente.index("# `pac`", holding_start)
+        holding_block = sorgente[holding_start:holding_end]
+        self.assertNotIn("benchmark", holding_block.lower())
+
 
 if __name__ == "__main__":
     unittest.main()

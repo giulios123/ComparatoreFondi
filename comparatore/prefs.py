@@ -13,8 +13,8 @@ import json
 import os
 from pathlib import Path
 
-CHIAVI_TESTUALI = ("lingua",)
-CHIAVI_BOOLEANE = ("enable_justetf",)
+CHIAVI_TESTUALI = ("lingua", "inflation_area")
+CHIAVI_BOOLEANE = ("enable_justetf", "inflation_enabled")
 
 
 def prefs_file() -> Path:
@@ -39,8 +39,10 @@ def load() -> dict[str, str | bool]:
     out: dict[str, str | bool] = {}
     for k in CHIAVI_TESTUALI:
         v = str(data.get(k, "") or "").strip()
+        if k == "inflation_area" and v.upper() not in {"IT", "EA"}:
+            continue
         if v:
-            out[k] = v
+            out[k] = v.upper() if k == "inflation_area" else v
     for k in CHIAVI_BOOLEANE:
         v = data.get(k)
         if isinstance(v, bool):
@@ -56,8 +58,10 @@ def save(values: dict[str, str | bool]) -> None:
         cleaned: dict[str, str | bool] = {}
         for k in CHIAVI_TESTUALI:
             v = values.get(k, "")
+            if k == "inflation_area" and str(v).upper() not in {"IT", "EA"}:
+                continue
             if isinstance(v, str) and v.strip():
-                cleaned[k] = v.strip()
+                cleaned[k] = v.strip().upper() if k == "inflation_area" else v.strip()
         for k in CHIAVI_BOOLEANE:
             v = values.get(k)
             if isinstance(v, bool):

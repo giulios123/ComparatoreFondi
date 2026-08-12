@@ -289,7 +289,25 @@ tempo in cui è davvero investita, e una colonna in più proietta il montante a
 10 anni versando lo stesso PAC. Quella proiezione tiene la rata costante: la
 rivalutazione annua non vi entra.
 
-### 5. Leggere i risultati
+### 5. Benchmark e rendimento reale
+
+L'expander **🎯 Benchmark e analisi comparative** e' facoltativo. Si puo'
+scegliere nessun riferimento, uno dei preset total-return `VT` e `VFINX`, oppure
+cercare un altro strumento. Il benchmark resta fuori dai pesi e dal TER del
+portafoglio; il confronto usa soltanto il periodo comune realmente coperto.
+Sono disponibili CAGR, rendimento attivo, tracking error, information ratio,
+correlazioni dei rendimenti mensili e rendimenti rolling a 1, 3, 5 e 10 anni.
+La scelta viene salvata nell'export JSON; i file precedenti equivalgono a
+nessun benchmark.
+
+L'expander **📉 Rendimento reale e inflazione** e' spento di default e usa il
+HICP mensile ufficiale Eurostat per Italia o area euro. Mostra fonte, area,
+copertura e ultimo mese disponibile, oltre a curva, rendimento totale e CAGR
+reali. Con un PAC deflaziona separatamente il saldo e ogni versamento; nessun
+valore futuro viene stimato. Un errore o un ritardo della fonte lascia
+disponibile il backtest nominale.
+
+### 6. Leggere i risultati
 
 Sopra le schede trovi la composizione del portafoglio e le metriche di sintesi
 del periodo:
@@ -300,7 +318,7 @@ del periodo:
 > fondi reali: servono a mostrare l'interfaccia, non a suggerire un
 > investimento.
 
-Cinque schede sotto il grafico principale:
+Sei schede sotto il grafico principale:
 
 | Scheda | Cosa mostra |
 |---|---|
@@ -309,6 +327,7 @@ Cinque schede sotto il grafico principale:
 | 🆚 Confronto fondi | ogni fondo preso da solo, a parità di capitale investito |
 | 📉 Drawdown | perdita dal massimo storico, e rendimenti per anno solare |
 | 📋 Dati | tabella numerica scaricabile in CSV |
+| 🏦 Fondi pensione | confronto con le finestre ufficiali COVIP |
 
 Ogni metrica in alto (Valore finale, CAGR, Volatilità, Max drawdown, Sharpe)
 ha un tooltip ⓘ con la spiegazione; l'expander **❓ Come si leggono queste

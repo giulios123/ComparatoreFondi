@@ -19,10 +19,35 @@ VERSIONE = 1
 # `assicura_alloc()`, come gia' avviene per i fondi salvati da versioni
 # precedenti dell'app.
 _CHIAVI_FONDO_OBBLIGATORIE = ("symbol", "name", "weight")
+_FONTI_PREZZI = {"auto", "csv", "yahoo", "eodhd", "twelvedata", "justetf"}
 
 
 class PortfolioError(Exception):
     """File di portafoglio mancante, corrotto o di versione non supportata."""
+
+
+def normalizza_benchmark(value: object) -> dict | None:
+    """Valida il riferimento opzionale senza rendere fragili i JSON vecchi."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        return None
+    symbol = str(value.get("symbol", "")).strip()
+    if not symbol:
+        return None
+    preferred_source = str(value.get("preferred_source", "") or "")
+    if preferred_source not in _FONTI_PREZZI:
+        preferred_source = "auto"
+    out = {
+        "kind": str(value.get("kind", "custom") or "custom"),
+        "symbol": symbol,
+        "name": str(value.get("name", "") or symbol),
+        "isin": str(value.get("isin", "") or "").upper(),
+        "preferred_source": preferred_source,
+    }
+    if out["kind"] not in {"preset", "custom"}:
+        out["kind"] = "custom"
+    return out
 
 
 def assicura_alloc(fund: dict) -> dict:
@@ -63,6 +88,9 @@ def assicura_alloc(fund: dict) -> dict:
 
 def dump(fondi: list[dict], parametri: dict) -> str:
     """Serializza fondi e parametri in JSON indentato, pronto per il download."""
+    parametri = dict(parametri)
+    if "benchmark" in parametri:
+        parametri["benchmark"] = normalizza_benchmark(parametri["benchmark"])
     payload = {
         "schema": SCHEMA,
         "versione": VERSIONE,
@@ -107,4 +135,6 @@ def load(testo: str | bytes) -> tuple[list[dict], dict]:
     parametri = payload.get("parametri")
     if not isinstance(parametri, dict):
         parametri = {}
+    if "benchmark" in parametri:
+        parametri["benchmark"] = normalizza_benchmark(parametri["benchmark"])
     return fondi, parametri
