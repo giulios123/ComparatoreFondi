@@ -426,3 +426,21 @@ quote gia' osservate.
 
 **Traccia.** `comparatore/overlap.py`, `comparatore/sources/base.py`, `app.py`,
 spec `006`.
+
+### 26 · Il profilo e il rapporto anonimo restano separati dal portafoglio
+
+*Agosto 2026 — spec [`008-profilo-diagnosi-anonima`](../spec-driven/specs/008-profilo-diagnosi-anonima/spec.md)*
+
+**Scelta.** Il profilo vive in un file locale separato con permessi ristretti e
+non entra nell'export JSON. La diagnosi e' deterministica e distingue rilievi
+informativi da conflitti con soglie personali; il payload per un eventuale uso
+futuro viene costruito da una allowlist, usando token `asset_N` e mantenendo la
+mappa reale soltanto in memoria.
+
+**Conseguenze.** Senza profilo il backtest resta identico e la UI mostra fatti e
+campi mancanti, senza soglie universali. Aggiungere nuove metriche richiede di
+aggiungerle esplicitamente all'allowlist; una nuova chiave del portafoglio non
+puo' finire nel payload per costruzione.
+
+**Traccia.** `comparatore/profile.py`, `comparatore/diagnostics.py`,
+`comparatore/privacy.py`, `app.py`, spec `008`.

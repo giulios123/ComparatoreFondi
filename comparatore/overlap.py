@@ -62,6 +62,14 @@ class HoldingPosition:
     symbol: str = ""
     name: str = ""
 
+    @property
+    def identifier(self) -> str:
+        return self.stable_id
+
+    @property
+    def identifier_type(self) -> str:
+        return self.stable_id_type
+
     @classmethod
     def from_value(cls, value: object) -> HoldingPosition:
         if isinstance(value, cls):
@@ -102,6 +110,14 @@ class FundHoldings:
             tuple(HoldingPosition.from_value(h) for h in (self.holdings or ())),
         )
         object.__setattr__(self, "as_of", _date(self.as_of))
+
+    @property
+    def holdings_source(self) -> str:
+        return self.source
+
+    @property
+    def holdings_as_of(self) -> dt.date | None:
+        return self.as_of
 
     @classmethod
     def from_value(cls, value: object, fund_id: str | None = None) -> FundHoldings:
@@ -187,6 +203,14 @@ class OverlapReport:
             out[(pair.fund_b, pair.fund_a)] = pair.overlap
         return out
 
+    @property
+    def pairs(self) -> tuple[PairOverlap, ...]:
+        return self.pairwise
+
+    @property
+    def aggregate(self) -> PortfolioExposure:
+        return self.exposure
+
     def pair(self, fund_a: str, fund_b: str) -> PairOverlap | None:
         wanted = {fund_a, fund_b}
         return next(
@@ -203,7 +227,9 @@ class OverlapReport:
                     "coverage": round(value.coverage, 8),
                     "known": round(value.known_weight, 8),
                     "stale": value.stale,
-                    "source": value.source or "missing",
+                    "source": value.source
+                    if value.source in {"yahoo", "eodhd", "justetf", "csv", "manual"}
+                    else "missing",
                     "ambiguous": value.ambiguous_count,
                 }
                 for fund_id, value in sorted(self.coverage.items())
@@ -222,8 +248,10 @@ class OverlapReport:
             ],
             "exposure": {
                 "positions": {
-                    key: round(value, 8)
-                    for key, value in sorted(self.exposure.exposures.items())
+                    f"position_{index}": round(value, 8)
+                    for index, (_, value) in enumerate(
+                        sorted(self.exposure.exposures.items()), 1
+                    )
                 },
                 "known": round(self.exposure.known_weight, 8),
                 "unknown": round(self.exposure.unknown_weight, 8),

@@ -1,6 +1,6 @@
 # 008 · Profilo locale e diagnosi anonima del portafoglio
 
-*Stato: approvata — 12 agosto 2026*
+*Stato: implementata — 12 agosto 2026*
 
 ## Problema
 

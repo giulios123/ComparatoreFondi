@@ -14,6 +14,7 @@ from comparatore import (
     __version__,
     comparative,
     covip,
+    diagnostics,
     directa_io,
     fx,
     i18n,
@@ -24,12 +25,14 @@ from comparatore import (
     pic_costs,
     portfolio_io,
     prefs,
+    privacy,
 )
 from comparatore import allocazione as al
 from comparatore import cache as disk_cache
 from comparatore import horizons as hz
 from comparatore import keys as api_keys_store
 from comparatore import metrics as mt
+from comparatore import profile as profile_store
 from comparatore import proxies as px
 from comparatore.engine import (
     BacktestInputError,
@@ -56,6 +59,8 @@ saved_prefs = prefs.load()
 
 if "selected" not in st.session_state:
     st.session_state.selected = []  # dizionari: symbol, name, isin, weight, ...
+if "investor_profile" not in st.session_state:
+    st.session_state.investor_profile = profile_store.load()
 if "csv_series" not in st.session_state:
     st.session_state.csv_series = {}  # chiave -> (serie, valuta)
 if "directa_upload_visto" not in st.session_state:
@@ -910,6 +915,113 @@ with st.sidebar:
         ):
             st.session_state.inflation_refresh_rev += 1
             st.rerun()
+
+    profile_value = st.session_state.investor_profile
+    with st.expander(t("profile.expander"), expanded=not profile_value.is_empty):
+        st.caption(t("profile.caption"))
+        with st.form("investor_profile_form"):
+            horizon_options = [None, *range(1, 101)]
+            horizon = st.selectbox(
+                t("profile.horizon_label"), horizon_options,
+                index=horizon_options.index(profile_value.horizon_years)
+                if profile_value.horizon_years in horizon_options else 0,
+                format_func=lambda value: t("profile.not_set") if value is None
+                else t("profile.years", n=value),
+            )
+            objective_options = ["", *profile_store.OBJECTIVES]
+            objective = st.selectbox(
+                t("profile.objective_label"), objective_options,
+                index=objective_options.index(profile_value.objective or ""),
+                format_func=lambda value: t("profile.not_set") if not value
+                else t(f"profile.objective_{value}"),
+            )
+            loss_enabled = st.checkbox(
+                t("profile.loss_enable"), value=profile_value.max_temporary_loss is not None,
+            )
+            loss_pct = st.number_input(
+                t("profile.loss_label"), min_value=0.0, max_value=100.0, step=1.0,
+                value=(profile_value.max_temporary_loss or 0.0) * 100,
+                disabled=not loss_enabled,
+            )
+            withdrawal_options = ["", "yes", "no"]
+            withdrawals = st.selectbox(
+                t("profile.withdrawals_label"), withdrawal_options,
+                index=withdrawal_options.index(
+                    "yes" if profile_value.withdrawals is True
+                    else "no" if profile_value.withdrawals is False else ""
+                ),
+                format_func=lambda value: t("profile.not_set") if not value
+                else t(f"profile.{value}"),
+            )
+            limit_enabled = st.checkbox(
+                t("profile.limit_enable"), value=profile_value.max_position_weight is not None,
+            )
+            limit_pct = st.number_input(
+                t("profile.limit_label"), min_value=0.0, max_value=100.0, step=1.0,
+                value=(profile_value.max_position_weight or 0.0) * 100,
+                disabled=not limit_enabled,
+            )
+            preference_options = ["", *profile_store.PREFERENCES]
+            preference = st.selectbox(
+                t("profile.preference_label"), preference_options,
+                index=preference_options.index(profile_value.preference or ""),
+                format_func=lambda value: t("profile.not_set") if not value
+                else t(f"profile.preference_{value}"),
+            )
+            bond_options = ["", "yes", "no"]
+            bonds = st.selectbox(
+                t("profile.bonds_label"), bond_options,
+                index=bond_options.index(
+                    "yes" if profile_value.bonds_allowed is True
+                    else "no" if profile_value.bonds_allowed is False else ""
+                ),
+                format_func=lambda value: t("profile.not_set") if not value
+                else t(f"profile.{value}"),
+            )
+            class_codes = {
+                "Azionario": "equity", "Obbligazionario": "bond", "Liquidità": "cash",
+                "Materie prime": "commodities", "Immobiliare": "real_estate",
+            }
+            sector_codes = {
+                "Tecnologia": "technology", "Finanza": "finance", "Sanità": "health",
+                "Energia": "energy", "Industria": "industry", "Beni di consumo": "consumer",
+                "Utility": "utilities", "Immobiliare": "real_estate",
+                "Materiali": "materials", "Comunicazioni": "communication",
+            }
+            excluded_classes = st.multiselect(
+                t("profile.excluded_classes_label"), list(class_codes),
+                default=[value for value in profile_value.excluded_classes if value in class_codes],
+                format_func=lambda value: t(f"profile.class_{class_codes[value]}"),
+            )
+            excluded_sectors = st.multiselect(
+                t("profile.excluded_sectors_label"), list(sector_codes),
+                default=[
+                    value for value in profile_value.excluded_sectors if value in sector_codes
+                ],
+                format_func=lambda value: t(f"profile.sector_{sector_codes[value]}"),
+            )
+            if st.form_submit_button(t("profile.save_button"), width="stretch"):
+                try:
+                    new_profile = profile_store.InvestorProfile(
+                        horizon_years=horizon,
+                        objective=objective or None,
+                        max_temporary_loss=loss_pct / 100 if loss_enabled else None,
+                        withdrawals=(
+                            True if withdrawals == "yes" else False if withdrawals == "no" else None
+                        ),
+                        max_position_weight=limit_pct / 100 if limit_enabled else None,
+                        preference=preference or None,
+                        bonds_allowed=True if bonds == "yes" else False if bonds == "no" else None,
+                        excluded_classes=tuple(excluded_classes),
+                        excluded_sectors=tuple(excluded_sectors),
+                    )
+                except profile_store.ProfileError as exc:
+                    st.error(t("profile.invalid", errore=str(exc)))
+                else:
+                    profile_store.save(new_profile)
+                    st.session_state.investor_profile = new_profile
+                    st.toast(t("profile.saved_toast"), icon="🧭")
+                    st.rerun()
 
     st.divider()
     st.subheader(t("costs.subheader"))
@@ -2325,9 +2437,63 @@ comparti_scelti = (
 )
 mostra_sintetiche = bool(st.session_state.get("curve_sintetiche"))
 
-tab1, tab_bil, tab2, tab3, tab4, tab5 = st.tabs([
+# Rapporto locale e payload anonimo: entrambi sono calcolati dopo il backtest,
+# ma non entrano mai nell'export del portafoglio e non fanno chiamate esterne.
+diagnostic_overlap = overlap.analyze_overlap([
+    {
+        "fund_id": f["symbol"], "name": f.get("name", ""),
+        "weight": f.get("weight", 0.0), "holdings": f.get("holdings") or [],
+        "holdings_source": f.get("holdings_source", ""),
+        "holdings_as_of": f.get("holdings_as_of"),
+    }
+    for f in st.session_state.selected
+])
+diagnostic_assets = []
+for fondo in st.session_state.selected:
+    symbol = fondo["symbol"]
+    per_fund_curve = res.per_fund_nav.get(symbol, pd.Series(dtype=float))
+    diagnostic_assets.append({
+        "asset_id": symbol,
+        "name": fondo.get("name", ""),
+        "symbol": symbol,
+        "isin": fondo.get("isin", ""),
+        "weight": fondo.get("weight", 0.0) / 100,
+        "ter": fondo.get("ter", 0.0) / 100 if fondo.get("ter") else None,
+        "max_drawdown": mt.max_drawdown(per_fund_curve) if not per_fund_curve.empty else None,
+        "history_years": ((res.nav.index[-1] - res.nav.index[0]).days / 365.25)
+        if len(res.nav.index) > 1 else None,
+        "holdings": fondo.get("holdings") or [],
+        "holdings_source": fondo.get("holdings_source", ""),
+        "asset_class": al.descrivi(al.risolvi(
+            fondo.get("alloc", {}).get("classe"),
+            fondo.get("alloc_manuale", {}).get("classe", ""),
+        )),
+        "sector": al.descrivi(al.risolvi(
+            fondo.get("alloc", {}).get("settore"),
+            fondo.get("alloc_manuale", {}).get("settore", ""),
+        )),
+    })
+diagnostic_context = {
+    "assets": diagnostic_assets,
+    "overlap": diagnostic_overlap.anonymous_summary(),
+    "correlations": portfolio_correlation.to_dict() if not portfolio_correlation.empty else {},
+    "rolling": benchmark_analysis.get("rolling", {}) if benchmark_analysis else {},
+    "benchmark": benchmark_analysis.get("metrics", {}) if benchmark_analysis else {},
+    "inflation": {
+        "area": st.session_state.get("inflation_area", "IT"),
+        "available": not inflation_result.series.empty,
+    },
+}
+diagnostic_report = diagnostics.diagnose(
+    diagnostic_context, st.session_state.investor_profile,
+)
+anonymous_report = privacy.anonymize(
+    diagnostic_report, diagnostic_assets, LINGUA,
+)
+
+tab1, tab_bil, tab2, tab3, tab4, tab5, tab_diagnosi = st.tabs([
     t("tab.portafoglio"), t("tab.bilanciamento"), t("tab.confronto"),
-    t("tab.drawdown"), t("tab.dati"), t("tab.previdenza"),
+    t("tab.drawdown"), t("tab.dati"), t("tab.previdenza"), t("tab.diagnosi"),
 ])
 
 with tab1:
@@ -2707,19 +2873,10 @@ with tab_bil:
             st.caption(t("bilancio.posizioni_none"))
 
     # L'overlap e' una vista derivata: non modifica la classificazione manuale
-    # ne' le serie usate dal backtest. Le quote restano quelle osservate dalla
-    # fonte, quindi una coppia parziale viene mostrata come limite inferiore.
-    overlap_report = overlap.analyze_overlap([
-        {
-            "fund_id": f["symbol"],
-            "name": f.get("name", ""),
-            "weight": f.get("weight", 0.0),
-            "holdings": f.get("holdings") or [],
-            "holdings_source": f.get("holdings_source", ""),
-            "holdings_as_of": f.get("holdings_as_of"),
-        }
-        for f in fondi
-    ])
+    # ne' le serie usate dal backtest. Il rapporto e' gia' stato calcolato una
+    # volta prima delle schede, cosi' la diagnosi e questa vista condividono lo
+    # stesso contratto dati.
+    overlap_report = diagnostic_overlap
     with st.expander(t("bilancio.overlap_expander"), expanded=True):
         st.caption(t("bilancio.overlap_caption"))
         coverage_rows = []
@@ -3378,6 +3535,45 @@ with tab5:
                 )
 
     st.caption(t("previdenza.fonte_caption"))
+
+with tab_diagnosi:
+    st.markdown(t("diagnostic.header"))
+    if not diagnostic_report.profile_present:
+        st.info(t(
+            "diagnostic.no_profile",
+            campi=", ".join(diagnostic_report.missing_profile_fields),
+        ))
+    finding_rows = []
+    for finding in diagnostic_report.findings:
+        evidenze = []
+        for evidence in finding.evidence:
+            value = evidence.value
+            if evidence.unit == "fraction" and isinstance(value, (float, int)):
+                rendered = fmt_pct(float(value))
+            elif value is None:
+                rendered = t("nd")
+            else:
+                rendered = str(value)
+            evidenze.append(f"{evidence.code}: {rendered}")
+        finding_rows.append({
+            "gravita": t(
+                "diagnostic.warning" if finding.severity == "warning" else "diagnostic.info"
+            ),
+            "rilievo": t(finding.message_key or "diagnostic.generic"),
+            "asset": finding.asset or t("diagnostic.portfolio"),
+            "evidenza": " · ".join(evidenze) or t("diagnostic.no_evidence"),
+        })
+    if finding_rows:
+        st.dataframe(pd.DataFrame(finding_rows), hide_index=True, width="stretch",
+                     column_config={
+                         "gravita": t("diagnostic.severity_column"),
+                         "rilievo": t("diagnostic.finding_column"),
+                         "asset": t("diagnostic.asset_column"),
+                         "evidenza": t("diagnostic.evidence_column"),
+                     })
+    st.markdown(t("diagnostic.payload_header"))
+    st.caption(t("diagnostic.payload_caption"))
+    st.code(anonymous_report.to_json(), language="json")
 
 st.divider()
 st.caption(t("footer.disclaimer"))

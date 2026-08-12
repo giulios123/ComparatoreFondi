@@ -79,6 +79,12 @@ confronta con i fondi pensione COVIP.
   rinormalizzazione. La scheda Bilanciamento mostra matrice, coppie,
   concentrazione aggregata e quota sconosciuta; i JSON precedenti ricevono i
   nuovi metadati con backfill. I test sono 215.
+- **Profilo locale e diagnosi anonima** — spec
+  [`008-profilo-diagnosi-anonima`](../spec-driven/specs/008-profilo-diagnosi-anonima/spec.md):
+  il profilo facoltativo vive separato dal portafoglio, le regole producono
+  rilievi deterministici solo rispetto alle preferenze dichiarate e il payload
+  di anteprima nasce da una allowlist con token temporanei. La tab Diagnosi non
+  effettua chiamate esterne; i test complessivi sono 224.
 
 ## Aperto, e noto
 

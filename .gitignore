@@ -18,6 +18,7 @@ wheels/
 
 # Preferenze locali (lingua)
 .streamlit/prefs.json
+.streamlit/investor_profile.json
 
 # Local machine settings
 .claude/settings.local.json
