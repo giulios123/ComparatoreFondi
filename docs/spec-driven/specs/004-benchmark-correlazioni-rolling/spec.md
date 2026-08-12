@@ -1,6 +1,6 @@
 # 004 · Benchmark, correlazioni e rendimenti rolling
 
-*Stato: approvata — 12 agosto 2026*
+*Stato: implementata — 12 agosto 2026*
 
 ## Problema
 

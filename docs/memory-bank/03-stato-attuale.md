@@ -1,6 +1,6 @@
 # Stato attuale
 
-*Aggiornato: 10 agosto 2026*
+*Aggiornato: 12 agosto 2026*
 
 ## Dove siamo
 
@@ -60,6 +60,18 @@ confronta con i fondi pensione COVIP.
   per carico e scarico senza alterare il backtest. I test sono 188; il mapping
   delle piazze MI distingue una quotazione EODHD identica e gli importi delle
   commissioni mostrano i centesimi.
+- **Benchmark, correlazioni e rolling** — spec
+  [`004-benchmark-correlazioni-rolling`](../spec-driven/specs/004-benchmark-correlazioni-rolling/spec.md):
+  il benchmark e' opzionale, resta fuori dagli holdings e viene risolto con una
+  diagnostica propria; il confronto usa il periodo comune senza estendere lo
+  storico. Sono disponibili metriche attive, correlazioni mensili e rolling a
+  1/3/5/10 anni, con compatibilita' dei JSON precedenti.
+- **Rendimento reale HICP** — spec
+  [`005-rendimento-reale-inflazione`](../spec-driven/specs/005-rendimento-reale-inflazione/spec.md):
+  Eurostat fornisce l'indice mensile per Italia o area euro; la cache conserva
+  metadati e degrada ai dati vecchi coperti se la rete fallisce. La curva reale
+  e' derivata e il PAC deflaziona saldo e flussi rata per rata senza alterare il
+  backtest nominale. I test sono 209.
 
 ## Aperto, e noto
 

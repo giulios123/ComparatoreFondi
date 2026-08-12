@@ -373,3 +373,37 @@ TER o con le metriche annuali.
 
 **Traccia.** `comparatore/sources/registry.py`, `comparatore/directa_io.py`,
 `comparatore/pic_costs.py`, `app.py`, spec `003`.
+
+### 23 · Il benchmark e' una vista esterna sul periodo comune
+
+*Agosto 2026 — spec [`004-benchmark-correlazioni-rolling`](../spec-driven/specs/004-benchmark-correlazioni-rolling/spec.md)*
+
+**Scelta.** Il benchmark viene persistito nei parametri del portafoglio ma non
+entra mai nelle holding, nei pesi, nel TER o nel ribilanciamento. La curva di
+confronto riceve capitale e PAC uguali a quelli del portafoglio; metriche attive,
+correlazioni mensili e rolling usano solo il periodo realmente comune, senza
+backfill o proxy automatici.
+
+**Conseguenze.** Un benchmark irrisolvibile degrada a una diagnosi e non blocca
+il backtest; i JSON precedenti assumono nessun benchmark. Le correlazioni usano
+un campione mensile completo e dichiarato, così le celle restano confrontabili.
+
+**Traccia.** `comparatore/comparative.py`, `comparatore/portfolio_io.py`,
+`app.py`, spec `004`.
+
+### 24 · Il rendimento reale e' una vista HICP, con flussi PAC deflazionati
+
+*Agosto 2026 — spec [`005-rendimento-reale-inflazione`](../spec-driven/specs/005-rendimento-reale-inflazione/spec.md)*
+
+**Scelta.** Eurostat HICP mensile per Italia o area euro e' facoltativo,
+cacheabile e non modifica mai la curva nominale. L'unita' indice viene scelta
+dinamicamente dal JSON-stat; se la base cambia, la cache sostituisce la serie
+intera invece di concatenare livelli incompatibili. Il NAV viene deflazionato
+alla prima data coperta e ogni flusso PAC viene convertito alla propria data.
+
+**Conseguenze.** Nessuna previsione o retro-riempimento: la copertura effettiva e
+l'ultimo mese pubblicato restano visibili. Errori HTTP o parsing usano dati cache
+coperti, se presenti, e lasciano disponibile il backtest nominale.
+
+**Traccia.** `comparatore/inflation.py`, `comparatore/cache.py`, `comparatore/prefs.py`,
+`app.py`, spec `005`.

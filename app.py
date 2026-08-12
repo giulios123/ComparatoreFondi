@@ -12,10 +12,12 @@ import streamlit as st
 
 from comparatore import (
     __version__,
+    comparative,
     covip,
     directa_io,
     fx,
     i18n,
+    inflation,
     licenses,
     pesi,
     pic_costs,
@@ -35,7 +37,9 @@ from comparatore.engine import (
     Holding,
     Pac,
     Rebalance,
+    contribution_schedule,
     coverage_warnings,
+    nav_curve,
     rebalance_dates,
     run_backtest,
     simulate,
@@ -97,6 +101,16 @@ if "api_keys" not in st.session_state:
     st.session_state.api_keys = api_keys_store.load()
 if "enable_justetf" not in st.session_state:
     st.session_state.enable_justetf = bool(saved_prefs.get("enable_justetf", False))
+if "inflation_enabled" not in st.session_state:
+    st.session_state.inflation_enabled = bool(saved_prefs.get("inflation_enabled", False))
+if "inflation_area" not in st.session_state:
+    st.session_state.inflation_area = str(saved_prefs.get("inflation_area", "IT") or "IT")
+if "inflation_refresh_rev" not in st.session_state:
+    st.session_state.inflation_refresh_rev = 0
+if "benchmark_config" not in st.session_state:
+    st.session_state.benchmark_config = None
+if "benchmark_choice" not in st.session_state:
+    st.session_state.benchmark_choice = "none"
 if "initial_value" not in st.session_state:
     st.session_state.initial_value = 10_000.0
 if "base_ccy" not in st.session_state:
@@ -649,6 +663,8 @@ def _salva_preferenze() -> None:
     prefs.save({
         "lingua": str(st.session_state.get("lang", "") or ""),
         "enable_justetf": bool(st.session_state.get("enable_justetf", False)),
+        "inflation_enabled": bool(st.session_state.get("inflation_enabled", False)),
+        "inflation_area": str(st.session_state.get("inflation_area", "IT") or "IT"),
     })
 
 
@@ -693,6 +709,30 @@ def _cambia_justetf() -> None:
                         justetf=True,
                     ),
                 )
+
+
+def _cambia_inflazione() -> None:
+    """Ricorda l'opt-in HICP senza rendere obbligatoria la rete."""
+    _salva_preferenze()
+    st.session_state.inflation_refresh_rev += 1
+
+
+def _seleziona_benchmark(result: dict) -> None:
+    """Salva solo i metadati del benchmark, mai una holding del portafoglio."""
+    preferred_source = str(result.get("source", "") or "")
+    # OpenFIGI arricchisce la ricerca ISIN ma non e' una fonte di prezzi:
+    # conserva le preferenze delle fonti quotazioni e torna all'ordine
+    # automatico per quel solo metadato di risoluzione.
+    if preferred_source not in SOURCE_OPTIONS:
+        preferred_source = AUTO
+    st.session_state.benchmark_config = {
+        "kind": "custom",
+        "symbol": result.get("symbol", ""),
+        "name": result.get("name", result.get("symbol", "")),
+        "isin": result.get("isin", ""),
+        "preferred_source": preferred_source,
+    }
+    st.session_state.benchmark_choice = "custom"
 
 
 # --------------------------------------------------------------------------
@@ -809,6 +849,64 @@ with st.sidebar:
                     t("pac.end_label"), min_value=MIN_DATE, max_value=today,
                     format=FMT_DATA_INPUT, key="pac_end",
                 )
+
+    st.divider()
+    with st.expander(
+        t("benchmark.expander"),
+        expanded=bool(st.session_state.get("benchmark_config")),
+    ):
+        benchmark_choices = ["none", "VT", "VFINX", "custom"]
+        benchmark_choice = st.selectbox(
+            t("benchmark.label"), benchmark_choices, key="benchmark_choice",
+            format_func=lambda value: t(f"benchmark.option_{value}"), filter_mode=None,
+        )
+        if benchmark_choice == "none":
+            st.session_state.benchmark_config = None
+        elif benchmark_choice in {"VT", "VFINX"}:
+            preset_name = t(f"benchmark.option_{benchmark_choice}")
+            st.session_state.benchmark_config = {
+                "kind": "preset", "symbol": benchmark_choice, "name": preset_name,
+                "isin": "", "preferred_source": "yahoo",
+            }
+        else:
+            benchmark_query = st.text_input(
+                t("benchmark.search_label"), placeholder=t("benchmark.search_placeholder"),
+                key="benchmark_query",
+            )
+            if benchmark_query:
+                benchmark_results = cached_search(
+                    benchmark_query, False, api_key("EODHD_API_KEY"),
+                    api_key("TWELVEDATA_API_KEY"),
+                )
+                for i, result in enumerate(benchmark_results):
+                    st.button(
+                        f"{result['name']} ({result['symbol']})",
+                        key=f"benchmark_add_{i}_{result['symbol']}",
+                        on_click=_seleziona_benchmark, args=(result,), width="stretch",
+                    )
+            selected_benchmark = st.session_state.get("benchmark_config")
+            if selected_benchmark:
+                st.caption(t("benchmark.selected", symbol=selected_benchmark["symbol"]))
+                if st.button(t("benchmark.remove_button"), key="benchmark_remove", width="stretch"):
+                    st.session_state.benchmark_config = None
+                    st.session_state.benchmark_choice = "none"
+                    st.rerun()
+
+    with st.expander(t("inflation.expander"), expanded=bool(st.session_state.inflation_enabled)):
+        st.checkbox(
+            t("inflation.enable_checkbox"), key="inflation_enabled",
+            on_change=_cambia_inflazione, help=t("inflation.enable_help"),
+        )
+        st.selectbox(
+            t("inflation.area_label"), ["IT", "EA"], key="inflation_area",
+            format_func=lambda value: t(f"inflation.area_{value.lower()}"),
+            on_change=_cambia_inflazione, filter_mode=None,
+        )
+        if st.session_state.inflation_enabled and st.button(
+            t("inflation.retry_button"), key="inflation_retry", width="stretch"
+        ):
+            st.session_state.inflation_refresh_rev += 1
+            st.rerun()
 
     st.divider()
     st.subheader(t("costs.subheader"))
@@ -1289,6 +1387,15 @@ with st.sidebar:
                     pending["show_gross"] = parametri_importati["show_gross"]
                 if isinstance(parametri_importati.get("extend_history"), bool):
                     pending["extend_history"] = parametri_importati["extend_history"]
+                benchmark_importato = portfolio_io.normalizza_benchmark(
+                    parametri_importati.get("benchmark")
+                )
+                pending["benchmark_config"] = benchmark_importato
+                pending["benchmark_choice"] = (
+                    benchmark_importato.get("kind") == "preset"
+                    and benchmark_importato.get("symbol")
+                    or "custom"
+                ) if benchmark_importato else "none"
                 # Nel file le percentuali restano in frazione (0.02 = 2%): e'
                 # il formato dei portafogli gia' esportati e non ha ambiguita'
                 # di unita'. La conversione in percentuale avviene qui, al
@@ -1600,6 +1707,7 @@ parametri_correnti = {
     "pic_sell_rate_pct": st.session_state.pic_sell_rate_pct,
     "pic_sell_min": st.session_state.pic_sell_min,
     "pic_sell_max": st.session_state.pic_sell_max,
+    "benchmark": st.session_state.get("benchmark_config"),
 }
 payload = portfolio_io.dump(st.session_state.selected, parametri_correnti)
 with portfolio_export:
@@ -1863,6 +1971,111 @@ except BacktestInputError as exc:
 except ValueError as exc:
     st.error(str(exc))
     st.stop()
+
+# --------------------------------------------------------------------------
+# Benchmark e rendimento reale: viste derivate, mai parte del backtest base
+# --------------------------------------------------------------------------
+
+benchmark_resolution = None
+benchmark_curve = None
+benchmark_nav = None
+benchmark_analysis = None
+benchmark_error = ""
+portfolio_correlation = pd.DataFrame()
+benchmark_config = portfolio_io.normalizza_benchmark(
+    st.session_state.get("benchmark_config")
+)
+if benchmark_config:
+    benchmark_resolution = registry.resolve(
+        benchmark_config["symbol"], start_date, end_date, base_ccy,
+        isin=benchmark_config.get("isin", ""),
+        preferred=benchmark_config.get("preferred_source", "") or AUTO,
+    )
+    if benchmark_resolution.ok:
+        raw_benchmark = benchmark_resolution.series.prices
+        converted_benchmark = fx.convert_currency(
+            raw_benchmark.to_frame(benchmark_config["symbol"]),
+            {benchmark_config["symbol"]: benchmark_resolution.series.currency},
+            base_ccy, start_date, end_date,
+        )
+        if benchmark_config["symbol"] in converted_benchmark.prices:
+            raw_benchmark = converted_benchmark.prices[benchmark_config["symbol"]].dropna()
+        else:
+            raw_benchmark = pd.Series(dtype=float)
+        # Il forward-fill e' ammesso solo fra due quotazioni reali: non si
+        # prolunga il benchmark oltre l'ultima data pubblicata.
+        common_index = res.nav.index[
+            (res.nav.index >= raw_benchmark.index.min())
+            & (res.nav.index <= raw_benchmark.index.max())
+        ] if not raw_benchmark.empty else pd.DatetimeIndex([])
+        if len(common_index) >= 2:
+            benchmark_prices = raw_benchmark.reindex(common_index).ffill().dropna()
+            # Si ricrea anche il portafoglio sul calendario comune: cosi' la
+            # prima quota, le rate PAC e gli eventuali ribilanciamenti hanno
+            # esattamente gli stessi riferimenti temporali sui due lati.
+            common_prices = prices.reindex(common_index).ffill().dropna(how="any")
+            common_res = run_backtest(
+                common_prices, holdings, initial_value, rebalance, FeeMode.NET, pac
+            )
+            benchmark_curve, _ = simulate(
+                benchmark_prices.to_frame("__benchmark"), {"__benchmark": 1.0},
+                initial_value, rebalance, pac,
+            )
+            benchmark_nav = nav_curve(
+                benchmark_curve,
+                contribution_schedule(benchmark_prices.index, pac),
+                initial_value,
+            )
+            benchmark_analysis = comparative.compare(
+                common_res.nav, benchmark_nav,
+            )
+            st.caption(t(
+                "benchmark.source",
+                source=i18n.etichetta_fonte(
+                    LINGUA, benchmark_resolution.series.source
+                ),
+                symbol=benchmark_config["symbol"],
+            ))
+            tentativi_benchmark = " · ".join(
+                f"{i18n.etichetta_fonte(LINGUA, attempt.source)}: "
+                f"{i18n.etichetta_esito(LINGUA, attempt.outcome)}"
+                for attempt in benchmark_resolution.attempts
+            )
+            if tentativi_benchmark:
+                st.caption(t("benchmark.attempts", elenco=tentativi_benchmark))
+        else:
+            benchmark_error = t("benchmark.common_period_short")
+    else:
+        benchmark_error = " · ".join(
+            f"{i18n.etichetta_fonte(LINGUA, attempt.source)}: "
+            f"{i18n.etichetta_esito(LINGUA, attempt.outcome)}"
+            for attempt in benchmark_resolution.attempts
+        )
+
+portfolio_curves = res.per_fund_nav.rename(columns=res.labels).copy()
+portfolio_curves[t("benchmark.portfolio_label")] = res.nav
+if benchmark_nav is not None:
+    portfolio_curves[benchmark_config["name"]] = benchmark_nav
+portfolio_correlation = comparative.correlation_matrix(portfolio_curves)
+if benchmark_config is None:
+    benchmark_analysis = comparative.compare(res.nav)
+
+inflation_result = inflation.HICPResult(
+    pd.Series(dtype=float), st.session_state.get("inflation_area", "IT")
+)
+real_nav = pd.Series(dtype=float)
+real_invested = pd.Series(dtype=float)
+inflation_factors = pd.Series(dtype=float)
+if st.session_state.get("inflation_enabled"):
+    inflation_result = inflation.fetch_hicp(
+        st.session_state.inflation_area, start_date, end_date,
+        force=bool(st.session_state.inflation_refresh_rev),
+    )
+    st.session_state.inflation_refresh_rev = 0
+    if not inflation_result.series.empty:
+        real_nav, real_invested, inflation_factors = inflation.deflate_pac(
+            res.nav, res.invested, res.cashflows, inflation_result.series,
+        )
 
 pic_estimate = None
 if st.session_state.pic_costs_enabled and pac is None:
@@ -2136,6 +2349,13 @@ with tab1:
             line=dict(color=PALETTE[0], width=1.5, dash="dash"), opacity=0.6,
             hovertemplate=f"%{{x|{FMT_DATA}}}<br>%{{y:,.0f}}<extra></extra>",
         ))
+    if not real_nav.empty:
+        fig.add_trace(go.Scatter(
+            x=real_nav.index, y=real_nav.values,
+            name=t("inflation.real_curve"),
+            line=dict(color="#d97706", width=2, dash="dot"),
+            hovertemplate=f"%{{x|{FMT_DATA}}}<br>%{{y:,.0f}}<extra></extra>",
+        ))
     if portfolio_splice is not None and portfolio_splice > res.start:
         fig.add_vline(
             x=portfolio_splice, line=dict(color="#6b7280", width=1, dash="dot"),
@@ -2192,6 +2412,59 @@ with tab1:
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
     )
     st.plotly_chart(fig, width="stretch")
+
+    if st.session_state.get("inflation_enabled"):
+        if inflation_result.error and real_nav.empty:
+            st.warning(t("inflation.failed", errore=inflation_result.error), icon="⚠️")
+        elif real_nav.empty:
+            st.warning(t("inflation.coverage_missing"), icon="⚠️")
+        elif not real_nav.empty:
+            # Per rendere il confronto nominale/reale simmetrico si usa lo
+            # stesso tratto coperto dall'HICP; le metriche nominali principali
+            # sopra restano invece calcolate sull'intero backtest.
+            nominal_covered = res.nav.reindex(real_nav.index).dropna()
+            nominal_summary = mt.summarize(nominal_covered)
+            real_summary = mt.summarize(real_nav)
+            st.markdown(t("inflation.metrics_header"))
+            metric_frame = pd.DataFrame([
+                {
+                    t("inflation.metric_total_return"): fmt_pct(nominal_summary["total_return"]),
+                    t("inflation.metric_cagr"): fmt_pct(nominal_summary["cagr"]),
+                    t("inflation.metric_final"): fmt_money(
+                        float(nominal_covered.iloc[-1]), base_ccy
+                    ),
+                    t("inflation.metric_kind"): t("inflation.nominal"),
+                },
+                {
+                    t("inflation.metric_total_return"): fmt_pct(real_summary["total_return"]),
+                    t("inflation.metric_cagr"): fmt_pct(real_summary["cagr"]),
+                    t("inflation.metric_final"): fmt_money(float(real_nav.iloc[-1]), base_ccy),
+                    t("inflation.metric_kind"): t("inflation.real"),
+                },
+            ])
+            st.dataframe(metric_frame, hide_index=True, width="stretch")
+            st.caption(t(
+                "inflation.coverage_caption",
+                area=t(f"inflation.area_{inflation_result.area.lower()}"),
+                source=inflation_result.dataset,
+                first=(
+                    inflation_result.first_date.strftime(FMT_DATA)
+                    if inflation_result.first_date else t("nd")
+                ),
+                last=(
+                    inflation_result.last_date.strftime(FMT_DATA)
+                    if inflation_result.last_date else t("nd")
+                ),
+            ))
+            if inflation_result.stale:
+                st.caption(t("inflation.stale_caption"))
+            if pac is not None and not real_invested.empty:
+                invested_covered = res.invested.reindex(real_invested.index).dropna()
+                st.caption(t(
+                    "inflation.pac_caption",
+                    nominal=fmt_money(float(invested_covered.iloc[-1]), base_ccy),
+                    real=fmt_money(float(real_invested.iloc[-1]), base_ccy),
+                ))
 
     if res.pic is not None:
         st.caption(t(
@@ -2445,6 +2718,99 @@ with tab2:
         "confronto.caption_pac" if pac is not None else "confronto.caption",
         capitale=fmt_money(initial_value, base_ccy),
     ))
+    if benchmark_config:
+        if benchmark_curve is None or benchmark_analysis is None:
+            st.warning(
+                t("benchmark.failed", errore=benchmark_error or t("nd")), icon="⚠️"
+            )
+        else:
+            benchmark_metrics = benchmark_analysis["metrics"]
+            st.markdown(t("benchmark.metrics_header"))
+            metric_rows = [{
+                t("benchmark.metric"): t("benchmark.portfolio_label"),
+                t("benchmark.growth"): fmt_pct(benchmark_metrics.portfolio_total_return),
+                t("benchmark.cagr"): fmt_pct(benchmark_metrics.portfolio_cagr),
+                t("benchmark.volatility"): fmt_pct(benchmark_metrics.portfolio_volatility),
+                t("benchmark.max_drawdown"): fmt_pct(benchmark_metrics.portfolio_max_drawdown),
+                t("benchmark.active_return"): t("nd"),
+                t("benchmark.tracking_error"): t("nd"),
+                t("benchmark.information_ratio"): t("nd"),
+            }, {
+                t("benchmark.metric"): benchmark_config["name"],
+                t("benchmark.growth"): fmt_pct(benchmark_metrics.benchmark_total_return),
+                t("benchmark.cagr"): fmt_pct(benchmark_metrics.benchmark_cagr),
+                t("benchmark.volatility"): fmt_pct(benchmark_metrics.benchmark_volatility),
+                t("benchmark.max_drawdown"): fmt_pct(benchmark_metrics.benchmark_max_drawdown),
+                t("benchmark.active_return"): fmt_pct(benchmark_metrics.active_return),
+                t("benchmark.tracking_error"): fmt_pct(benchmark_metrics.tracking_error),
+                t("benchmark.information_ratio"): (
+                    t("nd") if pd.isna(benchmark_metrics.information_ratio)
+                    else f"{benchmark_metrics.information_ratio:.2f}"
+                ),
+            }]
+            st.dataframe(pd.DataFrame(metric_rows), hide_index=True, width="stretch")
+            st.caption(t(
+                "benchmark.common_period",
+                start=benchmark_metrics.start.strftime(FMT_DATA),
+                end=benchmark_metrics.end.strftime(FMT_DATA),
+                n=benchmark_metrics.observations,
+            ))
+            if benchmark_metrics.reason:
+                reason_key = {
+                    "common_period_empty": "benchmark.reason_common_empty",
+                    "insufficient_observations": "benchmark.reason_insufficient",
+                    "tracking_error_zero": "benchmark.reason_tracking_error_zero",
+                }.get(benchmark_metrics.reason, "benchmark.reason_generic")
+                st.caption(t("benchmark.metric_reason", motivo=t(reason_key)))
+            correlation = benchmark_analysis["correlation"]
+            if not correlation.empty and not correlation.isna().all().all():
+                st.markdown(t("benchmark.correlation_header"))
+                st.dataframe(correlation.round(3), width="stretch")
+            st.markdown(t("benchmark.rolling_header"))
+            rolling_rows = []
+            for years, values in benchmark_analysis["rolling"].items():
+                summary = comparative.rolling_summary(values)
+                rolling_rows.append({
+                    t("benchmark.rolling_period"): t("benchmark.years", n=years),
+                    t("benchmark.rolling_worst"): fmt_pct(summary["worst"]),
+                    t("benchmark.rolling_median"): fmt_pct(summary["median"]),
+                    t("benchmark.rolling_best"): fmt_pct(summary["best"]),
+                    t("benchmark.rolling_positive"): fmt_pct(summary["positive_pct"]),
+                    t("benchmark.rolling_observations"): summary["observations"],
+                })
+            for years, values in benchmark_analysis["rolling_benchmark"].items():
+                summary = comparative.rolling_summary(values)
+                rolling_rows.append({
+                    t("benchmark.rolling_period"): (
+                        f"{benchmark_config['name']} · "
+                        f"{t('benchmark.years', n=years)}"
+                    ),
+                    t("benchmark.rolling_worst"): fmt_pct(summary["worst"]),
+                    t("benchmark.rolling_median"): fmt_pct(summary["median"]),
+                    t("benchmark.rolling_best"): fmt_pct(summary["best"]),
+                    t("benchmark.rolling_positive"): fmt_pct(summary["positive_pct"]),
+                    t("benchmark.rolling_observations"): summary["observations"],
+                })
+            if rolling_rows:
+                st.dataframe(pd.DataFrame(rolling_rows), hide_index=True, width="stretch")
+    if not portfolio_correlation.empty and not portfolio_correlation.isna().all().all():
+        st.markdown(t("benchmark.correlation_portfolio_header"))
+        st.dataframe(portfolio_correlation.round(3), width="stretch")
+    if not benchmark_config and benchmark_analysis:
+        st.markdown(t("benchmark.rolling_header"))
+        rolling_rows = []
+        for years, values in benchmark_analysis["rolling"].items():
+            summary = comparative.rolling_summary(values)
+            rolling_rows.append({
+                t("benchmark.rolling_period"): t("benchmark.years", n=years),
+                t("benchmark.rolling_worst"): fmt_pct(summary["worst"]),
+                t("benchmark.rolling_median"): fmt_pct(summary["median"]),
+                t("benchmark.rolling_best"): fmt_pct(summary["best"]),
+                t("benchmark.rolling_positive"): fmt_pct(summary["positive_pct"]),
+                t("benchmark.rolling_observations"): summary["observations"],
+            })
+        if rolling_rows:
+            st.dataframe(pd.DataFrame(rolling_rows), hide_index=True, width="stretch")
     fig2 = go.Figure()
     for i, col in enumerate(res.per_fund.columns):
         nome = res.labels[col]
@@ -2471,6 +2837,13 @@ with tab2:
                 line=dict(color=color, width=1, dash="dash"),
                 opacity=0.45, showlegend=False, hoverinfo="skip",
             ))
+    if benchmark_curve is not None:
+        fig2.add_trace(go.Scatter(
+            x=benchmark_curve.index, y=benchmark_curve.values,
+            name=t("benchmark.legend", symbol=benchmark_config["symbol"]),
+            line=dict(color="#7c3aed", width=2, dash="dashdot"),
+            hovertemplate=f"%{{x|{FMT_DATA}}}<br>%{{y:,.0f}}<extra></extra>",
+        ))
     fig2.update_layout(
         height=460, hovermode="x unified", margin=dict(l=0, r=0, t=30, b=0),
         yaxis_title=t("chart.yaxis_value", ccy=base_ccy), xaxis=ASSE_TEMPO,

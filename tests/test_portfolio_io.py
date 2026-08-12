@@ -39,6 +39,29 @@ class TestDumpLoad(unittest.TestCase):
         fondi, _ = pio.load(testo.encode("utf-8"))
         self.assertEqual(len(fondi), 1)
 
+    def test_benchmark_round_trip_and_old_files(self):
+        benchmark = {
+            "kind": "preset", "symbol": "VT", "name": "Global", "preferred_source": "yahoo"
+        }
+        testo = pio.dump([dict(FONDO_MINIMO)], {"benchmark": benchmark})
+        _, parametri = pio.load(testo)
+        self.assertEqual(parametri["benchmark"]["symbol"], "VT")
+        _, vecchi_parametri = pio.load(pio.dump([dict(FONDO_MINIMO)], {}))
+        self.assertNotIn("benchmark", vecchi_parametri)
+
+    def test_malformed_benchmark_degrades_to_none(self):
+        testo = pio.dump([dict(FONDO_MINIMO)], {"benchmark": {"name": "missing symbol"}})
+        _, parametri = pio.load(testo)
+        self.assertIsNone(parametri["benchmark"])
+
+    def test_benchmark_non_price_source_falls_back_to_auto(self):
+        testo = pio.dump(
+            [dict(FONDO_MINIMO)],
+            {"benchmark": {"symbol": "VT", "preferred_source": "openfigi"}},
+        )
+        _, parametri = pio.load(testo)
+        self.assertEqual(parametri["benchmark"]["preferred_source"], "auto")
+
 
 class TestLoadRejects(unittest.TestCase):
     def test_not_json(self):

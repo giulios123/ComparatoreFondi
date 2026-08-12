@@ -1,6 +1,6 @@
 # 005 · Rendimento reale al netto dell'inflazione
 
-*Stato: approvata — 12 agosto 2026*
+*Stato: implementata — 12 agosto 2026*
 
 ## Problema
 

@@ -8,7 +8,7 @@
 # allineata a `version` in pyproject.toml - lo verifica tests/test_versione.py.
 __version__ = "0.2.0"
 
-from . import allocazione, cache, covip, fx, horizons
+from . import allocazione, cache, comparative, covip, fx, horizons, inflation
 from .covip import Comparto
 from .data import Instrument, convert_currency, get_metadata, get_prices, search
 from .engine import (
@@ -37,12 +37,14 @@ __all__ = [
     "allocazione",
     "apply_annual_fee",
     "cache",
+    "comparative",
     "convert_currency",
     "coverage_warnings",
     "covip",
     "extend_with_proxy",
     "fx",
     "horizons",
+    "inflation",
     "get_metadata",
     "get_prices",
     "is_isin",

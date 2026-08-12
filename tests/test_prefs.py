@@ -43,6 +43,20 @@ class PrefsTests(unittest.TestCase):
 
         self.assertEqual(prefs.load(), {"lingua": "it"})
 
+    def test_save_and_load_inflation_preferences(self) -> None:
+        prefs.save({"lingua": "it", "inflation_enabled": True, "inflation_area": "EA"})
+        self.assertEqual(
+            prefs.load(),
+            {"lingua": "it", "inflation_enabled": True, "inflation_area": "EA"},
+        )
+
+    def test_load_invalid_inflation_area_uses_default_at_app_boundary(self) -> None:
+        self.path.write_text(
+            json.dumps({"lingua": "it", "inflation_area": "US"}),
+            encoding="utf-8",
+        )
+        self.assertEqual(prefs.load(), {"lingua": "it"})
+
 
 if __name__ == "__main__":
     unittest.main()
