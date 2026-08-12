@@ -569,6 +569,31 @@ MESSAGGI: dict[str, str] = {
         "Dollar ausgesetzt."
     ),
 
+    "bilancio.overlap_expander": "🔗 Überschneidung der Positionen",
+    "bilancio.overlap_caption": (
+        "Die Überschneidung summiert nur erkannte Positionen: Bei teilweiser "
+        "Abdeckung ist sie eine Untergrenze; der unbekannte Anteil bleibt sichtbar."
+    ),
+    "bilancio.overlap_fund": "Fonds",
+    "bilancio.overlap_coverage": "Bekannte Abdeckung",
+    "bilancio.overlap_source": "Quelle der Positionen",
+    "bilancio.overlap_date": "Datum",
+    "bilancio.overlap_note": "Hinweis",
+    "bilancio.overlap_unknown_date": "Datum nicht angegeben",
+    "bilancio.overlap_stale": "veraltete Daten",
+    "bilancio.overlap_ambiguous": "{n} mehrdeutige Identitäten",
+    "bilancio.overlap_unavailable": "unzureichende Daten",
+    "bilancio.overlap_ok": "verfügbar",
+    "bilancio.overlap_matrix_header": "**Matrix: beobachtete Überschneidung (Untergrenze)**",
+    "bilancio.overlap_lower_bound": "Untergrenze, keine vollständige Überschneidung",
+    "bilancio.overlap_pair": "Paar",
+    "bilancio.overlap_value": "Beobachtete Überschneidung",
+    "bilancio.overlap_pair_coverage": "Abdeckung",
+    "bilancio.overlap_exposure_header": "**Aggregierte Exposition gegenüber bekannten Positionen**",
+    "bilancio.overlap_position": "Position",
+    "bilancio.overlap_portfolio_weight": "Portfolioanteil",
+    "bilancio.overlap_unknown": "Nicht abgedeckter Gesamtanteil: **{quota}**.",
+
     # --- Tab Fondsvergleich -----------------------------------------------------------------
     "confronto.caption": (
         "Verlauf von {capitale}, vollständig in jeden Fonds investiert, "

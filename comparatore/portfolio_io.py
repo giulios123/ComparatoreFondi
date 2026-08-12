@@ -67,6 +67,8 @@ def assicura_alloc(fund: dict) -> dict:
     if not isinstance(holdings, list):
         holdings = []
         fund["holdings"] = holdings
+    fund.setdefault("holdings_source", "")
+    fund.setdefault("holdings_as_of", None)
     fund["alloc"].setdefault("paese", al.paesi_da_posizioni(holdings))
     fund.setdefault("currency", "")
     fund.setdefault("isin", "")

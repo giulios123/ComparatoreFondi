@@ -536,6 +536,31 @@ MESSAGGI: dict[str, str] = {
         "ETF sul mercato mondiale quotato in euro resta esposto al dollaro."
     ),
 
+    "bilancio.overlap_expander": "🔗 Sovrapposizione delle partecipazioni",
+    "bilancio.overlap_caption": (
+        "L'overlap somma soltanto le posizioni riconosciute: con copertura parziale "
+        "e' un limite inferiore e la parte sconosciuta resta esplicita."
+    ),
+    "bilancio.overlap_fund": "Fondo",
+    "bilancio.overlap_coverage": "Copertura nota",
+    "bilancio.overlap_source": "Fonte holdings",
+    "bilancio.overlap_date": "Data",
+    "bilancio.overlap_note": "Nota",
+    "bilancio.overlap_unknown_date": "data non esposta",
+    "bilancio.overlap_stale": "dato datato",
+    "bilancio.overlap_ambiguous": "{n} identita' ambigue",
+    "bilancio.overlap_unavailable": "dati insufficienti",
+    "bilancio.overlap_ok": "disponibile",
+    "bilancio.overlap_matrix_header": "**Matrice: overlap osservato (limite inferiore)**",
+    "bilancio.overlap_lower_bound": "limite inferiore, non overlap completo",
+    "bilancio.overlap_pair": "Coppia",
+    "bilancio.overlap_value": "Overlap osservato",
+    "bilancio.overlap_pair_coverage": "Coperture",
+    "bilancio.overlap_exposure_header": "**Esposizione aggregata alle partecipazioni note**",
+    "bilancio.overlap_position": "Partecipazione",
+    "bilancio.overlap_portfolio_weight": "Peso nel portafoglio",
+    "bilancio.overlap_unknown": "Quota complessiva non coperta: **{quota}**.",
+
     # --- Tab Confronto fondi -----------------------------------------------------------------
     "confronto.caption": (
         "Andamento di {capitale} investiti interamente in ciascun fondo, "

@@ -551,6 +551,31 @@ MESSAGGI: dict[str, str] = {
         "ETF sur le marché mondial coté en euros reste exposé au dollar."
     ),
 
+    "bilancio.overlap_expander": "🔗 Recoupement des positions",
+    "bilancio.overlap_caption": (
+        "Le recoupement additionne seulement les positions reconnues : avec une "
+        "couverture partielle, c'est une borne inferieure et la part inconnue reste visible."
+    ),
+    "bilancio.overlap_fund": "Fonds",
+    "bilancio.overlap_coverage": "Couverture connue",
+    "bilancio.overlap_source": "Source des positions",
+    "bilancio.overlap_date": "Date",
+    "bilancio.overlap_note": "Note",
+    "bilancio.overlap_unknown_date": "date non fournie",
+    "bilancio.overlap_stale": "donnees anciennes",
+    "bilancio.overlap_ambiguous": "{n} identites ambigues",
+    "bilancio.overlap_unavailable": "donnees insuffisantes",
+    "bilancio.overlap_ok": "disponible",
+    "bilancio.overlap_matrix_header": "**Matrice : recoupement observe (borne inferieure)**",
+    "bilancio.overlap_lower_bound": "borne inferieure, pas le recoupement complet",
+    "bilancio.overlap_pair": "Paire",
+    "bilancio.overlap_value": "Recoupement observe",
+    "bilancio.overlap_pair_coverage": "Couvertures",
+    "bilancio.overlap_exposure_header": "**Exposition agregee aux positions connues**",
+    "bilancio.overlap_position": "Position",
+    "bilancio.overlap_portfolio_weight": "Poids dans le portefeuille",
+    "bilancio.overlap_unknown": "Part totale non couverte : **{quota}**.",
+
     # --- Onglet Comparaison de fonds ------------------------------------
     "confronto.caption": (
         "Évolution de {capitale} investis intégralement dans chaque fonds, "

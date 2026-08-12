@@ -4,22 +4,22 @@ Riferimento: [`spec.md`](spec.md) · [`plan.md`](plan.md)
 
 ## Implementazione
 
-- [ ] Implementare `InvestorProfile` e persistenza separata con permessi 600.
+- [ ] Implementare `InvestorProfile` versionato e persistenza separata con permessi 600.
 - [ ] Collegare il percorso dati utente nel bundle desktop.
 - [ ] Definire `PortfolioFinding` ed evidenze strutturate.
-- [ ] Implementare le prime regole deterministiche senza soglie inventate.
-- [ ] Costruire il rapporto anonimo tramite allowlist.
+- [ ] Implementare regole deterministiche: conflitti personali e fatti informativi senza soglie inventate.
+- [ ] Costruire il rapporto anonimo tramite allowlist, token temporanei e ordine stabile.
 - [ ] Mantenere la mappa asset reale/token soltanto in memoria.
-- [ ] Integrare editor profilo, diagnosi e anteprima payload.
+- [ ] Integrare editor profilo, diagnosi, anteprima payload e nessuna chiamata esterna.
 - [ ] Aggiungere i testi ai quattro cataloghi.
 
 ## Test
 
 - [ ] Profilo valido, parziale, assente, corrotto e cancellato.
-- [ ] Regole con benchmark/dati presenti e mancanti.
+- [ ] Regole con benchmark, inflazione, overlap e dati presenti o mancanti.
 - [ ] Determinismo e ordine stabile dei rilievi.
 - [ ] Assenza di nomi, simboli, ISIN, importi, path e credenziali nel payload.
-- [ ] Bundle: profilo fuori dalla directory dell'app.
+- [ ] Bundle: profilo fuori dalla directory dell'app e non nell'export JSON.
 
 ## Verifica dei criteri di accettazione
 

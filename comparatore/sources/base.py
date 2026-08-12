@@ -51,6 +51,7 @@ class Instrument:
     # la ripartizione per paese (vedi `comparatore.allocazione.paesi_da_posizioni`).
     holdings: list[dict] = field(default_factory=list)
     holdings_source: str = ""  # "yahoo" | ""
+    holdings_as_of: dt.date | None = None
     # Fonte che ha restituito *questo risultato di ricerca* - distinto da
     # `ter_source`/`allocation_source`, che riguardano i metadati recuperati
     # dopo l'aggiunta al portafoglio. Valorizzato da `Registry.search()`,

@@ -407,3 +407,22 @@ coperti, se presenti, e lasciano disponibile il backtest nominale.
 
 **Traccia.** `comparatore/inflation.py`, `comparatore/cache.py`, `comparatore/prefs.py`,
 `app.py`, spec `005`.
+
+### 25 · L'overlap osservato non si rinormalizza
+
+*Agosto 2026 — spec [`006-overlap-portafoglio`](../spec-driven/specs/006-overlap-portafoglio/spec.md)*
+
+**Scelta.** Le prime posizioni restano nella scala della fonte: l'overlap e'
+la somma delle quote minime riconosciute e viene presentato come limite
+inferiore. Identificatori stabili, simboli con suffisso di borsa e nomi
+normalizzati sono provati in quest'ordine; collisioni e holdings assenti restano
+visibili come ambiguita' o `n/d`. La copertura e la provenienza entrano in un
+risultato strutturato separato dal backtest.
+
+**Conseguenze.** Una concentrazione aggregata puo' avere una quota sconosciuta
+esplicita, ma non puo' fingere di conoscere il 100% del fondo. L'aggiunta di
+nuove fonti dovra' conservare fonte e data delle holdings senza modificare le
+quote gia' osservate.
+
+**Traccia.** `comparatore/overlap.py`, `comparatore/sources/base.py`, `app.py`,
+spec `006`.

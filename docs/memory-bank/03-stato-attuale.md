@@ -72,6 +72,13 @@ confronta con i fondi pensione COVIP.
   metadati e degrada ai dati vecchi coperti se la rete fallisce. La curva reale
   e' derivata e il PAC deflaziona saldo e flussi rata per rata senza alterare il
   backtest nominale. I test sono 209.
+- **Sovrapposizione delle partecipazioni** — spec
+  [`006-overlap-portafoglio`](../spec-driven/specs/006-overlap-portafoglio/spec.md):
+  le holdings vengono normalizzate con identita' deterministiche, la copertura
+  resta esplicita e l'overlap e' sempre un limite inferiore senza
+  rinormalizzazione. La scheda Bilanciamento mostra matrice, coppie,
+  concentrazione aggregata e quota sconosciuta; i JSON precedenti ricevono i
+  nuovi metadati con backfill. I test sono 215.
 
 ## Aperto, e noto
 

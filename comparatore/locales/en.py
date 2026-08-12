@@ -527,6 +527,31 @@ MESSAGGI: dict[str, str] = {
         "in euros remains exposed to the dollar."
     ),
 
+    "bilancio.overlap_expander": "🔗 Holdings overlap",
+    "bilancio.overlap_caption": (
+        "Overlap sums only recognized positions: with partial coverage it is a "
+        "lower bound and the unknown portion remains explicit."
+    ),
+    "bilancio.overlap_fund": "Fund",
+    "bilancio.overlap_coverage": "Known coverage",
+    "bilancio.overlap_source": "Holdings source",
+    "bilancio.overlap_date": "Date",
+    "bilancio.overlap_note": "Note",
+    "bilancio.overlap_unknown_date": "date not exposed",
+    "bilancio.overlap_stale": "stale data",
+    "bilancio.overlap_ambiguous": "{n} ambiguous identities",
+    "bilancio.overlap_unavailable": "insufficient data",
+    "bilancio.overlap_ok": "available",
+    "bilancio.overlap_matrix_header": "**Matrix: observed overlap (lower bound)**",
+    "bilancio.overlap_lower_bound": "lower bound, not complete overlap",
+    "bilancio.overlap_pair": "Pair",
+    "bilancio.overlap_value": "Observed overlap",
+    "bilancio.overlap_pair_coverage": "Coverage",
+    "bilancio.overlap_exposure_header": "**Aggregated exposure to known holdings**",
+    "bilancio.overlap_position": "Holding",
+    "bilancio.overlap_portfolio_weight": "Portfolio weight",
+    "bilancio.overlap_unknown": "Total uncovered portion: **{quota}**.",
+
     # --- Fund comparison tab -----------------------------------------------------------------
     "confronto.caption": (
         "Trajectory of {capitale} invested entirely in each fund, for a "

@@ -19,6 +19,7 @@ from comparatore import (
     i18n,
     inflation,
     licenses,
+    overlap,
     pesi,
     pic_costs,
     portfolio_io,
@@ -488,6 +489,8 @@ def _fondo_da_meta(
         "alloc_fonte": alloc_fonte or meta.get("allocation_source") or "nome",
         "alloc_manuale": {d: "" for d in al.DIMENSIONI},
         "holdings": holdings,
+        "holdings_source": meta.get("holdings_source") or "",
+        "holdings_as_of": meta.get("holdings_as_of"),
     }
 
 
@@ -2702,6 +2705,104 @@ with tab_bil:
             )
         else:
             st.caption(t("bilancio.posizioni_none"))
+
+    # L'overlap e' una vista derivata: non modifica la classificazione manuale
+    # ne' le serie usate dal backtest. Le quote restano quelle osservate dalla
+    # fonte, quindi una coppia parziale viene mostrata come limite inferiore.
+    overlap_report = overlap.analyze_overlap([
+        {
+            "fund_id": f["symbol"],
+            "name": f.get("name", ""),
+            "weight": f.get("weight", 0.0),
+            "holdings": f.get("holdings") or [],
+            "holdings_source": f.get("holdings_source", ""),
+            "holdings_as_of": f.get("holdings_as_of"),
+        }
+        for f in fondi
+    ])
+    with st.expander(t("bilancio.overlap_expander"), expanded=True):
+        st.caption(t("bilancio.overlap_caption"))
+        coverage_rows = []
+        for fund in overlap_report.funds:
+            item = overlap_report.coverage[fund.fund_id]
+            data = ""
+            if item.as_of:
+                data = item.as_of.strftime(FMT_DATA)
+            elif item.source:
+                data = t("bilancio.overlap_unknown_date")
+            flags = []
+            if item.stale:
+                flags.append(t("bilancio.overlap_stale"))
+            if item.ambiguous_count:
+                flags.append(t("bilancio.overlap_ambiguous", n=item.ambiguous_count))
+            if not item.valid:
+                flags.append(t("bilancio.overlap_unavailable"))
+            coverage_rows.append({
+                "fondo": fund.name or fund.fund_id,
+                "copertura": fmt_pct(item.coverage),
+                "fonte": item.source or t("nd"),
+                "data": data or t("nd"),
+                "nota": "; ".join(flags) or t("bilancio.overlap_ok"),
+            })
+        st.dataframe(pd.DataFrame(coverage_rows), hide_index=True, width="stretch",
+                     column_config={
+                         "fondo": t("bilancio.overlap_fund"),
+                         "copertura": t("bilancio.overlap_coverage"),
+                         "fonte": t("bilancio.overlap_source"),
+                         "data": t("bilancio.overlap_date"),
+                         "nota": t("bilancio.overlap_note"),
+                     })
+
+        if overlap_report.pairwise:
+            names = {fund.fund_id: fund.name or fund.fund_id for fund in overlap_report.funds}
+            matrix = pd.DataFrame(index=[names[f.fund_id] for f in overlap_report.funds],
+                                  columns=[names[f.fund_id] for f in overlap_report.funds])
+            for fund in overlap_report.funds:
+                matrix.loc[names[fund.fund_id], names[fund.fund_id]] = "—"
+            for pair in overlap_report.pairwise:
+                value = t("nd") if pair.overlap is None else fmt_pct(pair.overlap)
+                matrix.loc[names[pair.fund_a], names[pair.fund_b]] = value
+                matrix.loc[names[pair.fund_b], names[pair.fund_a]] = value
+            st.markdown(t("bilancio.overlap_matrix_header"))
+            st.dataframe(matrix, width="stretch")
+            pair_rows = []
+            for pair in sorted(overlap_report.pairwise,
+                               key=lambda p: p.overlap if p.overlap is not None else -1,
+                               reverse=True):
+                pair_rows.append({
+                    "coppia": f"{names[pair.fund_a]} · {names[pair.fund_b]}",
+                    "overlap": t("nd") if pair.overlap is None else fmt_pct(pair.overlap),
+                    "copertura": f"{fmt_pct(pair.coverage_a)} · {fmt_pct(pair.coverage_b)}",
+                    "nota": (
+                        t("bilancio.overlap_lower_bound") if pair.overlap is not None
+                        else t("bilancio.overlap_unavailable")
+                    ) + (f"; {t('bilancio.overlap_ambiguous', n=pair.ambiguous_count)}"
+                         if pair.ambiguous_count else ""),
+                })
+            st.dataframe(pd.DataFrame(pair_rows), hide_index=True, width="stretch",
+                         column_config={
+                             "coppia": t("bilancio.overlap_pair"),
+                             "overlap": t("bilancio.overlap_value"),
+                             "copertura": t("bilancio.overlap_pair_coverage"),
+                             "nota": t("bilancio.overlap_note"),
+                         })
+
+        st.markdown(t("bilancio.overlap_exposure_header"))
+        exposure_rows = [
+            {"partecipazione": key.rsplit("|", 1)[-1], "peso": fmt_pct(value)}
+            for key, value in sorted(
+                overlap_report.exposure.exposures.items(), key=lambda item: item[1], reverse=True
+            )
+        ]
+        if exposure_rows:
+            st.dataframe(pd.DataFrame(exposure_rows), hide_index=True, width="stretch",
+                         column_config={
+                             "partecipazione": t("bilancio.overlap_position"),
+                             "peso": t("bilancio.overlap_portfolio_weight"),
+                         })
+        st.caption(t("bilancio.overlap_unknown", quota=fmt_pct(
+            overlap_report.exposure.unknown_weight
+        )))
 
     esclusi = [f["symbol"] for f in fondi if f["symbol"] not in prices.columns]
     if esclusi:
