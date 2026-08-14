@@ -20,6 +20,8 @@ from typing import Protocol, runtime_checkable
 
 import pandas as pd
 
+from ..instrument_facts import InstrumentFacts
+
 # Struttura di un ISIN: 2 lettere paese, 9 alfanumerici, 1 cifra di controllo.
 _ISIN_RE = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
 
@@ -64,6 +66,9 @@ class Instrument:
     # Restano vuoti quando la fonte non li espone (o non e' stata abilitata).
     distribution_policy: str = ""  # "accumulating" | "distributing" | ""
     replication_method: str = ""  # "physical" | "synthetic" | ""
+    # Fatti normalizzati per la scheda; i campi legacy sopra restano perche'
+    # motore e interfaccia li usano ancora direttamente.
+    facts: InstrumentFacts = field(default_factory=InstrumentFacts)
 
     @property
     def label(self) -> str:

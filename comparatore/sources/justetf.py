@@ -35,6 +35,7 @@ import pandas as pd
 import requests
 
 from .. import cache
+from ..instrument_facts import InstrumentFacts, candidate
 from .base import Instrument, PriceSeries, is_isin, to_business_days
 
 BASE_URL = "https://www.justetf.com/api/etfs"
@@ -92,6 +93,24 @@ class JustEtfSource:
         cached = cache.read_meta(key, retention_days=1)
         if cached is not None:
             self.last_metadata_outcome = cached.get("outcome", "no_ter")
+            acquired = dt.date.today().isoformat()
+            facts = {}
+            if cached.get("name"):
+                facts.setdefault("name", []).append(candidate(
+                    cached.get("name"), "justetf", acquired_at=acquired,
+                ))
+            if cached.get("ter") is not None:
+                facts.setdefault("ter", []).append(candidate(
+                    cached.get("ter"), "justetf", acquired_at=acquired,
+                ))
+            if cached.get("distribution_policy"):
+                facts.setdefault("distribution_policy", []).append(candidate(
+                    cached.get("distribution_policy"), "justetf", acquired_at=acquired,
+                ))
+            if cached.get("replication_method"):
+                facts.setdefault("replication_method", []).append(candidate(
+                    cached.get("replication_method"), "justetf", acquired_at=acquired,
+                ))
             return Instrument(
                 symbol=symbol or code,
                 name=cached.get("name") or symbol or code,
@@ -102,6 +121,7 @@ class JustEtfSource:
                 isin=code,
                 distribution_policy=cached.get("distribution_policy") or "",
                 replication_method=cached.get("replication_method") or "",
+                facts=InstrumentFacts.merge(facts),
             )
 
         try:
@@ -138,6 +158,24 @@ class JustEtfSource:
         )
         outcome = "found" if ter is not None else "no_ter"
         self.last_metadata_outcome = outcome
+        acquired = dt.date.today().isoformat()
+        facts = {}
+        if name:
+            facts.setdefault("name", []).append(candidate(
+                name, "justetf", acquired_at=acquired,
+            ))
+        if ter is not None:
+            facts.setdefault("ter", []).append(candidate(
+                ter, "justetf", acquired_at=acquired,
+            ))
+        if distribution_policy:
+            facts.setdefault("distribution_policy", []).append(candidate(
+                distribution_policy, "justetf", acquired_at=acquired,
+            ))
+        if replication_method:
+            facts.setdefault("replication_method", []).append(candidate(
+                replication_method, "justetf", acquired_at=acquired,
+            ))
         cache.write_meta(
             key,
             {
@@ -158,6 +196,7 @@ class JustEtfSource:
             isin=code,
             distribution_policy=distribution_policy,
             replication_method=replication_method,
+            facts=InstrumentFacts.merge(facts),
         )
 
     def prices(

@@ -68,3 +68,14 @@ seconda pipeline parallela per gli stessi dati.
    selezionati non cambino.
 6. Simulare il fallimento di un provider e verificare che ricerca e backtest
    restino utilizzabili.
+
+## Evidenza di chiusura
+
+- Controllo end-to-end nell'app: la ricerca mostra il pulsante `Scheda` e apre
+  il dialogo largo con sezioni, fonti, campi mancanti, azione di aggiunta e
+  retry; il dialogo usa le stesse funzioni del portafoglio.
+- Suite completa: 237 test `unittest`, Ruff, `git diff --check` e smoke
+  Streamlit su sessione pulita superati.
+- La verifica dei casi completi/conflittuali e delle quattro lingue resta
+  coperta dalle fixture provider e dalla parità dei cataloghi; non si sono
+  aggiunte chiamate provider oltre a quelle gia' presenti.

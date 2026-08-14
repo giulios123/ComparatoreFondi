@@ -18,6 +18,7 @@ import pandas as pd
 import requests
 
 from .. import allocazione, cache
+from ..instrument_facts import InstrumentFacts, candidate
 from .base import Instrument, PriceSeries, is_isin, naive_index
 
 BASE_URL = "https://eodhd.com/api"
@@ -168,6 +169,10 @@ class EodhdSource:
 
         general = payload.get("General") or {}
         etf_data = payload.get("ETF_Data") or {}
+        mutual_data = payload.get("MutualFund_Data") or {}
+        acquired = dt.date.today().isoformat()
+        observed = general.get("UpdatedAt") or mutual_data.get("Update_Date") or ""
+        facts = {}
 
         ter = None
         for field in (
@@ -196,6 +201,82 @@ class EodhdSource:
         alloc = allocazione.classifica_da_eodhd(etf_data)
         self.last_metadata_outcome = "found" if ter is not None else "no_ter"
 
+        if ter is not None:
+            facts.setdefault("ter", []).append(candidate(
+                ter,
+                "eodhd",
+                observed_at=(
+                    etf_data.get("Date_Ongoing_Charge")
+                    or mutual_data.get("Expense_Ratio_Date")
+                    or observed
+                ),
+                acquired_at=acquired,
+            ))
+
+        def add_text(key: str, value) -> None:
+            if value not in (None, ""):
+                facts.setdefault(key, []).append(candidate(
+                    value, "eodhd", observed_at=observed, acquired_at=acquired,
+                ))
+
+        add_text("name", general.get("Name"))
+        add_text("issuer", etf_data.get("Company_Name"))
+        add_text("index", etf_data.get("Index_Name"))
+        add_text("domicile", etf_data.get("Domicile"))
+        add_text(
+            "inception_date",
+            etf_data.get("Inception_Date") or mutual_data.get("Inception_Date"),
+        )
+        fund_currency = (
+            mutual_data.get("Currency")
+            or etf_data.get("Fund_Currency")
+            or etf_data.get("Currency")
+        )
+        add_text("fund_currency", fund_currency)
+
+        for key, raw in (
+            ("TotalAssets", etf_data.get("TotalAssets")),
+            ("Portfolio_Net_Assets", mutual_data.get("Portfolio_Net_Assets")),
+            ("Share_Class_Net_Assets", mutual_data.get("Share_Class_Net_Assets")),
+        ):
+            try:
+                amount = float(raw)
+            except (TypeError, ValueError):
+                continue
+            if amount > 0:
+                facts.setdefault("aum", []).append(candidate(
+                    {"amount": amount, "currency": str(fund_currency or "").upper()},
+                    "eodhd", observed_at=observed, acquired_at=acquired,
+                ))
+                break
+
+        for dimension, buckets in alloc.items():
+            facts.setdefault(f"allocation.{dimension}", []).append(candidate(
+                buckets, "eodhd", observed_at=observed, acquired_at=acquired,
+            ))
+
+        raw_holdings = etf_data.get("Top_10_Holdings") or {}
+        if isinstance(raw_holdings, dict):
+            holdings = []
+            for holding_symbol, row in raw_holdings.items():
+                if not isinstance(row, dict):
+                    continue
+                try:
+                    quota = float(row.get("Assets_%")) / 100
+                except (TypeError, ValueError):
+                    continue
+                if quota <= 0:
+                    continue
+                holdings.append({
+                    "symbol": str(row.get("Code") or holding_symbol),
+                    "name": str(row.get("Name") or holding_symbol),
+                    "quota": quota,
+                })
+            if holdings:
+                facts.setdefault("holdings", []).append(candidate(
+                    holdings, "eodhd", observed_at=observed, acquired_at=acquired,
+                ))
+
         return Instrument(
             symbol=symbol,
             name=general.get("Name") or symbol,
@@ -205,9 +286,15 @@ class EodhdSource:
             ter=ter,
             ter_source="eodhd" if ter is not None else "",
             ter_origin="eodhd" if ter is not None else "",
-            isin=(general.get("ISIN") or "").upper(),
+            isin=(
+                general.get("ISIN")
+                or etf_data.get("ISIN")
+                or mutual_data.get("ISIN")
+                or ""
+            ).upper(),
             allocation=alloc,
             allocation_source="eodhd" if alloc else "",
+            facts=InstrumentFacts.merge(facts),
         )
 
     # ---------------------------------------------------------------- prezzi

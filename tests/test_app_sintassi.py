@@ -174,6 +174,17 @@ class TestSintassiApp(unittest.TestCase):
         self.assertIn('t("editor.col_replica")', sorgente)
         self.assertIn("_mancano_metadati_etf(fondo)", sorgente)
 
+    def test_scheda_strumento_e_editor_kid_restano_collegati(self):
+        sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn("@st.dialog(t(\"instrument.title\")", sorgente)
+        self.assertIn("_scheda_strumento", sorgente)
+        self.assertIn('t("search.info_button")', sorgente)
+        self.assertIn('t("editor.col_scheda")', sorgente)
+        self.assertIn("complete=True", sorgente)
+        self.assertIn("instrument_facts", sorgente)
+        self.assertIn("_salva_dati_kid", sorgente)
+        self.assertIn("_rimuovi_dati_kid", sorgente)
+
     def test_benchmark_e_inflazione_restano_viste_derivate(self):
         sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
         self.assertIn("benchmark_resolution", sorgente)

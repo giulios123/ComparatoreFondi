@@ -1,6 +1,6 @@
 # Stato attuale
 
-*Aggiornato: 12 agosto 2026*
+*Aggiornato: 14 agosto 2026*
 
 ## Dove siamo
 
@@ -85,6 +85,16 @@ confronta con i fondi pensione COVIP.
   rilievi deterministici solo rispetto alle preferenze dichiarate e il payload
   di anteprima nasce da una allowlist con token temporanei. La tab Diagnosi non
   effettua chiamate esterne; i test complessivi sono 224.
+- **Scheda informativa dello strumento** — spec
+  [`010-scheda-strumento`](../spec-driven/specs/010-scheda-strumento/spec.md):
+  i fatti normalizzati conservano valore, fonte, date, qualità, alternative
+  discordanti e quotazioni collegate senza cambiare la quotazione attiva. La
+  scheda unica è raggiungibile da ricerca e portafoglio, include retry dei soli
+  fatti automatici e un editor KID con override protetto; l'export persiste solo
+  dati utili e rimuove `ter_attempts`. Yahoo, EODHD e justETF riusano le
+  richieste già previste, con justETF ancora opt-in. La copertura storica deriva
+  dalle serie già risolte dal flusso del portafoglio. I test complessivi sono
+  237 e Ruff è pulito.
 
 ## Aperto, e noto
 

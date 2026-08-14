@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 import math
 import os
 
@@ -48,6 +49,13 @@ from comparatore.engine import (
     run_backtest,
     simulate,
 )
+from comparatore.instrument_facts import (
+    QUALITY_DERIVED,
+    QUALITY_DOCUMENT,
+    QUALITY_MANUAL,
+    InstrumentFacts,
+    candidate,
+)
 from comparatore.portfolio_io import assicura_alloc
 from comparatore.sources import AUTO, CsvParseError, Registry, is_isin, parse_csv
 
@@ -61,6 +69,17 @@ if "selected" not in st.session_state:
     st.session_state.selected = []  # dizionari: symbol, name, isin, weight, ...
 if "investor_profile" not in st.session_state:
     st.session_state.investor_profile = profile_store.load()
+elif not isinstance(st.session_state.investor_profile, profile_store.InvestorProfile):
+    # Sessioni Streamlit aperte prima della spec 008 possono contenere il
+    # wrapper JSON completo invece dell'oggetto gia' normalizzato: la diagnosi
+    # deve degradare a un profilo vuoto, non interrompere un backtest valido.
+    profilo = st.session_state.investor_profile
+    if isinstance(profilo, dict) and isinstance(profilo.get("profile"), dict):
+        profilo = profilo["profile"]
+    try:
+        st.session_state.investor_profile = profile_store.InvestorProfile.from_dict(profilo)
+    except profile_store.ProfileError:
+        st.session_state.investor_profile = profile_store.InvestorProfile()
 if "csv_series" not in st.session_state:
     st.session_state.csv_series = {}  # chiave -> (serie, valuta)
 if "directa_upload_visto" not in st.session_state:
@@ -77,6 +96,10 @@ if "ter_refresh_rev" not in st.session_state:
     st.session_state.ter_refresh_rev = 0
 if "ter_refresh_pending" not in st.session_state:
     st.session_state.ter_refresh_pending = False
+if "facts_refresh_rev" not in st.session_state:
+    st.session_state.facts_refresh_rev = 0
+if "instrument_card_target" not in st.session_state:
+    st.session_state.instrument_card_target = None
 if "pic_costs_enabled" not in st.session_state:
     st.session_state.pic_costs_enabled = False
 for _key, _value in {
@@ -328,7 +351,12 @@ def build_registry() -> Registry:
 @st.cache_data(show_spinner=False, ttl=3600)
 def cached_search(query: str, funds_only: bool, eodhd: str, td: str) -> list[dict]:
     reg = Registry(eodhd_key=eodhd, twelvedata_key=td)
-    return [vars(i) for i in reg.search(query, limit=15, funds_only=funds_only)]
+    out = []
+    for instrument in reg.search(query, limit=15, funds_only=funds_only):
+        result = vars(instrument).copy()
+        result.pop("facts", None)
+        out.append(result)
+    return out
 
 
 @st.cache_data(show_spinner=False, ttl=300)
@@ -338,10 +366,14 @@ def cached_metadata(
     eodhd: str,
     refresh_rev: int = 0,
     justetf: bool = False,
+    complete: bool = False,
 ) -> dict:
     reg = Registry(eodhd_key=eodhd, enable_justetf=justetf)
-    resolution = reg.metadata_resolution(symbol, isin)
+    resolution = reg.metadata_resolution(symbol, isin, complete=complete)
     result = vars(resolution.instrument).copy()
+    result.pop("facts", None)
+    result["instrument_facts"] = resolution.facts.to_dict()
+    result["related_quotes"] = [quote.to_dict() for quote in resolution.related_quotes]
     result["ter_attempts"] = [vars(attempt) for attempt in resolution.attempts]
     return result
 
@@ -478,6 +510,8 @@ def _fondo_da_meta(
     return {
         "symbol": symbol,
         "name": meta.get("name") or name or symbol,
+        "quote_type": meta.get("quote_type") or "",
+        "exchange": meta.get("exchange") or "",
         "currency": meta.get("currency") or "",
         "isin": (isin or meta.get("isin") or "").upper(),
         "weight": 0.0,
@@ -496,29 +530,179 @@ def _fondo_da_meta(
         "holdings": holdings,
         "holdings_source": meta.get("holdings_source") or "",
         "holdings_as_of": meta.get("holdings_as_of"),
+        "instrument_facts": meta.get("instrument_facts") or {},
+        "related_quotes": meta.get("related_quotes") or [],
     }
+
+
+def _facts_locali(fondo: dict) -> InstrumentFacts:
+    """Rilegge i fatti persistiti e ricostruisce il TER manuale dei JSON vecchi."""
+    facts = InstrumentFacts.from_dict(fondo.get("instrument_facts"))
+    origin = fondo.get("ter_origin", "")
+    if origin in {"manual", "kid"} and "ter" not in facts.values:
+        facts = InstrumentFacts.combine(
+            facts,
+            InstrumentFacts.merge({
+                "ter": [candidate(
+                    float(fondo.get("ter", 0.0)) / 100,
+                    origin,
+                    acquired_at=dt.datetime.now(),
+                    quality=QUALITY_DOCUMENT if origin == "kid" else QUALITY_MANUAL,
+                )]
+            }),
+        )
+    return facts
+
+
+def _aggiorna_fatti(fondo: dict, meta: dict) -> InstrumentFacts:
+    """Fonde i nuovi fatti automatici senza perdere override o conflitti locali."""
+    locali = _facts_locali(fondo)
+    automatici = InstrumentFacts.from_dict(meta.get("instrument_facts"))
+    combinati = InstrumentFacts.combine(locali, automatici)
+    fondo["instrument_facts"] = combinati.to_dict()
+    if meta.get("related_quotes"):
+        fondo["related_quotes"] = meta["related_quotes"]
+    for chiave in ("distribution_policy", "replication_method"):
+        fatto = combinati.values.get(chiave)
+        if fatto is not None and fatto.value:
+            fondo[chiave] = fatto.value
+    for chiave, fatto in combinati.values.items():
+        if chiave.startswith("allocation.") and fatto.value:
+            fondo.setdefault("alloc", {})[chiave.removeprefix("allocation.")] = fatto.value
+        elif chiave == "holdings" and isinstance(fatto.value, list):
+            fondo["holdings"] = fatto.value
+            fondo["holdings_source"] = fatto.source
+    return combinati
 
 
 def _aggiorna_ter(fondo: dict, meta: dict) -> bool:
     """Aggiorna solo un TER automatico, lasciando intatto l'override manuale."""
-    for chiave in ("distribution_policy", "replication_method"):
-        if meta.get(chiave):
-            fondo[chiave] = meta[chiave]
-    if fondo.get("ter_origin") == "manual":
-        return False
-    ter = meta.get("ter")
+    combinati = _aggiorna_fatti(fondo, meta)
+    ter_fact = combinati.values.get("ter")
     fondo["ter_attempts"] = meta.get("ter_attempts", [])
-    if ter is None:
+    if ter_fact is None:
         # Non degradare un TER già presente per errori temporanei delle fonti.
         if fondo.get("ter_origin", "missing") == "missing":
             fondo["ter_origin"] = "missing"
             fondo["ter_auto"] = False
         return False
-    fondo["ter"] = float(ter) * 100
-    fondo["ter_origin"] = meta.get("ter_origin") or "auto"
-    fondo["ter_auto"] = True
+    fondo["ter"] = float(ter_fact.value) * 100
+    fondo["ter_origin"] = ter_fact.source
+    fondo["ter_auto"] = ter_fact.source not in {"manual", "kid"}
     fondo["ter_attempts"] = meta.get("ter_attempts", [])
-    return True
+    return fondo["ter_auto"]
+
+
+def _meta_da_fondo(fondo: dict) -> dict:
+    """Vista di fatti persistiti compatibile con il renderer della scheda."""
+    facts = _facts_locali(fondo)
+    allocation = dict(fondo.get("alloc") or {})
+    holdings = fondo.get("holdings", [])
+    for key, fact in facts.values.items():
+        if key.startswith("allocation."):
+            allocation[key.removeprefix("allocation.")] = fact.value
+        elif key == "holdings" and isinstance(fact.value, list):
+            holdings = fact.value
+    result = {
+        "symbol": fondo.get("symbol", ""),
+        "name": fondo.get("name", ""),
+        "isin": fondo.get("isin", ""),
+        "quote_type": fondo.get("quote_type", ""),
+        "exchange": fondo.get("exchange", ""),
+        "currency": fondo.get("currency", ""),
+        "ter": fondo.get("ter", 0.0) / 100 if fondo.get("ter") is not None else None,
+        "ter_origin": fondo.get("ter_origin", "missing"),
+        "distribution_policy": fondo.get("distribution_policy", ""),
+        "replication_method": fondo.get("replication_method", ""),
+        "allocation": allocation,
+        "holdings": holdings,
+        "instrument_facts": facts.to_dict(),
+        "related_quotes": fondo.get("related_quotes") or facts.to_dict().get("related_quotes", []),
+        "ter_attempts": fondo.get("ter_attempts", []),
+    }
+    for key, fact in facts.values.items():
+        if key.startswith("allocation."):
+            continue
+        if key == "ter":
+            result["ter"] = fact.value
+            result["ter_origin"] = fact.source
+        elif key in {"distribution_policy", "replication_method"}:
+            result[key] = fact.value
+        else:
+            result[key] = fact.value
+    return result
+
+
+def _rimuovi_fatti_locali(facts: InstrumentFacts, keys: set[str], source: str) -> InstrumentFacts:
+    """Rimuove solo i fatti di una fonte locale per consentire una sostituzione."""
+    candidates = {}
+    for key, fact in facts.values.items():
+        if not (key in keys and fact.source == source):
+            candidates.setdefault(key, []).append(fact)
+    for key, items in facts.alternatives.items():
+        for item in items:
+            if not (key in keys and item.source == source):
+                candidates.setdefault(key, []).append(item)
+    return InstrumentFacts.merge(candidates, facts.related_quotes)
+
+
+def _registra_fatto_locale(
+    fondo: dict,
+    key: str,
+    value,
+    source: str,
+    quality: str,
+    observed_at: str = "",
+) -> None:
+    facts = _rimuovi_fatti_locali(_facts_locali(fondo), {key}, source)
+    locale = InstrumentFacts.merge({key: [candidate(
+        value,
+        source,
+        observed_at=observed_at,
+        acquired_at=dt.datetime.now(),
+        quality=quality,
+    )]})
+    fondo["instrument_facts"] = InstrumentFacts.combine(facts, locale).to_dict()
+
+
+def _sincronizza_legacy_da_fatti(fondo: dict) -> None:
+    facts = _facts_locali(fondo)
+    ter_fact = facts.values.get("ter")
+    if ter_fact is None:
+        fondo["ter"] = 0.0
+        fondo["ter_origin"] = "missing"
+        fondo["ter_auto"] = False
+        return
+    fondo["ter"] = float(ter_fact.value) * 100
+    fondo["ter_origin"] = ter_fact.source
+    fondo["ter_auto"] = ter_fact.source not in {"manual", "kid"}
+    for key in ("distribution_policy", "replication_method"):
+        fact = facts.values.get(key)
+        if fact is not None:
+            fondo[key] = fact.value
+
+
+def _aggiorna_copertura_storica(fondi: list[dict], prices: pd.DataFrame) -> None:
+    """Conserva nelle schede l'intervallo realmente osservato dal flusso prezzi."""
+    if prices.empty:
+        return
+    for fondo in fondi:
+        symbol = fondo.get("symbol", "")
+        if symbol not in prices.columns:
+            continue
+        serie = prices[symbol].dropna()
+        if serie.empty:
+            continue
+        inizio = pd.Timestamp(serie.index[0]).date().isoformat()
+        fine = pd.Timestamp(serie.index[-1]).date().isoformat()
+        _registra_fatto_locale(
+            fondo, "history_start", inizio,
+            "derived", QUALITY_DERIVED, observed_at=inizio,
+        )
+        _registra_fatto_locale(
+            fondo, "history_end", fine,
+            "derived", QUALITY_DERIVED, observed_at=fine,
+        )
 
 
 def _mancano_metadati_etf(fondo: dict) -> bool:
@@ -563,6 +747,386 @@ def add_fund(symbol: str, name: str, isin: str = ""):
         fondo["weight"] = peso
     st.session_state.composizione_rev += 1
     st.toast(t("toast.fund_added", symbol=symbol), icon="✅")
+
+
+def _imposta_scheda_target(symbol: str, name: str, isin: str = "", portfolio: bool = False) -> None:
+    st.session_state.instrument_card_target = {
+        "symbol": symbol,
+        "name": name,
+        "isin": isin,
+        "portfolio": portfolio,
+    }
+
+
+def _click_scheda_fondo() -> None:
+    click = st.session_state.get("composizione_scheda")
+    if not isinstance(click, dict):
+        return
+    index = click.get("row")
+    if not isinstance(index, int) or not (0 <= index < len(st.session_state.selected)):
+        return
+    fondo = st.session_state.selected[index]
+    _imposta_scheda_target(
+        fondo.get("symbol", ""), fondo.get("name", ""), fondo.get("isin", ""), True
+    )
+
+
+def _valore_fatto(meta: dict, key: str):
+    facts = InstrumentFacts.from_dict(meta.get("instrument_facts"))
+    fact = facts.values.get(key)
+    return fact
+
+
+def _etichetta_fatto(key: str) -> str:
+    return t({
+        "name": "instrument.fact_name",
+        "ter": "instrument.fact_ter",
+        "issuer": "instrument.fact_issuer",
+        "category": "instrument.fact_category",
+        "index": "instrument.fact_index",
+        "domicile": "instrument.fact_domicile",
+        "fund_currency": "instrument.fact_fund_currency",
+        "inception_date": "instrument.fact_inception",
+        "aum": "instrument.fact_aum",
+        "kid_url": "instrument.fact_kid_url",
+        "kid_date": "instrument.fact_kid_date",
+        "sri": "instrument.fact_sri",
+        "history_start": "instrument.fact_history_start",
+        "history_end": "instrument.fact_history_end",
+        "distribution_policy": "editor.col_distribuzione",
+        "replication_method": "editor.col_replica",
+    }.get(key, "instrument.fact_generic"))
+
+
+def _etichetta_qualita(quality: str) -> str:
+    return t({
+        "reported": "instrument.quality_reported",
+        "document": "instrument.quality_document",
+        "manual": "instrument.quality_manual",
+        "derived": "instrument.quality_derived",
+    }.get(quality, "instrument.quality_reported"))
+
+
+def _format_fact_value(key: str, value) -> str:
+    if key == "ter":
+        try:
+            return f"{float(value) * 100:.3f}%"
+        except (TypeError, ValueError):
+            return t("nd")
+    if key == "aum" and isinstance(value, dict):
+        try:
+            amount = float(value.get("amount"))
+        except (TypeError, ValueError):
+            return t("nd")
+        currency = str(value.get("currency") or "")
+        return fmt_money(amount, currency, decimals=2) if currency else f"{amount:,.2f}"
+    if key == "distribution_policy":
+        return _etichetta_caratteristica(str(value), "distribution")
+    if key == "replication_method":
+        return _etichetta_caratteristica(str(value), "replication")
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
+
+
+def _render_fatto(meta: dict, key: str) -> None:
+    fact = _valore_fatto(meta, key)
+    label = _etichetta_fatto(key)
+    if fact is None:
+        st.caption(f"{label}: {t('instrument.not_available')}")
+        return
+    st.markdown(f"**{label}:** {_format_fact_value(key, fact.value)}")
+    source = i18n.etichetta_fonte(LINGUA, fact.source)
+    observed = fact.observed_at or fact.acquired_at[:10] or t("instrument.date_not_available")
+    st.caption(t(
+        "instrument.fact_provenance",
+        source=source,
+        observed=observed,
+        quality=_etichetta_qualita(fact.quality),
+    ))
+
+
+def _render_conflitti(meta: dict) -> None:
+    facts = InstrumentFacts.from_dict(meta.get("instrument_facts"))
+    if not facts.alternatives:
+        st.caption(t("instrument.no_conflicts"))
+        return
+    for key, alternatives in facts.alternatives.items():
+        winner = facts.values.get(key)
+        if winner is None:
+            continue
+        def voce(fact) -> str:
+            return t(
+                "instrument.fact_conflict_entry",
+                source=i18n.etichetta_fonte(LINGUA, fact.source),
+                value=_format_fact_value(key, fact.value),
+                observed=(
+                    fact.observed_at or fact.acquired_at[:10]
+                    or t("instrument.date_not_available")
+                ),
+            )
+        entries = [
+            voce(winner)
+        ]
+        entries.extend(voce(item) for item in alternatives)
+        st.caption(f"{_etichetta_fatto(key)} — " + " · ".join(entries))
+
+
+def _salva_dati_kid(
+    fondo: dict,
+    ter_pct: float | None,
+    url: str,
+    document_date: str,
+    sri: int | None,
+) -> None:
+    keys = {"ter", "kid_url", "kid_date", "sri"}
+    facts = _rimuovi_fatti_locali(_facts_locali(fondo), keys, "kid")
+    candidates = {}
+    if ter_pct is not None:
+        candidates["ter"] = [candidate(
+            ter_pct / 100,
+            "kid",
+            observed_at=document_date,
+            acquired_at=dt.datetime.now(),
+            quality=QUALITY_DOCUMENT,
+        )]
+    if url:
+        candidates["kid_url"] = [candidate(
+            url, "kid", observed_at=document_date, acquired_at=dt.datetime.now(),
+            quality=QUALITY_DOCUMENT,
+        )]
+    if document_date:
+        candidates["kid_date"] = [candidate(
+            document_date, "kid", observed_at=document_date, acquired_at=dt.datetime.now(),
+            quality=QUALITY_DOCUMENT,
+        )]
+    if sri is not None:
+        candidates["sri"] = [candidate(
+            sri, "kid", observed_at=document_date, acquired_at=dt.datetime.now(),
+            quality=QUALITY_DOCUMENT,
+        )]
+    fondo["instrument_facts"] = InstrumentFacts.combine(
+        facts, InstrumentFacts.merge(candidates)
+    ).to_dict()
+    _sincronizza_legacy_da_fatti(fondo)
+
+
+def _rimuovi_dati_kid(fondo: dict) -> None:
+    fondo["instrument_facts"] = _rimuovi_fatti_locali(
+        _facts_locali(fondo), {"ter", "kid_url", "kid_date", "sri"}, "kid"
+    ).to_dict()
+    _sincronizza_legacy_da_fatti(fondo)
+
+
+def _render_editor_kid(fondo: dict) -> None:
+    facts = _facts_locali(fondo)
+    ter_fact = facts.values.get("ter")
+    kid_ter = ter_fact if ter_fact is not None and ter_fact.source == "kid" else None
+    kid_url = facts.values.get("kid_url")
+    kid_date = facts.values.get("kid_date")
+    kid_sri = facts.values.get("sri")
+    with st.form(f"instrument_kid_{fondo.get('symbol', '')}"):
+        use_ter = st.checkbox(
+            t("instrument.kid_ter_enabled"),
+            value=kid_ter is not None,
+            key=f"kid_ter_enabled_{fondo.get('symbol', '')}",
+        )
+        ter_pct = st.number_input(
+            t("editor.col_ter"), min_value=0.0, max_value=10.0, step=0.01,
+            value=float(kid_ter.value) * 100 if kid_ter is not None else 0.0,
+            format="%.3f", key=f"kid_ter_{fondo.get('symbol', '')}",
+        )
+        url = st.text_input(
+            t("instrument.kid_url_label"), value=str(kid_url.value) if kid_url else "",
+            key=f"kid_url_{fondo.get('symbol', '')}",
+        )
+        document_date = st.text_input(
+            t("instrument.kid_date_label"),
+            value=str(kid_date.value) if kid_date else "",
+            placeholder=t("instrument.date_placeholder"),
+            key=f"kid_date_{fondo.get('symbol', '')}",
+        )
+        sri_options = [""] + list(range(1, 8))
+        sri_value = kid_sri.value if kid_sri and kid_sri.value in sri_options else ""
+        sri = st.selectbox(
+            t("instrument.sri_label"), sri_options,
+            index=sri_options.index(sri_value),
+            key=f"kid_sri_{fondo.get('symbol', '')}",
+            format_func=lambda value: t("instrument.not_available") if value == "" else str(value),
+        )
+        save = st.form_submit_button(t("instrument.kid_save"), width="stretch")
+    if save:
+        raw_url = url.strip()
+        parsed_date = ""
+        invalid = False
+        if raw_url and not raw_url.lower().startswith(("http://", "https://")):
+            st.error(t("instrument.kid_url_invalid"))
+            invalid = True
+        else:
+            try:
+                parsed_date = (
+                    dt.date.fromisoformat(document_date.strip()).isoformat()
+                    if document_date.strip() else ""
+                )
+            except ValueError:
+                st.error(t("instrument.kid_date_invalid"))
+                invalid = True
+            if parsed_date and dt.date.fromisoformat(parsed_date) > dt.date.today():
+                st.error(t("instrument.kid_date_future"))
+                invalid = True
+            if not invalid:
+                _salva_dati_kid(
+                    fondo,
+                    float(ter_pct) if use_ter else None,
+                    raw_url,
+                    parsed_date,
+                    int(sri) if sri != "" else None,
+                )
+                st.success(t("instrument.kid_saved"))
+                st.rerun()
+    if any(fact.source == "kid" for fact in facts.values.values()):
+        if st.button(t("instrument.kid_clear"), key=f"kid_clear_{fondo.get('symbol', '')}"):
+            _rimuovi_dati_kid(fondo)
+            st.rerun()
+
+
+def _chiudi_scheda() -> None:
+    st.session_state.instrument_card_target = None
+
+
+@st.dialog(t("instrument.title"), width="large", on_dismiss=_chiudi_scheda)
+def _scheda_strumento(target: dict) -> None:
+    symbol = str(target.get("symbol", ""))
+    isin = str(target.get("isin", ""))
+    fondo = next(
+        (
+            item for item in st.session_state.selected
+            if item.get("symbol", "").upper() == symbol.upper()
+        ),
+        None,
+    ) if target.get("portfolio") else None
+    if fondo is not None:
+        isin = fondo.get("isin", isin)
+    with st.spinner(t("instrument.loading")):
+        meta = cached_metadata(
+            symbol,
+            isin,
+            api_key("EODHD_API_KEY"),
+            st.session_state.facts_refresh_rev,
+            justetf=bool(st.session_state.enable_justetf),
+            complete=True,
+        )
+    if fondo is not None:
+        _aggiorna_ter(fondo, meta)
+        meta = _meta_da_fondo(fondo)
+    else:
+        meta.setdefault("name", target.get("name") or symbol)
+    st.subheader(meta.get("name") or symbol)
+    st.caption(f"{symbol} · {meta.get('quote_type') or t('instrument.not_available')}")
+
+    st.markdown(f"### {t('instrument.identity_section')}")
+    identity = pd.DataFrame([
+        {
+            t("instrument.identity_field"): t("instrument.identity_symbol"),
+            t("instrument.identity_value"): symbol,
+        },
+        {
+            t("instrument.identity_field"): t("instrument.identity_isin"),
+            t("instrument.identity_value"): meta.get("isin") or t("instrument.not_available"),
+        },
+        {
+            t("instrument.identity_field"): t("instrument.identity_exchange"),
+            t("instrument.identity_value"): meta.get("exchange") or t("instrument.not_available"),
+        },
+        {
+            t("instrument.identity_field"): t("instrument.identity_currency"),
+            t("instrument.identity_value"): meta.get("currency") or t("instrument.not_available"),
+        },
+    ])
+    st.dataframe(identity, hide_index=True, width="stretch")
+    _render_fatto(meta, "name")
+
+    st.markdown(f"### {t('instrument.costs_section')}")
+    for key in ("ter", "kid_url", "kid_date", "sri"):
+        _render_fatto(meta, key)
+
+    st.markdown(f"### {t('instrument.characteristics_section')}")
+    for key in (
+        "distribution_policy", "replication_method", "issuer", "category",
+        "index", "domicile", "fund_currency", "inception_date", "aum",
+    ):
+        _render_fatto(meta, key)
+
+    st.markdown(f"### {t('instrument.allocation_section')}")
+    allocation = meta.get("allocation") or {}
+    if allocation:
+        st.json(allocation)
+    else:
+        st.caption(t("instrument.not_available"))
+    holdings = meta.get("holdings") or []
+    if holdings:
+        st.dataframe(
+            pd.DataFrame(holdings), hide_index=True, width="stretch",
+            column_config={
+                "symbol": t("instrument.holding_symbol"),
+                "name": t("instrument.holding_name"),
+                "quota": t("instrument.holding_weight"),
+            },
+        )
+    else:
+        st.caption(t("instrument.holdings_missing"))
+
+    st.markdown(f"### {t('instrument.history_section')}")
+    _render_fatto(meta, "history_start")
+    _render_fatto(meta, "history_end")
+
+    st.markdown(f"### {t('instrument.related_section')}")
+    related = meta.get("related_quotes") or []
+    if related:
+        st.dataframe(
+            pd.DataFrame(related), hide_index=True, width="stretch",
+            column_config={
+                "symbol": t("instrument.related_symbol"),
+                "exchange": t("instrument.related_exchange"),
+                "currency": t("instrument.related_currency"),
+                "source": t("instrument.related_source"),
+                "isin": t("instrument.identity_isin"),
+            },
+        )
+    else:
+        st.caption(t("instrument.related_missing"))
+
+    st.markdown(f"### {t('instrument.sources_section')}")
+    attempts = meta.get("ter_attempts") or []
+    if attempts:
+        for attempt in attempts:
+            st.caption(t(
+                "instrument.attempt",
+                source=i18n.etichetta_fonte(LINGUA, attempt.get("source", "")),
+                outcome=i18n.etichetta_esito(LINGUA, attempt.get("outcome", "")),
+            ))
+    _render_conflitti(meta)
+
+    if fondo is not None:
+        st.markdown(f"### {t('instrument.kid_section')}")
+        _render_editor_kid(fondo)
+    else:
+        if st.button(
+            t("instrument.add_button"),
+            key=f"instrument_add_{symbol}",
+            width="stretch",
+        ):
+            add_fund(
+                symbol,
+                meta.get("name") or target.get("name") or symbol,
+                meta.get("isin") or isin,
+            )
+            st.session_state.instrument_card_target = None
+            st.rerun()
+
+    if st.button(t("instrument.retry_button"), key=f"instrument_retry_{symbol}"):
+        st.session_state.facts_refresh_rev += 1
+        st.rerun()
 
 
 def _colonna_suggerita(colonne: list[str], *parole: str) -> str:
@@ -1604,7 +2168,7 @@ with st.expander(t("search.expander"), expanded=not st.session_state.selected):
         elif is_isin(query):
             st.caption(t("search.isin_hint"))
         for r in results:
-            cols = st.columns([4.3, 1.3, 1.3, 1.1, 1])
+            cols = st.columns([4.0, 1.1, 1.1, 1.0, 0.9, 1.1])
             cols[0].markdown(f"**{r['name']}**  \n`{r['symbol']}`")
             cols[1].markdown(f"<small>{r['quote_type']}</small>", unsafe_allow_html=True)
             cols[2].markdown(f"<small>{r['exchange']}</small>", unsafe_allow_html=True)
@@ -1614,6 +2178,12 @@ with st.expander(t("search.expander"), expanded=not st.session_state.selected):
                 unsafe_allow_html=True,
             )
             cols[4].button(
+                t("search.info_button"), key=f"info_{r['symbol']}",
+                on_click=_imposta_scheda_target,
+                args=(r["symbol"], r["name"], r.get("isin", ""), False),
+                width="stretch",
+            )
+            cols[5].button(
                 t("search.add_button"), key=f"add_{r['symbol']}",
                 on_click=add_fund,
                 args=(r["symbol"], r["name"], r.get("isin", "")),
@@ -1627,6 +2197,8 @@ with st.expander(t("search.expander"), expanded=not st.session_state.selected):
 st.subheader(t("portfolio.subheader"))
 
 if not st.session_state.selected:
+    if st.session_state.instrument_card_target is not None:
+        _scheda_strumento(st.session_state.instrument_card_target)
     with portfolio_export:
         st.caption(t("portfolio_io.download_empty_hint"))
     st.info(t("portfolio.empty_hint"))
@@ -1640,6 +2212,7 @@ def _click_rimuovi_fondo():
 
 editor_df = pd.DataFrame([
     {
+        "scheda": "ⓘ",
         "rimuovi": "🗑️",
         "fondo": f["name"],
         "simbolo": f["symbol"],
@@ -1672,6 +2245,12 @@ edited = st.data_editor(
     num_rows="fixed",
     disabled=["fondo", "simbolo", "valuta", "distribuzione", "replica"],
     column_config={
+        "scheda": st.column_config.ButtonColumn(
+            t("editor.col_scheda"), width="small", pinned=True,
+            alignment="center", type="tertiary",
+            help=t("editor.scheda_help"),
+            on_click=_click_scheda_fondo, key="composizione_scheda",
+        ),
         "rimuovi": st.column_config.ButtonColumn(
             t("editor.col_rimuovi"), width="small", pinned=True,
             alignment="center", type="tertiary",
@@ -1741,6 +2320,9 @@ for fondo, (_, row) in zip(st.session_state.selected, edited.iterrows()):
     if abs(ter_nuovo - float(fondo.get("ter", 0.0))) > _TOLLERANZA:
         fondo["ter_origin"] = "manual"
         fondo["ter_auto"] = False
+        _registra_fatto_locale(
+            fondo, "ter", ter_nuovo / 100, "manual", QUALITY_MANUAL
+        )
     fondo["ter"] = ter_nuovo
     fondo["extra"] = float(row["extra"])
     isin_nuovo = (row["isin"] or "").strip().upper()
@@ -1908,6 +2490,10 @@ specs = [
 
 with st.spinner(t("prices.spinner")):
     frame = registry.resolve_many(specs, start_date, end_date, base_ccy)
+
+_aggiorna_copertura_storica(st.session_state.selected, frame.prices)
+if st.session_state.instrument_card_target is not None:
+    _scheda_strumento(st.session_state.instrument_card_target)
 
 if frame.prices.empty:
     st.error(t("prices.error_none"))

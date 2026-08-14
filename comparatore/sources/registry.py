@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from .. import allocazione
+from ..instrument_facts import InstrumentFacts, RelatedQuote
 from .base import Instrument, PriceSeries, is_isin
 from .csv_source import CsvSource
 from .eodhd import EodhdSource, to_yahoo_symbol
@@ -58,6 +59,8 @@ class MetadataResolution:
     symbol: str
     instrument: Instrument
     attempts: list[MetadataAttempt] = field(default_factory=list)
+    facts: InstrumentFacts = field(default_factory=InstrumentFacts)
+    related_quotes: list[RelatedQuote] = field(default_factory=list)
 
 
 @dataclass
@@ -170,7 +173,7 @@ class Registry:
 
     # --------------------------------------------------------------- metadati
 
-    def metadata(self, symbol: str, isin: str = "") -> Instrument:
+    def metadata(self, symbol: str, isin: str = "", complete: bool = False) -> Instrument:
         """Metadati del fondo, integrando TER e classificazione da EODHD."""
         info = self.yahoo.metadata(symbol) or Instrument(
             symbol=symbol, name=symbol, quote_type=""
@@ -187,21 +190,23 @@ class Registry:
             translated = to_yahoo_symbol(symbol)
             if translated:
                 alt = self.yahoo.metadata(translated)
-                if alt is not None and alt.currency:
-                    info.currency = alt.currency
-                    if info.name == symbol:
-                        info.name = alt.name
-                    if info.ter is None:
-                        info.ter, info.ter_source = alt.ter, alt.ter_source
-                        info.ter_origin = alt.ter_origin
-                    if not info.quote_type:
-                        info.quote_type = alt.quote_type
-                    if not info.allocation and alt.allocation:
-                        info.allocation = alt.allocation
-                        info.allocation_source = alt.allocation_source
-                    if not info.holdings and alt.holdings:
-                        info.holdings = alt.holdings
-                        info.holdings_source = alt.holdings_source
+                if alt is not None:
+                    info.facts = InstrumentFacts.combine(info.facts, alt.facts)
+                    if alt.currency:
+                        info.currency = alt.currency
+                        if info.name == symbol:
+                            info.name = alt.name
+                        if info.ter is None:
+                            info.ter, info.ter_source = alt.ter, alt.ter_source
+                            info.ter_origin = alt.ter_origin
+                        if not info.quote_type:
+                            info.quote_type = alt.quote_type
+                        if not info.allocation and alt.allocation:
+                            info.allocation = alt.allocation
+                            info.allocation_source = alt.allocation_source
+                        if not info.holdings and alt.holdings:
+                            info.holdings = alt.holdings
+                            info.holdings_source = alt.holdings_source
 
         # La ripartizione per area geografica la espone solo EODHD: la fonte
         # si interroga anche quando TER e composizione sono gia' arrivati da
@@ -230,6 +235,8 @@ class Registry:
                         break
 
         if self.enable_justetf and (
+            complete
+            or
             info.ter is None
             or not info.distribution_policy
             or not info.replication_method
@@ -237,6 +244,7 @@ class Registry:
         ):
             justetf_info = self.justetf.metadata(symbol, info.isin)
             if justetf_info is not None:
+                info.facts = InstrumentFacts.combine(info.facts, justetf_info.facts)
                 # L'opt-in esplicito rende justETF la fonte TER preferita per
                 # l'ISIN; l'override manuale viene protetto piu' avanti
                 # nell'app, quando il valore entra nel portafoglio.
@@ -252,7 +260,9 @@ class Registry:
                     info.name = justetf_info.name
                 info.isin = info.isin or justetf_info.isin
 
-        if (info.ter is None or not info.allocation or manca_area) and self.eodhd.available():
+        if (
+            complete or info.ter is None or not info.allocation or manca_area
+        ) and self.eodhd.available():
             # Il simbolo di Yahoo non e' quello di EODHD (VWCE.DE contro
             # VWCE.XETRA): senza la traduzione la richiesta cadrebbe nel vuoto
             # proprio nei casi in cui la fonte servirebbe. La corrispondenza
@@ -264,6 +274,13 @@ class Registry:
             if eod_symbol:
                 richer = self.eodhd.metadata(eod_symbol)
                 if richer is not None:
+                    info.facts = InstrumentFacts.combine(info.facts, richer.facts)
+                    if not info.isin and richer.isin:
+                        info.isin = richer.isin
+                    if info.name == symbol and richer.name:
+                        info.name = richer.name
+                    if not info.quote_type and richer.quote_type:
+                        info.quote_type = richer.quote_type
                     if info.ter is None and richer.ter is not None:
                         info.ter, info.ter_source = richer.ter, richer.ter_source
                         info.ter_origin = richer.ter_origin
@@ -283,14 +300,35 @@ class Registry:
                     info.currency = self.eodhd.currency_from_search(eod_symbol)
         return info
 
-    def metadata_resolution(self, symbol: str, isin: str = "") -> MetadataResolution:
+    def related_quotes(self, isin: str, active_symbol: str = "") -> list[RelatedQuote]:
+        """Elenca quotazioni che dichiarano lo stesso ISIN, senza sceglierne una."""
+        if not is_isin(isin):
+            return []
+        related: list[RelatedQuote] = []
+        for item in self.search(isin, limit=20, funds_only=False):
+            if not item.isin or item.isin.upper() != isin.upper():
+                continue
+            if item.symbol.upper() == (active_symbol or "").upper():
+                continue
+            related.append(RelatedQuote(
+                symbol=item.symbol,
+                exchange=item.exchange,
+                currency=item.currency,
+                source=item.source,
+                isin=isin,
+            ))
+        return related
+
+    def metadata_resolution(
+        self, symbol: str, isin: str = "", complete: bool = False
+    ) -> MetadataResolution:
         """Metadati compatibili con una diagnostica leggibile dall'interfaccia.
 
         Il metodo riusa `metadata()` per non duplicare la fusione Yahoo/EODHD;
         gli esiti descrivono il risultato osservabile senza esporre traceback o
         dettagli delle chiavi API.
         """
-        info = self.metadata(symbol, isin)
+        info = self.metadata(symbol, isin, complete=complete)
         attempts: list[MetadataAttempt] = []
         yahoo_empty = (
             info.name == symbol and not info.currency and not info.quote_type
@@ -338,7 +376,14 @@ class Registry:
             if eodhd_outcome not in {"found", "no_ter", "blocked", "symbol_unresolved"}:
                 eodhd_outcome = "temporary_error"
         attempts.append(MetadataAttempt("eodhd", eodhd_outcome))
-        return MetadataResolution(symbol=symbol, instrument=info, attempts=attempts)
+        related = self.related_quotes(info.isin, symbol) if complete else []
+        return MetadataResolution(
+            symbol=symbol,
+            instrument=info,
+            attempts=attempts,
+            facts=info.facts,
+            related_quotes=related,
+        )
 
     # ---------------------------------------------------------------- prezzi
 
