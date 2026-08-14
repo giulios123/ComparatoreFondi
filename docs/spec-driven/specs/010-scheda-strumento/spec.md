@@ -1,6 +1,6 @@
 # 010 · Scheda informativa dello strumento
 
-*Stato: approvata — 12 agosto 2026*
+*Stato: implementata — 14 agosto 2026*
 
 ## Problema
 

@@ -56,6 +56,7 @@ def main() -> None:
     os.environ.setdefault("COMPARATORE_CACHE_DIR", str(data_dir / "cache"))
     os.environ.setdefault("COMPARATORE_KEYS_FILE", str(data_dir / "api_keys.json"))
     os.environ.setdefault("COMPARATORE_PREFS_FILE", str(data_dir / "prefs.json"))
+    os.environ.setdefault("COMPARATORE_PROFILE_FILE", str(data_dir / "investor_profile.json"))
 
     # PyInstaller (onedir) estrae i dati accanto all'eseguibile e imposta
     # sys._MEIPASS su quella cartella, dove il .spec colloca app.py alla

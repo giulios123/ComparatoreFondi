@@ -8,7 +8,19 @@
 # allineata a `version` in pyproject.toml - lo verifica tests/test_versione.py.
 __version__ = "0.2.0"
 
-from . import allocazione, cache, comparative, covip, fx, horizons, inflation
+from . import (
+    allocazione,
+    cache,
+    comparative,
+    covip,
+    diagnostics,
+    fx,
+    horizons,
+    inflation,
+    overlap,
+    privacy,
+    profile,
+)
 from .covip import Comparto
 from .data import Instrument, convert_currency, get_metadata, get_prices, search
 from .engine import (
@@ -20,6 +32,16 @@ from .engine import (
     coverage_warnings,
     run_backtest,
 )
+from .overlap import (
+    FundCoverage,
+    FundHoldings,
+    HoldingPosition,
+    OverlapReport,
+    PairOverlap,
+    PortfolioExposure,
+    analyze_overlap,
+)
+from .profile import InvestorProfile
 from .proxies import ProxyDef, extend_with_proxy, suggest_proxy
 from .sources import CsvParseError, PriceSeries, Registry, is_isin, parse_csv
 
@@ -41,10 +63,14 @@ __all__ = [
     "convert_currency",
     "coverage_warnings",
     "covip",
+    "diagnostics",
     "extend_with_proxy",
     "fx",
     "horizons",
     "inflation",
+    "overlap",
+    "privacy",
+    "profile",
     "get_metadata",
     "get_prices",
     "is_isin",
@@ -52,4 +78,12 @@ __all__ = [
     "run_backtest",
     "search",
     "suggest_proxy",
+    "FundCoverage",
+    "FundHoldings",
+    "HoldingPosition",
+    "OverlapReport",
+    "PairOverlap",
+    "PortfolioExposure",
+    "analyze_overlap",
+    "InvestorProfile",
 ]

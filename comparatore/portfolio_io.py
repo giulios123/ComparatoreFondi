@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 
 from comparatore import allocazione as al
+from comparatore.instrument_facts import InstrumentFacts
 
 SCHEMA = "comparatore-fondi/portafoglio"
 VERSIONE = 1
@@ -67,11 +68,20 @@ def assicura_alloc(fund: dict) -> dict:
     if not isinstance(holdings, list):
         holdings = []
         fund["holdings"] = holdings
+    fund.setdefault("holdings_source", "")
+    fund.setdefault("holdings_as_of", None)
     fund["alloc"].setdefault("paese", al.paesi_da_posizioni(holdings))
     fund.setdefault("currency", "")
     fund.setdefault("isin", "")
+    fund.setdefault("quote_type", "")
+    fund.setdefault("exchange", "")
     fund.setdefault("distribution_policy", "")
     fund.setdefault("replication_method", "")
+    fund["instrument_facts"] = InstrumentFacts.from_dict(
+        fund.get("instrument_facts")
+    ).to_dict()
+    if not isinstance(fund.get("related_quotes"), list):
+        fund["related_quotes"] = fund["instrument_facts"].get("related_quotes", [])
     fund.setdefault("ter", 0.0)
     fund.setdefault("ter_auto", False)
     if not isinstance(fund.get("ter_attempts"), list):
@@ -91,10 +101,24 @@ def dump(fondi: list[dict], parametri: dict) -> str:
     parametri = dict(parametri)
     if "benchmark" in parametri:
         parametri["benchmark"] = normalizza_benchmark(parametri["benchmark"])
+    fondi_persistibili = []
+    for fondo in fondi:
+        persistibile = dict(fondo)
+        # Tentativi, errori e stato della cache sono diagnostica della sessione,
+        # non fatti utili da trasferire in un portafoglio.
+        persistibile.pop("ter_attempts", None)
+        persistibile["instrument_facts"] = InstrumentFacts.from_dict(
+            persistibile.get("instrument_facts")
+        ).to_dict()
+        payload_facts = persistibile.get("instrument_facts") or {}
+        persistibile["related_quotes"] = payload_facts.get("related_quotes") or (
+            persistibile.get("related_quotes") or []
+        )
+        fondi_persistibili.append(persistibile)
     payload = {
         "schema": SCHEMA,
         "versione": VERSIONE,
-        "fondi": fondi,
+        "fondi": fondi_persistibili,
         "parametri": parametri,
     }
     return json.dumps(payload, indent=2, ensure_ascii=False)

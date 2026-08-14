@@ -39,6 +39,9 @@ class JustEtfMetadataTests(unittest.TestCase):
         self.assertEqual(result.ter_origin, "justetf")
         self.assertEqual(result.distribution_policy, "accumulating")
         self.assertEqual(result.replication_method, "physical")
+        self.assertEqual(result.facts.values["name"].value, "Vanguard ETF")
+        self.assertEqual(result.facts.values["ter"].source, "justetf")
+        self.assertEqual(result.facts.values["distribution_policy"].value, "accumulating")
 
     def test_requires_isin(self) -> None:
         source = JustEtfSource()

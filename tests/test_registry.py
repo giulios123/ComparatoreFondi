@@ -3,6 +3,7 @@ import unittest
 
 import pandas as pd
 
+from comparatore.instrument_facts import InstrumentFacts, RelatedQuote, candidate
 from comparatore.sources.base import Instrument, PriceSeries
 from comparatore.sources.registry import Registry
 
@@ -175,6 +176,36 @@ class RegistryMetadataTests(unittest.TestCase):
         self.assertEqual(info.ter_origin, "justetf")
         self.assertEqual(info.distribution_policy, "accumulating")
         self.assertEqual(info.replication_method, "physical")
+
+    def test_complete_resolution_exposes_facts_and_related_quotes(self) -> None:
+        registry = Registry()
+        registry.yahoo = _MetadataSource(Instrument(
+            "TEST", "Test Fund", "ETF", isin="IE00B3XXRP09",
+            facts=InstrumentFacts.merge({
+                "issuer": [candidate("Example issuer", "yahoo", acquired_at="2026-08-14")],
+            }),
+        ))
+        registry.related_quotes = lambda isin, active_symbol="": [  # type: ignore[method-assign]
+            RelatedQuote("TEST.DE", "XETRA", "EUR", "openfigi", isin)
+        ]
+
+        result = registry.metadata_resolution("TEST", complete=True)
+
+        self.assertEqual(result.facts.values["issuer"].value, "Example issuer")
+        self.assertEqual(result.related_quotes[0].symbol, "TEST.DE")
+
+    def test_related_quotes_require_the_same_validated_isin_and_keep_active_quote(self) -> None:
+        registry = Registry()
+        registry.search = lambda *args, **kwargs: [  # type: ignore[method-assign]
+            Instrument("TEST.DE", "Test Fund", "ETF", isin="IE00B3XXRP09", exchange="XETRA"),
+            Instrument("TEST.AS", "Test Fund", "ETF", isin="IE00B3XXRP09", exchange="AMS"),
+            Instrument("TEST.MI", "Test Fund", "ETF", isin="IE00OTHER000", exchange="MI"),
+            Instrument("TEST.L", "Test Fund", "ETF", exchange="LSE"),
+        ]
+
+        quotes = registry.related_quotes("IE00B3XXRP09", active_symbol="TEST.DE")
+
+        self.assertEqual([quote.symbol for quote in quotes], ["TEST.AS"])
 
 
 if __name__ == "__main__":

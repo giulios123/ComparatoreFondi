@@ -407,3 +407,40 @@ coperti, se presenti, e lasciano disponibile il backtest nominale.
 
 **Traccia.** `comparatore/inflation.py`, `comparatore/cache.py`, `comparatore/prefs.py`,
 `app.py`, spec `005`.
+
+### 25 · L'overlap osservato non si rinormalizza
+
+*Agosto 2026 — spec [`006-overlap-portafoglio`](../spec-driven/specs/006-overlap-portafoglio/spec.md)*
+
+**Scelta.** Le prime posizioni restano nella scala della fonte: l'overlap e'
+la somma delle quote minime riconosciute e viene presentato come limite
+inferiore. Identificatori stabili, simboli con suffisso di borsa e nomi
+normalizzati sono provati in quest'ordine; collisioni e holdings assenti restano
+visibili come ambiguita' o `n/d`. La copertura e la provenienza entrano in un
+risultato strutturato separato dal backtest.
+
+**Conseguenze.** Una concentrazione aggregata puo' avere una quota sconosciuta
+esplicita, ma non puo' fingere di conoscere il 100% del fondo. L'aggiunta di
+nuove fonti dovra' conservare fonte e data delle holdings senza modificare le
+quote gia' osservate.
+
+**Traccia.** `comparatore/overlap.py`, `comparatore/sources/base.py`, `app.py`,
+spec `006`.
+
+### 26 · Il profilo e il rapporto anonimo restano separati dal portafoglio
+
+*Agosto 2026 — spec [`008-profilo-diagnosi-anonima`](../spec-driven/specs/008-profilo-diagnosi-anonima/spec.md)*
+
+**Scelta.** Il profilo vive in un file locale separato con permessi ristretti e
+non entra nell'export JSON. La diagnosi e' deterministica e distingue rilievi
+informativi da conflitti con soglie personali; il payload per un eventuale uso
+futuro viene costruito da una allowlist, usando token `asset_N` e mantenendo la
+mappa reale soltanto in memoria.
+
+**Conseguenze.** Senza profilo il backtest resta identico e la UI mostra fatti e
+campi mancanti, senza soglie universali. Aggiungere nuove metriche richiede di
+aggiungerle esplicitamente all'allowlist; una nuova chiave del portafoglio non
+puo' finire nel payload per costruzione.
+
+**Traccia.** `comparatore/profile.py`, `comparatore/diagnostics.py`,
+`comparatore/privacy.py`, `app.py`, spec `008`.

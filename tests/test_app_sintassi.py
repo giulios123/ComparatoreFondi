@@ -174,6 +174,17 @@ class TestSintassiApp(unittest.TestCase):
         self.assertIn('t("editor.col_replica")', sorgente)
         self.assertIn("_mancano_metadati_etf(fondo)", sorgente)
 
+    def test_scheda_strumento_e_editor_kid_restano_collegati(self):
+        sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn("@st.dialog(t(\"instrument.title\")", sorgente)
+        self.assertIn("_scheda_strumento", sorgente)
+        self.assertIn('t("search.info_button")', sorgente)
+        self.assertIn('t("editor.col_scheda")', sorgente)
+        self.assertIn("complete=True", sorgente)
+        self.assertIn("instrument_facts", sorgente)
+        self.assertIn("_salva_dati_kid", sorgente)
+        self.assertIn("_rimuovi_dati_kid", sorgente)
+
     def test_benchmark_e_inflazione_restano_viste_derivate(self):
         sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
         self.assertIn("benchmark_resolution", sorgente)
@@ -186,6 +197,30 @@ class TestSintassiApp(unittest.TestCase):
         holding_end = sorgente.index("# `pac`", holding_start)
         holding_block = sorgente[holding_start:holding_end]
         self.assertNotIn("benchmark", holding_block.lower())
+
+    def test_profilo_diagnosi_e_payload_anonimo_restano_locali(self):
+        sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn("profile_store.load()", sorgente)
+        self.assertIn("profile_store.save(new_profile)", sorgente)
+        self.assertIn("privacy.anonymize(", sorgente)
+        self.assertIn("anonymous_report.to_json()", sorgente)
+        self.assertNotIn("requests.post", sorgente)
+        self.assertNotIn("openai", sorgente.lower())
+
+        tree = ast.parse(sorgente, filename="app.py")
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if not isinstance(node.func, ast.Attribute):
+                continue
+            if node.func.attr != "dump" or not isinstance(node.func.value, ast.Name):
+                continue
+            if node.func.value.id != "portfolio_io":
+                continue
+            self.assertFalse(
+                any(isinstance(arg, ast.Name) and "profile" in arg.id for arg in node.args),
+                "il profilo locale non deve entrare nell'export del portafoglio",
+            )
 
 
 if __name__ == "__main__":

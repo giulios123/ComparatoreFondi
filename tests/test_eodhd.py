@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from comparatore import cache
 from comparatore.sources.base import Instrument
@@ -84,6 +85,62 @@ class FundamentalsBlockedTests(unittest.TestCase):
     def test_blocked_after_metadata_records_a_403(self) -> None:
         cache.write_meta("eodhd-fundamentals-blocked", {"bloccato": True})
         self.assertTrue(EodhdSource(api_key="x").fundamentals_blocked())
+
+
+class MetadataFactsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.previous_cache_dir = os.environ.get("COMPARATORE_CACHE_DIR")
+        os.environ["COMPARATORE_CACHE_DIR"] = self.temp_dir.name
+
+    def tearDown(self) -> None:
+        if self.previous_cache_dir is None:
+            os.environ.pop("COMPARATORE_CACHE_DIR", None)
+        else:
+            os.environ["COMPARATORE_CACHE_DIR"] = self.previous_cache_dir
+        self.temp_dir.cleanup()
+
+    def test_maps_documented_etf_fields_to_normalized_facts(self) -> None:
+        payload = {
+            "General": {
+                "Name": "Example ETF",
+                "Type": "ETF",
+                "Exchange": "XETRA",
+                "CurrencyCode": "EUR",
+                "UpdatedAt": "2026-08-10",
+            },
+            "ETF_Data": {
+                "ISIN": "IE00B3XXRP09",
+                "Company_Name": "Example Asset Management",
+                "Index_Name": "Example World Index",
+                "Domicile": "Ireland",
+                "Inception_Date": "2020-01-02",
+                "Ongoing_Charge": "0.22",
+                "Date_Ongoing_Charge": "2026-01-01",
+                "TotalAssets": "1234567",
+                "Top_10_Holdings": {
+                    "ABC.US": {"Code": "ABC", "Name": "ABC Corp", "Assets_%": 4.5}
+                },
+            },
+        }
+        response = type(
+            "Response", (), {
+                "status_code": 200,
+                "json": lambda self: payload,
+                "raise_for_status": lambda self: None,
+            }
+        )()
+        with patch("comparatore.sources.eodhd.requests.get", return_value=response):
+            result = EodhdSource(api_key="x").metadata("VWCE.XETRA")
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.isin, "IE00B3XXRP09")
+        self.assertEqual(result.facts.values["name"].value, "Example ETF")
+        self.assertEqual(result.facts.values["issuer"].value, "Example Asset Management")
+        self.assertEqual(result.facts.values["index"].value, "Example World Index")
+        self.assertEqual(result.facts.values["domicile"].value, "Ireland")
+        self.assertEqual(result.facts.values["ter"].value, 0.0022)
+        self.assertEqual(result.facts.values["holdings"].value[0]["quota"], 0.045)
 
 
 if __name__ == "__main__":

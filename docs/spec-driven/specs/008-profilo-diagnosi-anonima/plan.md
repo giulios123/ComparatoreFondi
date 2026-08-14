@@ -11,6 +11,12 @@ Tenere separati tre contratti puri:
 3. `AnonymousReport`, serializzazione allowlist destinata alla sola anteprima
    o alla futura spec 009.
 
+`InvestorProfile` sara' versionato e composto soltanto da campi facoltativi:
+orizzonte 1-100 anni, obiettivo, perdita tollerata, prelievi, limite per
+posizione, preferenza di semplicita'/bilanciamento/diversificazione,
+obbligazioni ammesse ed esclusioni guidate per classe e settore. Le esclusioni
+saranno codici stabili, mai note libere.
+
 La serializzazione anonima non parte dal dizionario completo del portafoglio
 per poi togliere campi: costruisce un nuovo oggetto da una allowlist di campi
 ammessi. La mappa fra `asset_N` e simboli reali vive soltanto in memoria nella
@@ -18,15 +24,20 @@ sessione e non entra nel payload.
 
 Le regole iniziali coprono soltanto fatti supportati dai moduli esistenti:
 dati/TER mancanti, concentrazioni oltre limiti dichiarati, drawdown storico
-oltre tolleranza, correlazioni e overlap elevati con copertura, storico corto
-rispetto all'orizzonte e differenze rispetto al benchmark. Ogni soglia non
-personale e' descrittiva e non etichettata come adeguatezza.
+oltre tolleranza, categorie escluse, obbligazioni non ammesse, storico corto
+rispetto all'orizzonte e fatti informativi su correlazioni, overlap, rolling,
+benchmark e inflazione. Ogni soglia non personale e' descrittiva e non
+etichettata come adeguatezza.
+
+Il risultato e' ordinato stabilmente e contiene solo azioni dichiarative,
+verificabili nell'app: controllo di un dato mancante, confronto con un peso
+limite o scenario simmetrico per una coppia. Non muta lo stato.
 
 ## File toccati
 
 | File | Cosa cambia |
 |---|---|
-| `comparatore/profile.py` | Modello, validazione e persistenza locale con permessi ristretti |
+| `comparatore/profile.py` | Modello versionato, validazione e persistenza locale con permessi ristretti |
 | `comparatore/diagnostics.py` | Rilievi, regole, evidenze e azioni di simulazione |
 | `comparatore/privacy.py` | Allowlist anonima, token `asset_N` e controlli dei campi vietati |
 | `desktop/launcher.py` | Percorso dati del profilo nel bundle, come chiavi e preferenze |
@@ -37,7 +48,8 @@ personale e' descrittiva e non etichettata come adeguatezza.
 | `tests/test_privacy.py` | Allowlist e tentativi di contaminazione con identificatori |
 
 Riuso esplicito: modello degradabile di `prefs.py`/`keys.py`, risultati di
-`metrics.py`, delle spec 004-006 e provenienze gia' presenti nel portafoglio.
+`metrics.py`, `comparative.py`, `inflation.py`, `overlap.py` e provenienze gia'
+presenti nel portafoglio.
 
 ## Alternative scartate
 

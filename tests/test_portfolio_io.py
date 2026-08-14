@@ -62,6 +62,41 @@ class TestDumpLoad(unittest.TestCase):
         _, parametri = pio.load(testo)
         self.assertEqual(parametri["benchmark"]["preferred_source"], "auto")
 
+    def test_instrument_facts_round_trip_and_transient_attempts_are_stripped(self):
+        fondo = dict(
+            FONDO_MINIMO,
+            ter=0.14,
+            ter_origin="kid",
+            ter_attempts=[{"source": "yahoo", "outcome": "temporary_error"}],
+            instrument_facts={
+                "values": {
+                    "ter": {
+                        "value": 0.0014,
+                        "source": "kid",
+                        "observed_at": "2026-08-01",
+                        "acquired_at": "2026-08-14T09:00:00",
+                        "quality": "document",
+                    }
+                },
+                "alternatives": {},
+                "related_quotes": [{
+                    "symbol": "VWCE.DE", "exchange": "XETRA", "currency": "EUR",
+                    "source": "openfigi", "isin": "IE00BK5BQT80",
+                }],
+            },
+        )
+
+        testo = pio.dump([fondo], {})
+        self.assertNotIn("ter_attempts", testo)
+        fondi, _ = pio.load(testo)
+        self.assertEqual(fondi[0]["instrument_facts"]["values"]["ter"]["source"], "kid")
+        self.assertEqual(fondi[0]["related_quotes"][0]["symbol"], "VWCE.DE")
+
+    def test_malformed_instrument_facts_are_backfilled_empty(self):
+        testo = pio.dump([dict(FONDO_MINIMO, instrument_facts={"values": "bad"})], {})
+        fondi, _ = pio.load(testo)
+        self.assertEqual(fondi[0]["instrument_facts"]["values"], {})
+
 
 class TestLoadRejects(unittest.TestCase):
     def test_not_json(self):

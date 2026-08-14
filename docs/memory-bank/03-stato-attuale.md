@@ -1,6 +1,6 @@
 # Stato attuale
 
-*Aggiornato: 12 agosto 2026*
+*Aggiornato: 14 agosto 2026*
 
 ## Dove siamo
 
@@ -72,6 +72,29 @@ confronta con i fondi pensione COVIP.
   metadati e degrada ai dati vecchi coperti se la rete fallisce. La curva reale
   e' derivata e il PAC deflaziona saldo e flussi rata per rata senza alterare il
   backtest nominale. I test sono 209.
+- **Sovrapposizione delle partecipazioni** — spec
+  [`006-overlap-portafoglio`](../spec-driven/specs/006-overlap-portafoglio/spec.md):
+  le holdings vengono normalizzate con identita' deterministiche, la copertura
+  resta esplicita e l'overlap e' sempre un limite inferiore senza
+  rinormalizzazione. La scheda Bilanciamento mostra matrice, coppie,
+  concentrazione aggregata e quota sconosciuta; i JSON precedenti ricevono i
+  nuovi metadati con backfill. I test sono 215.
+- **Profilo locale e diagnosi anonima** — spec
+  [`008-profilo-diagnosi-anonima`](../spec-driven/specs/008-profilo-diagnosi-anonima/spec.md):
+  il profilo facoltativo vive separato dal portafoglio, le regole producono
+  rilievi deterministici solo rispetto alle preferenze dichiarate e il payload
+  di anteprima nasce da una allowlist con token temporanei. La tab Diagnosi non
+  effettua chiamate esterne; i test complessivi sono 224.
+- **Scheda informativa dello strumento** — spec
+  [`010-scheda-strumento`](../spec-driven/specs/010-scheda-strumento/spec.md):
+  i fatti normalizzati conservano valore, fonte, date, qualità, alternative
+  discordanti e quotazioni collegate senza cambiare la quotazione attiva. La
+  scheda unica è raggiungibile da ricerca e portafoglio, include retry dei soli
+  fatti automatici e un editor KID con override protetto; l'export persiste solo
+  dati utili e rimuove `ter_attempts`. Yahoo, EODHD e justETF riusano le
+  richieste già previste, con justETF ancora opt-in. La copertura storica deriva
+  dalle serie già risolte dal flusso del portafoglio. I test complessivi sono
+  237 e Ruff è pulito.
 
 ## Aperto, e noto
 

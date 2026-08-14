@@ -17,6 +17,7 @@ import pandas as pd
 import yfinance as yf
 
 from .. import allocazione, cache
+from ..instrument_facts import InstrumentFacts, candidate
 from .base import Instrument, PriceSeries, naive_index
 
 # Tipi Yahoo che hanno senso in un comparatore di fondi.
@@ -72,6 +73,28 @@ def _fund_composition(ticker) -> tuple[dict[str, dict[str, float]], list[dict]]:
                     {"symbol": str(sym), "name": str(row.get("Name") or sym), "quota": quota}
                 )
     return alloc, holdings
+
+
+def _fund_operation_value(operations: pd.DataFrame, label: str):
+    """Legge una riga di `fund_operations` senza legarsi alla lingua."""
+    if operations is None or operations.empty:
+        return None
+    for index in operations.index:
+        if str(index).casefold() == label.casefold():
+            try:
+                return operations.loc[index].iloc[0]
+            except (AttributeError, IndexError, KeyError):
+                return None
+    return None
+
+
+def _epoch_date(value) -> str:
+    try:
+        if isinstance(value, (int, float)) and value > 0:
+            return dt.datetime.fromtimestamp(value, tz=dt.UTC).date().isoformat()
+    except (OverflowError, OSError, TypeError, ValueError):
+        pass
+    return ""
 
 
 class YahooSource:
@@ -157,11 +180,63 @@ class YahooSource:
 
         allocation: dict[str, dict[str, float]] = {}
         holdings: list[dict] = []
+        facts = {}
         if quote_type in FUND_TYPES:
             # Solo su ETF/fondi: sui titoli singoli l'endpoint di `funds_data`
             # risponde 404, e sarebbe una richiesta di rete sprecata a ogni
             # aggiunta.
             allocation, holdings = _fund_composition(ticker)
+
+            # `funds_data` espone un piccolo profilo stabile oltre alle
+            # partecipazioni. Se un modulo e' assente il fatto resta n/d.
+            try:
+                overview = ticker.funds_data.fund_overview or {}
+                operations = ticker.funds_data.fund_operations
+            except Exception:
+                overview, operations = {}, pd.DataFrame()
+            acquired = dt.date.today().isoformat()
+            family = overview.get("family") or info.get("fundFamily")
+            category = overview.get("categoryName") or info.get("category")
+            aum = _fund_operation_value(operations, "Total Net Assets")
+            if family:
+                facts.setdefault("issuer", []).append(candidate(
+                    family, "yahoo", acquired_at=acquired,
+                ))
+            if category:
+                facts.setdefault("category", []).append(candidate(
+                    category, "yahoo", acquired_at=acquired,
+                ))
+            if aum is None:
+                aum = info.get("totalAssets")
+            if isinstance(aum, (int, float)) and aum > 0:
+                facts.setdefault("aum", []).append(candidate(
+                    {"amount": float(aum), "currency": currency},
+                    "yahoo", acquired_at=acquired,
+                ))
+
+            inception = _epoch_date(info.get("fundInceptionDate"))
+            if inception:
+                facts.setdefault("inception_date", []).append(candidate(
+                    inception, "yahoo", observed_at=inception, acquired_at=acquired,
+                ))
+            for dimension, buckets in allocation.items():
+                facts.setdefault(f"allocation.{dimension}", []).append(candidate(
+                    buckets, "yahoo", acquired_at=acquired,
+                ))
+            if holdings:
+                facts.setdefault("holdings", []).append(candidate(
+                    holdings, "yahoo", acquired_at=acquired,
+                ))
+
+        acquired = dt.date.today().isoformat()
+        if name:
+            facts.setdefault("name", []).append(candidate(
+                name, "yahoo", acquired_at=acquired,
+            ))
+        if ter is not None:
+            facts.setdefault("ter", []).append(candidate(
+                ter, "yahoo", acquired_at=acquired,
+            ))
 
         self.last_metadata_outcome = (
             "temporary_error"
@@ -183,6 +258,7 @@ class YahooSource:
             allocation_source="yahoo" if allocation else "",
             holdings=holdings,
             holdings_source="yahoo" if holdings else "",
+            facts=InstrumentFacts.merge(facts),
         )
 
     # ---------------------------------------------------------------- prezzi
