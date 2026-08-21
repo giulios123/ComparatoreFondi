@@ -3613,27 +3613,27 @@ with tab2:
             st.markdown(t("benchmark.rolling_header"))
             rolling_rows = []
             for years, values in benchmark_analysis["rolling"].items():
-                summary = comparative.rolling_summary(values)
+                rolling_riepilogo = comparative.rolling_summary(values)
                 rolling_rows.append({
                     t("benchmark.rolling_period"): t("benchmark.years", n=years),
-                    t("benchmark.rolling_worst"): fmt_pct(summary["worst"]),
-                    t("benchmark.rolling_median"): fmt_pct(summary["median"]),
-                    t("benchmark.rolling_best"): fmt_pct(summary["best"]),
-                    t("benchmark.rolling_positive"): fmt_pct(summary["positive_pct"]),
-                    t("benchmark.rolling_observations"): summary["observations"],
+                    t("benchmark.rolling_worst"): fmt_pct(rolling_riepilogo["worst"]),
+                    t("benchmark.rolling_median"): fmt_pct(rolling_riepilogo["median"]),
+                    t("benchmark.rolling_best"): fmt_pct(rolling_riepilogo["best"]),
+                    t("benchmark.rolling_positive"): fmt_pct(rolling_riepilogo["positive_pct"]),
+                    t("benchmark.rolling_observations"): rolling_riepilogo["observations"],
                 })
             for years, values in benchmark_analysis["rolling_benchmark"].items():
-                summary = comparative.rolling_summary(values)
+                rolling_riepilogo = comparative.rolling_summary(values)
                 rolling_rows.append({
                     t("benchmark.rolling_period"): (
                         f"{benchmark_config['name']} · "
                         f"{t('benchmark.years', n=years)}"
                     ),
-                    t("benchmark.rolling_worst"): fmt_pct(summary["worst"]),
-                    t("benchmark.rolling_median"): fmt_pct(summary["median"]),
-                    t("benchmark.rolling_best"): fmt_pct(summary["best"]),
-                    t("benchmark.rolling_positive"): fmt_pct(summary["positive_pct"]),
-                    t("benchmark.rolling_observations"): summary["observations"],
+                    t("benchmark.rolling_worst"): fmt_pct(rolling_riepilogo["worst"]),
+                    t("benchmark.rolling_median"): fmt_pct(rolling_riepilogo["median"]),
+                    t("benchmark.rolling_best"): fmt_pct(rolling_riepilogo["best"]),
+                    t("benchmark.rolling_positive"): fmt_pct(rolling_riepilogo["positive_pct"]),
+                    t("benchmark.rolling_observations"): rolling_riepilogo["observations"],
                 })
             if rolling_rows:
                 st.dataframe(pd.DataFrame(rolling_rows), hide_index=True, width="stretch")
@@ -3644,14 +3644,14 @@ with tab2:
         st.markdown(t("benchmark.rolling_header"))
         rolling_rows = []
         for years, values in benchmark_analysis["rolling"].items():
-            summary = comparative.rolling_summary(values)
+            rolling_riepilogo = comparative.rolling_summary(values)
             rolling_rows.append({
                 t("benchmark.rolling_period"): t("benchmark.years", n=years),
-                t("benchmark.rolling_worst"): fmt_pct(summary["worst"]),
-                t("benchmark.rolling_median"): fmt_pct(summary["median"]),
-                t("benchmark.rolling_best"): fmt_pct(summary["best"]),
-                t("benchmark.rolling_positive"): fmt_pct(summary["positive_pct"]),
-                t("benchmark.rolling_observations"): summary["observations"],
+                t("benchmark.rolling_worst"): fmt_pct(rolling_riepilogo["worst"]),
+                t("benchmark.rolling_median"): fmt_pct(rolling_riepilogo["median"]),
+                t("benchmark.rolling_best"): fmt_pct(rolling_riepilogo["best"]),
+                t("benchmark.rolling_positive"): fmt_pct(rolling_riepilogo["positive_pct"]),
+                t("benchmark.rolling_observations"): rolling_riepilogo["observations"],
             })
         if rolling_rows:
             st.dataframe(pd.DataFrame(rolling_rows), hide_index=True, width="stretch")
