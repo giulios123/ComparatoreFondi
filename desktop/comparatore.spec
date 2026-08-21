@@ -24,7 +24,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, copy_metadata
 
 PROJECT_ROOT = Path(SPECPATH).resolve().parent
 
@@ -68,6 +68,15 @@ block_cipher = None
 # statica non troverebbe da sola.
 _COLLECT_ALL = ["streamlit", "plotly", "pyarrow", "curl_cffi", "yfinance"]
 
+# collect_all() non porta con se' la cartella *.dist-info: questi pacchetti
+# leggono pero' la propria versione con importlib.metadata.version(...) a
+# livello di modulo (streamlit/version.py, plotly/__init__.py,
+# altair/__init__.py - quest'ultimo importato da streamlit per i grafici
+# nativi), fuori da un try/except. Senza il dist-info l'eseguibile va in
+# crash al primo avvio con PackageNotFoundError, visto solo su Windows perche'
+# nessuno aveva ancora provato il bundle li'.
+_COPY_METADATA = ["streamlit", "plotly", "altair"]
+
 datas = [
     (str(PROJECT_ROOT / "app.py"), "."),
     (str(PROJECT_ROOT / "LICENSE"), "."),
@@ -87,6 +96,9 @@ for pkg in _COLLECT_ALL:
     hiddenimports += [
         m for m in pkg_hiddenimports if ".tests" not in m and ".testing" not in m
     ]
+
+for pkg in _COPY_METADATA:
+    datas += copy_metadata(pkg)
 
 a = Analysis(
     [str(PROJECT_ROOT / "desktop" / "launcher.py"), str(PROJECT_ROOT / "app.py")],

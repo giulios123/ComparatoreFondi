@@ -61,6 +61,20 @@ confronta con i fondi pensione COVIP.
   delle piazze MI distingue una quotazione EODHD identica e gli importi delle
   commissioni mostrano i centesimi.
 
+## Entrato di recente (continua)
+
+- **Fix crash all'avvio su Windows**: il bundle andava in
+  `importlib.metadata.PackageNotFoundError` alla prima apertura perché
+  `streamlit/version.py`, `plotly/__init__.py` e `altair/__init__.py`
+  leggono la propria versione con `importlib.metadata.version(...)` a
+  livello di modulo, fuori da un try/except, e `collect_all()` in
+  `desktop/comparatore.spec` non porta con sé le cartelle `*.dist-info` che
+  quella chiamata richiede. Aggiunto `copy_metadata()` per questi tre
+  pacchetti nello spec. Verificato con una build locale (macOS, ma la logica
+  dello spec è identica su Windows): l'eseguibile ora si avvia e risponde
+  HTTP 200. Non era emerso prima perché lo sviluppo passa da `uv run
+  streamlit run app.py`, mai dal bundle impacchettato.
+
 ## Aperto, e noto
 
 | Cosa | Dettaglio |
@@ -68,6 +82,7 @@ confronta con i fondi pensione COVIP.
 | **App non firmate** | Gatekeeper e SmartScreen avvisano. Decisione 17: costa 99 $/anno + 70-250 $/anno, rimandata |
 | **macOS solo arm64** | La build CI gira su `macos-latest`; per Intel/universal va adattato il workflow |
 | **Import JSON e CI** | L'[audit tecnico](../audit-codebase-2026-08-01.md) ha confermato validazione semantica insufficiente nell'import JSON (P2, non ancora affrontato) e action GitHub fissate a tag mutabili invece che a SHA (P2, non ancora affrontato). L'import Directa ha invece validazione propria e mappatura guidata. |
+| **Bundle Windows non ancora ritestato dopo il fix metadata** | Il fix (v. sopra) è verificato solo su build macOS; andrebbe confermato da chi ha l'errore originale con una build Windows fresca. |
 
 ## Da sapere per lavorarci
 
