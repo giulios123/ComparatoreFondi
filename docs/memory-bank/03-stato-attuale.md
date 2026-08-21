@@ -109,6 +109,16 @@ confronta con i fondi pensione COVIP.
   dello spec è identica su Windows): l'eseguibile ora si avvia e risponde
   HTTP 200. Non era emerso prima perché lo sviluppo passa da `uv run
   streamlit run app.py`, mai dal bundle impacchettato.
+- **Fix crash sul confronto COVIP con benchmark attivo**: `summary["cagr"]`
+  nella tab previdenza (quando mancano anni COVIP) andava in `KeyError`
+  perché il loop del rolling benchmark (spec 004) riusava lo stesso nome
+  `summary` per il dict di `comparative.rolling_summary()`
+  (`worst/median/best/positive_pct/observations`, senza `cagr`). Essendo
+  `app.py` uno script piatto, il riassegnamento sopravviveva fino alla
+  sezione COVIP più in basso. Rinominata la variabile locale del loop in
+  `rolling_riepilogo`; nessun cambio di comportamento, solo lo scope
+  del nome. Riproducibile solo con benchmark configurato + portafoglio che
+  non copre tutte le finestre COVIP.
 
 ## Aperto, e noto
 
