@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 
 from comparatore import allocazione as al
+from comparatore.benchmark_portfolios import CATALOG_VERSION, get_portfolio
 from comparatore.instrument_facts import InstrumentFacts
 
 SCHEMA = "comparatore-fondi/portafoglio"
@@ -33,6 +34,23 @@ def normalizza_benchmark(value: object) -> dict | None:
         return None
     if not isinstance(value, dict):
         return None
+    # I benchmark compositi sono riferimenti al catalogo, non holdings
+    # serializzate: il solo ID stabile basta a ricostruire nome, proxy e fonte.
+    if str(value.get("kind", "")).strip() == "portfolio":
+        portfolio_id = str(value.get("portfolio_id", "")).strip()
+        if "catalog_version" not in value:
+            return None
+        try:
+            catalog_version = int(value["catalog_version"])
+        except (TypeError, ValueError):
+            return None
+        if catalog_version != CATALOG_VERSION or get_portfolio(portfolio_id) is None:
+            return None
+        return {
+            "kind": "portfolio",
+            "portfolio_id": portfolio_id,
+            "catalog_version": CATALOG_VERSION,
+        }
     symbol = str(value.get("symbol", "")).strip()
     if not symbol:
         return None

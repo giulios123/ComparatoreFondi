@@ -62,6 +62,35 @@ class TestDumpLoad(unittest.TestCase):
         _, parametri = pio.load(testo)
         self.assertEqual(parametri["benchmark"]["preferred_source"], "auto")
 
+    def test_benchmark_portfolio_round_trip(self):
+        benchmark = {
+            "kind": "portfolio", "portfolio_id": "golden_butterfly", "catalog_version": 1,
+        }
+        testo = pio.dump([dict(FONDO_MINIMO)], {"benchmark": benchmark})
+        _, parametri = pio.load(testo)
+        self.assertEqual(parametri["benchmark"], benchmark)
+
+    def test_benchmark_portfolio_sconosciuto_degrada_a_none(self):
+        testo = pio.dump(
+            [dict(FONDO_MINIMO)],
+            {"benchmark": {"kind": "portfolio", "portfolio_id": "missing", "catalog_version": 1}},
+        )
+        _, parametri = pio.load(testo)
+        self.assertIsNone(parametri["benchmark"])
+
+    def test_benchmark_portfolio_senza_versione_degrada_a_none(self):
+        testo = pio.dump(
+            [dict(FONDO_MINIMO)],
+            {"benchmark": {"kind": "portfolio", "portfolio_id": "golden_butterfly"}},
+        )
+        _, parametri = pio.load(testo)
+        self.assertIsNone(parametri["benchmark"])
+
+    def test_benchmark_portfolio_non_cambia_i_json_precedenti(self):
+        benchmark = {"kind": "preset", "symbol": "VT", "name": "Global"}
+        _, parametri = pio.load(pio.dump([dict(FONDO_MINIMO)], {"benchmark": benchmark}))
+        self.assertEqual(parametri["benchmark"]["kind"], "preset")
+
     def test_instrument_facts_round_trip_and_transient_attempts_are_stripped(self):
         fondo = dict(
             FONDO_MINIMO,

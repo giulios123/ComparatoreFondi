@@ -444,3 +444,27 @@ puo' finire nel payload per costruzione.
 
 **Traccia.** `comparatore/profile.py`, `comparatore/diagnostics.py`,
 `comparatore/privacy.py`, `app.py`, spec `008`.
+
+### 27 · I portafogli famosi sono un catalogo esterno e versionato
+
+*Agosto 2026 — spec [`013-portafogli-famosi-benchmark`](../spec-driven/specs/013-portafogli-famosi-benchmark/spec.md)*
+
+**Contesto.** Un singolo ETF non rappresenta strategie multi-asset note e
+ricostruirle tra le holdings confonde benchmark, TER e ribilanciamento utente.
+
+**Scelta.** `comparatore/benchmark_portfolios.py` contiene 25 definizioni
+statiche con allocazione canonica, proxy quotati in EUR, ISIN, wrapper, fonte e
+avvertenze. L'ID e `catalog_version` sono l'unico riferimento persistito. La
+UI usa un `st.popover` ricercabile con `help=` nativo e una scheda completa.
+Ogni componente viene risolto e convertito separatamente; il periodo comune è
+l'intersezione dei dati reali, con solo forward-fill interno. Un componente
+mancante rende indisponibile il benchmark senza rinormalizzare. I modelli
+compositi simulano capitale e PAC uguali con `YEARLY`, mentre ALLW, RPAR e TRTY
+restano strumenti gestiti singoli.
+
+**Conseguenze.** Il benchmark non entra mai in holdings, pesi, TER, costi o
+ribilanciamento dell'utente. Cambiare una composizione richiede una revisione
+esplicita della versione del catalogo; i JSON precedenti restano leggibili.
+
+**Traccia.** `comparatore/benchmark_portfolios.py`, `comparatore/portfolio_io.py`,
+`app.py`, spec `013`.

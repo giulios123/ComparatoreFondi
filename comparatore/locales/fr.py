@@ -1,3 +1,5 @@
+# ruff: noqa: E501
+
 """Catalogue français. Les clés doivent correspondre exactement à
 `comparatore.locales.it` - `tests/test_i18n.py` vérifie que les quatre
 catalogues restent synchronisés."""
@@ -696,6 +698,7 @@ MESSAGGI: dict[str, str] = {
     "benchmark.option_VT": "Actions mondiales (VT, rendement total)",
     "benchmark.option_VFINX": "S&P 500 (VFINX, rendement total)",
     "benchmark.option_custom": "Rechercher un instrument",
+    "benchmark.famous_open_button": "Ouvrir les portefeuilles célèbres",
     "benchmark.search_label": "Rechercher le benchmark",
     "benchmark.search_placeholder": "Symbole, nom ou ISIN",
     "benchmark.selected": "Benchmark sélectionné : **{symbol}**",
@@ -1153,3 +1156,61 @@ RIBILANCIAMENTO: dict[str, str] = {
     "quarterly": "Trimestriel",
     "yearly": "Annuel",
 }
+
+MESSAGGI.update({
+    "benchmark.option_famous": "Portefeuilles célèbres",
+    "benchmark.famous_search_label": "Rechercher un portefeuille célèbre",
+    "benchmark.famous_search_placeholder": "Nom ou identifiant du portefeuille",
+    "benchmark.famous_no_results": "Aucun portefeuille ne correspond à la recherche.",
+    "benchmark.famous_selected": "Portefeuille célèbre sélectionné : **{name}**",
+    "benchmark.famous_composition": "Composition",
+    "benchmark.famous_proxy_notes": "Proxy et exceptions",
+    "benchmark.famous_wrappers": "Wrapper",
+    "benchmark.famous_source": "Source de la composition : {source}",
+    "benchmark.famous_kind_composite": "Réplique composite avec des proxy cotés en EUR",
+    "benchmark.famous_kind_managed": "Instrument géré : la composition interne n'est pas reconstruite",
+    "benchmark.famous_rebalance": "Rééquilibrage du modèle : annuel, au premier jour de marché",
+    "benchmark.famous_managed_rebalance": "Rééquilibrage interne du produit géré",
+    "benchmark.famous_warning": "Avertissement : {warning}",
+    "benchmark.famous_missing_component": "Composant manquant : {symbol}",
+    "benchmark.famous_missing_atomic": "Le benchmark est indisponible car un composant manque ; votre portefeuille continue.",
+    "benchmark.note_proxy": "Proxy approximatif déclaré par le catalogue.",
+    "benchmark.note_us_sg": "US small growth approximé par US small blend.",
+    "benchmark.note_us_t": "US total approximé par 85 % large blend et 15 % small blend.",
+    "benchmark.note_gold": "Or via un ETC coté en EUR, et non un fonds actions.",
+    "benchmark.note_managed_us": "ETF américain : la devise de cotation et la source peuvent limiter l'historique.",
+    "benchmark.warning_none": "Aucun avertissement supplémentaire.",
+    "benchmark.warning_dragon": "Réplique retail approximative : KMLM, CAOS et ETC or.",
+})
+
+_BENCHMARK_PORTFOLIOS_FR = {
+    "60_40": ("Portefeuille 60/40", "60 % actions US large cap et 40 % Treasuries intermédiaires.", "60% US-L · 40% UST-I"),
+    "80_20": ("Portefeuille 80/20", "80 % actions US et 20 % Treasuries intermédiaires.", "80% US-L · 20% UST-I"),
+    "global_equity_100": ("100 % Actions mondiales", "100 % actions mondiales.", "100% GLB"),
+    "bogleheads_three_fund": ("Portefeuille Bogleheads à trois fonds", "Actions US, internationales et obligations.", "64% US-L · 16% DMxUS-L · 20% UST-I"),
+    "permanent": ("Portefeuille Permanent", "Parts égales d'actions, obligations, liquidités et or.", "25% US-L · 25% UST-L · 25% BILL · 25% GOLD"),
+    "golden_butterfly": ("Golden Butterfly", "Actions large et small value, Treasuries, liquidités et or.", "20% US-L · 20% US-SV · 20% UST-L · 20% UST-S · 20% GOLD"),
+    "all_weather": ("Portefeuille All Weather", "ETF ALLW avec gestion interne Bridgewater/State Street.", "100% ALLW · gestion interne"),
+    "all_seasons": ("Portefeuille All Seasons", "Actions, Treasuries, or et matières premières.", "30% US-L · 40% UST-L · 15% UST-I · 8% GOLD · 7% COM"),
+    "swensen": ("Portefeuille Swensen", "Actions US et internationales, émergents, obligations et REIT.", "30% US-L · 15% DMxUS-L · 5% EM · 30% UST-I · 20% REIT ; la source agrège une part TIPS dans les obligations"),
+    "coffeehouse": ("Portefeuille Coffeehouse", "Diversifié par taille et style, avec REIT et obligations.", "10% US-L · 10% US-LV · 10% US-S · 10% US-SV · 10% DMxUS-L · 10% REIT · 40% UST-I"),
+    "ivy": ("Portefeuille Ivy", "Cinq blocs égaux entre actions, obligations, REIT et matières premières.", "20% US-L · 20% DMxUS-L · 20% UST-I · 20% REIT · 20% COM"),
+    "seven_twelve": ("Portefeuille 7Twelve", "Douze poches entre actions, obligations, REIT et matières premières.", "13% US-L · 12% US-S · 8% DMxUS-L · 8% EM · 17% UST-I · 9% BILL · 8% GOV-DM · 8% REIT · 17% COM"),
+    "merriman_ultimate_buy_and_hold": ("Merriman Ultimate Buy and Hold", "Actions diversifiées par style et zone, plus obligations et REIT.", "6% sur neuf poches actions · 20% UST-I · 20% UST-S · 6% REIT"),
+    "larry": ("Portefeuille Larry", "Allocation très obligataire avec small value et marchés émergents.", "15% US-SV · 8% DMxUS-SV · 7% EM · 70% UST-I"),
+    "dragon": ("Portefeuille Dragon", "Réplique retail d'une stratégie multi-régimes avec trend et convexity.", "24% US-L · 18% UST-I · 19% GOLD · 18% KMLM · 21% CAOS"),
+    "risk_parity": ("Portefeuille Risk Parity", "ETF RPAR avec allocation interne à parité de risque.", "100% RPAR · gestion interne"),
+    "core_four": ("Portefeuille Core Four", "Actions US et internationales, obligations et REIT.", "48% US-L · 24% DMxUS-L · 20% UST-I · 8% REIT"),
+    "pinwheel": ("Portefeuille Pinwheel", "Huit poches entre actions, obligations, liquidités, REIT et or.", "15% US-L · 10% US-SV · 15% DMxUS-L · 10% EM · 15% UST-I · 10% BILL · 15% REIT · 10% GOLD"),
+    "weird": ("Portefeuille Weird", "Parts égales de small value, small internationales, obligations, REIT et or.", "20% US-SV · 20% DMxUS-S · 20% UST-L · 20% REIT · 20% GOLD"),
+    "sandwich": ("Portefeuille Sandwich", "Mix en couches d'actions, obligations, liquidités, REIT et émergents.", "20% US-L · 8% US-S · 10% DMxUS-S · 6% DMxUS-L · 6% EM · 30% UST-I · 4% BILL · 11% GOV-DM · 5% REIT"),
+    "gone_fishin": ("Portefeuille Gone Fishin’", "Diversifié entre marchés, crédit, couverture d'inflation et or.", "15% US-T · 15% US-S · 10% EU · 10% PAC · 10% EM · 10% US-AGG · 10% HY · 10% TIPS · 5% REIT · 5% GOLD"),
+    "ideal_index": ("Portefeuille Ideal Index", "Styles actions US, actions internationales, Treasuries et REIT.", "9% US-LV · 9% US-SV · 7% US-L · 6% US-SG · 31% DMxUS-L · 30% UST-S · 8% REIT"),
+    "global_market": ("Portefeuille Global Market", "Marché mondial avec obligations gouvernementales internationales, REIT et or.", "38% DM-L · 7% DM-S · 5% EM · 44% GOV-DM · 4% REIT · 2% GOLD"),
+    "trinity": ("Portefeuille Trinity", "ETF TRTY avec gestion interne Cambria.", "100% TRTY · gestion interne"),
+    "no_brainer": ("Portefeuille No-Brainer", "Quatre blocs égaux d'actions et de Treasuries courts.", "25% US-L · 25% US-S · 25% DMxUS-S · 25% UST-S"),
+}
+for _portfolio_id, (_name, _tooltip, _composition) in _BENCHMARK_PORTFOLIOS_FR.items():
+    MESSAGGI[f"benchmark.portfolio.{_portfolio_id}.name"] = _name
+    MESSAGGI[f"benchmark.portfolio.{_portfolio_id}.tooltip"] = _tooltip
+    MESSAGGI[f"benchmark.portfolio.{_portfolio_id}.composition"] = _composition

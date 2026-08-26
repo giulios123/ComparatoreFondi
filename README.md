@@ -292,13 +292,19 @@ rivalutazione annua non vi entra.
 ### 5. Benchmark e rendimento reale
 
 L'expander **🎯 Benchmark e analisi comparative** e' facoltativo. Si puo'
-scegliere nessun riferimento, uno dei preset total-return `VT` e `VFINX`, oppure
-cercare un altro strumento. Il benchmark resta fuori dai pesi e dal TER del
-portafoglio; il confronto usa soltanto il periodo comune realmente coperto.
+scegliere nessun riferimento, uno dei preset total-return `VT` e `VFINX`,
+cercare uno strumento oppure aprire il sottomenu **Portafogli famosi**. Il
+popover contiene 25 strategie, una ricerca e un tooltip nativo con composizione,
+proxy e avvertenze; la scheda del selezionato resta visibile anche senza hover.
+I portafogli compositi usano proxy quotati in EUR, capitale e PAC uguali al
+portafoglio e ribilanciamento annuale al primo giorno di mercato. ALLW, RPAR e
+TRTY restano strumenti singoli gestiti internamente. Il benchmark resta fuori
+da holdings, pesi, TER, costi e ribilanciamento dell'utente; un componente
+mancante rende indisponibile soltanto il benchmark. Il confronto usa soltanto
+il periodo comune realmente coperto, senza backfill o rinormalizzazione.
 Sono disponibili CAGR, rendimento attivo, tracking error, information ratio,
 correlazioni dei rendimenti mensili e rendimenti rolling a 1, 3, 5 e 10 anni.
-La scelta viene salvata nell'export JSON; i file precedenti equivalgono a
-nessun benchmark.
+La scelta viene salvata nell'export JSON; i file precedenti restano validi.
 
 L'expander **📉 Rendimento reale e inflazione** e' spento di default e usa il
 HICP mensile ufficiale Eurostat per Italia o area euro. Mostra fonte, area,
