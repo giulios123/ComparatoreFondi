@@ -1456,7 +1456,10 @@ with st.sidebar:
             }
         elif benchmark_choice == "famous":
             current_benchmark = st.session_state.get("benchmark_config")
-            if not (isinstance(current_benchmark, dict) and current_benchmark.get("kind") == "portfolio"):
+            if not (
+                isinstance(current_benchmark, dict)
+                and current_benchmark.get("kind") == "portfolio"
+            ):
                 st.session_state.benchmark_config = None
             with st.popover(
                 t("benchmark.famous_open_button"), use_container_width=True
