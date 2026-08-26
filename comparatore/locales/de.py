@@ -1,6 +1,10 @@
+# ruff: noqa: E501
+
 """Deutscher Katalog. Die Schlüssel müssen exakt mit
 `comparatore.locales.it` übereinstimmen - `tests/test_i18n.py` prüft, dass
 die vier Kataloge synchron bleiben."""
+
+from comparatore.locales.en import _BENCHMARK_PORTFOLIOS_EN
 
 LINGUA = "de"
 NOME = "Deutsch"
@@ -718,6 +722,7 @@ MESSAGGI: dict[str, str] = {
     "benchmark.option_VT": "Globale Aktien (VT, Gesamtrendite)",
     "benchmark.option_VFINX": "S&P 500 (VFINX, Gesamtrendite)",
     "benchmark.option_custom": "Instrument suchen",
+    "benchmark.famous_open_button": "Bekannte Portfolios öffnen",
     "benchmark.search_label": "Benchmark suchen",
     "benchmark.search_placeholder": "Symbol, Name oder ISIN",
     "benchmark.selected": "Benchmark ausgewählt: **{symbol}**",
@@ -1170,3 +1175,34 @@ RIBILANCIAMENTO: dict[str, str] = {
     "quarterly": "Vierteljährlich",
     "yearly": "Jährlich",
 }
+
+MESSAGGI.update({
+    "benchmark.option_famous": "Bekannte Portfolios",
+    "benchmark.famous_search_label": "Bekanntes Portfolio suchen",
+    "benchmark.famous_search_placeholder": "Name oder Portfolio-ID",
+    "benchmark.famous_no_results": "Kein Portfolio passt zur Suche.",
+    "benchmark.famous_selected": "Ausgewähltes bekanntes Portfolio: **{name}**",
+    "benchmark.famous_composition": "Zusammensetzung",
+    "benchmark.famous_proxy_notes": "Proxys und Ausnahmen",
+    "benchmark.famous_wrappers": "Wrapper",
+    "benchmark.famous_source": "Quelle der Zusammensetzung: {source}",
+    "benchmark.famous_kind_composite": "Zusammengesetzte Replik mit in EUR notierten Proxys",
+    "benchmark.famous_kind_managed": "Verwaltetes Instrument: interne Aufteilung wird nicht rekonstruiert",
+    "benchmark.famous_rebalance": "Modell-Rebalancing: jährlich am ersten Handelstag",
+    "benchmark.famous_managed_rebalance": "Internes Rebalancing des verwalteten Produkts",
+    "benchmark.famous_warning": "Hinweis: {warning}",
+    "benchmark.famous_missing_component": "Fehlende Komponente: {symbol}",
+    "benchmark.famous_missing_atomic": "Das Benchmark ist nicht verfügbar, weil mindestens eine Komponente fehlt; Ihr Portfolio läuft weiter.",
+    "benchmark.note_proxy": "Vom Katalog deklarierter Näherungs-Proxy.",
+    "benchmark.note_us_sg": "US Small Growth angenähert durch US Small Blend.",
+    "benchmark.note_us_t": "US Total angenähert durch 85 % Large Blend und 15 % Small Blend.",
+    "benchmark.note_gold": "Gold über einen in EUR notierten ETC, keinen Aktienfonds.",
+    "benchmark.note_managed_us": "US-ETF: Notierungswährung und Datenquelle können die Historie begrenzen.",
+    "benchmark.warning_none": "Keine zusätzliche Warnung.",
+    "benchmark.warning_dragon": "Ungefähre Retail-Replik: enthält KMLM, CAOS und einen Gold-ETC.",
+})
+
+for _portfolio_id, (_name, _tooltip, _composition) in _BENCHMARK_PORTFOLIOS_EN.items():
+    MESSAGGI[f"benchmark.portfolio.{_portfolio_id}.name"] = _name
+    MESSAGGI[f"benchmark.portfolio.{_portfolio_id}.tooltip"] = _tooltip
+    MESSAGGI[f"benchmark.portfolio.{_portfolio_id}.composition"] = _composition

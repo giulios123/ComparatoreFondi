@@ -1,6 +1,6 @@
 # Stato attuale
 
-*Aggiornato: 14 agosto 2026*
+*Aggiornato: 26 agosto 2026*
 
 ## Dove siamo
 
@@ -95,6 +95,16 @@ confronta con i fondi pensione COVIP.
   richieste già previste, con justETF ancora opt-in. La copertura storica deriva
   dalle serie già risolte dal flusso del portafoglio. I test complessivi sono
   237 e Ruff è pulito.
+- **Portafogli famosi come benchmark compositi** — spec
+  [`013-portafogli-famosi-benchmark`](../spec-driven/specs/013-portafogli-famosi-benchmark/spec.md):
+  il catalogo statico contiene 25 strategie con proxy, ISIN, fonti e avvertenze.
+  La sidebar usa un popover ricercabile con tooltip nativi e una scheda
+  accessibile senza hover. I riferimenti sono esterni alle holdings e vengono
+  risolti per componente sul periodo comune, con fallimento atomico e
+  ribilanciamento annuale indipendente da quello scelto dall'utente; ALLW,
+  RPAR e TRTY sono strumenti gestiti singoli. Il JSON aggiunge
+  `kind=portfolio` mantenendo compatibilità con i file precedenti. La suite
+  completa conta ora 249 test.
 
 ## Entrato di recente (continua)
 

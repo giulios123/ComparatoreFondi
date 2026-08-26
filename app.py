@@ -13,6 +13,7 @@ import streamlit as st
 
 from comparatore import (
     __version__,
+    benchmark_portfolios,
     comparative,
     covip,
     diagnostics,
@@ -1307,6 +1308,19 @@ def _seleziona_benchmark(result: dict) -> None:
     st.session_state.benchmark_choice = "custom"
 
 
+def _seleziona_portafoglio_famoso(portfolio_id: str) -> None:
+    """Salva un ID di catalogo senza copiare le sue sleeve tra le holdings."""
+    definition = benchmark_portfolios.get_portfolio(portfolio_id)
+    if definition is None:
+        return
+    st.session_state.benchmark_config = {
+        "kind": "portfolio",
+        "portfolio_id": definition.portfolio_id,
+        "catalog_version": benchmark_portfolios.CATALOG_VERSION,
+    }
+    st.session_state.benchmark_choice = "famous"
+
+
 # --------------------------------------------------------------------------
 # Barra laterale
 # --------------------------------------------------------------------------
@@ -1427,7 +1441,7 @@ with st.sidebar:
         t("benchmark.expander"),
         expanded=bool(st.session_state.get("benchmark_config")),
     ):
-        benchmark_choices = ["none", "VT", "VFINX", "custom"]
+        benchmark_choices = ["none", "VT", "VFINX", "famous", "custom"]
         benchmark_choice = st.selectbox(
             t("benchmark.label"), benchmark_choices, key="benchmark_choice",
             format_func=lambda value: t(f"benchmark.option_{value}"), filter_mode=None,
@@ -1440,6 +1454,125 @@ with st.sidebar:
                 "kind": "preset", "symbol": benchmark_choice, "name": preset_name,
                 "isin": "", "preferred_source": "yahoo",
             }
+        elif benchmark_choice == "famous":
+            with st.popover(
+                t("benchmark.famous_open_button"), use_container_width=True
+            ):
+                famous_query = st.text_input(
+                    t("benchmark.famous_search_label"),
+                    placeholder=t("benchmark.famous_search_placeholder"),
+                    key="benchmark_famous_query",
+                ).strip().casefold()
+                famous_definitions = benchmark_portfolios.PORTFOLIO_CATALOG
+                if famous_query:
+                    famous_definitions = tuple(
+                        definition for definition in famous_definitions
+                        if famous_query in t(definition.name_key).casefold()
+                        or famous_query in definition.portfolio_id.casefold()
+                    )
+                if not famous_definitions:
+                    st.caption(t("benchmark.famous_no_results"))
+                for definition in famous_definitions:
+                    component_notes = [
+                        t(component.note_key)
+                        for component in definition.executable_components
+                        if component.note_key
+                    ]
+                    if definition.warning_key != "benchmark.warning_none":
+                        component_notes.append(t(definition.warning_key))
+                    component_wrappers = sorted({
+                        component.wrapper
+                        for component in definition.executable_components
+                        if component.wrapper
+                    })
+                    if component_wrappers:
+                        component_notes.append(
+                            f"{t('benchmark.famous_wrappers')}: "
+                            + " · ".join(component_wrappers)
+                        )
+                    help_text = "\n\n".join(
+                        (
+                            t(definition.tooltip_key),
+                            f"{t('benchmark.famous_composition')}: "
+                            f"{t(definition.composition_key)}",
+                            *dict.fromkeys(component_notes),
+                        )
+                    )
+                    st.button(
+                        t(definition.name_key),
+                        key=f"benchmark_famous_{definition.portfolio_id}",
+                        help=help_text,
+                        on_click=_seleziona_portafoglio_famoso,
+                        args=(definition.portfolio_id,),
+                        width="stretch",
+                    )
+            selected_benchmark = st.session_state.get("benchmark_config")
+            selected_definition = (
+                benchmark_portfolios.get_portfolio(
+                    selected_benchmark.get("portfolio_id", "")
+                )
+                if isinstance(selected_benchmark, dict)
+                else None
+            )
+            if selected_definition:
+                st.markdown(
+                    t(
+                        "benchmark.famous_selected",
+                        name=t(selected_definition.name_key),
+                    )
+                )
+                st.caption(
+                    f"{t('benchmark.famous_composition')}: "
+                    f"{t(selected_definition.composition_key)}"
+                )
+                selected_notes = list(dict.fromkeys(
+                    t(component.note_key)
+                    for component in selected_definition.executable_components
+                    if component.note_key
+                ))
+                if selected_notes:
+                    st.caption(
+                        f"{t('benchmark.famous_proxy_notes')}: "
+                        + " · ".join(selected_notes)
+                    )
+                wrappers = sorted({
+                    component.wrapper
+                    for component in selected_definition.executable_components
+                    if component.wrapper
+                })
+                if wrappers:
+                    st.caption(
+                        f"{t('benchmark.famous_wrappers')}: "
+                        + " · ".join(wrappers)
+                    )
+                st.caption(
+                    t(
+                        "benchmark.famous_kind_managed"
+                        if selected_definition.is_managed
+                        else "benchmark.famous_kind_composite"
+                    )
+                )
+                st.caption(
+                    t(
+                        "benchmark.famous_managed_rebalance"
+                        if selected_definition.is_managed
+                        else "benchmark.famous_rebalance"
+                    )
+                )
+                if selected_definition.warning_key != "benchmark.warning_none":
+                    st.caption(
+                        t(
+                            "benchmark.famous_warning",
+                            warning=t(selected_definition.warning_key),
+                        )
+                    )
+                st.caption(t("benchmark.famous_source", source=selected_definition.source_url))
+                if st.button(
+                    t("benchmark.remove_button"), key="benchmark_remove_famous", width="stretch"
+                ):
+                    st.session_state.benchmark_config = None
+                    st.session_state.benchmark_choice = "none"
+                    st.rerun()
         else:
             benchmark_query = st.text_input(
                 t("benchmark.search_label"), placeholder=t("benchmark.search_placeholder"),
@@ -2070,11 +2203,14 @@ with st.sidebar:
                     parametri_importati.get("benchmark")
                 )
                 pending["benchmark_config"] = benchmark_importato
-                pending["benchmark_choice"] = (
-                    benchmark_importato.get("kind") == "preset"
-                    and benchmark_importato.get("symbol")
-                    or "custom"
-                ) if benchmark_importato else "none"
+                if not benchmark_importato:
+                    pending["benchmark_choice"] = "none"
+                elif benchmark_importato.get("kind") == "portfolio":
+                    pending["benchmark_choice"] = "famous"
+                elif benchmark_importato.get("kind") == "preset":
+                    pending["benchmark_choice"] = benchmark_importato.get("symbol", "custom")
+                else:
+                    pending["benchmark_choice"] = "custom"
                 # Nel file le percentuali restano in frazione (0.02 = 2%): e'
                 # il formato dei portafogli gia' esportati e non ha ambiguita'
                 # di unita'. La conversione in percentuale avviene qui, al
@@ -2686,77 +2822,167 @@ portfolio_correlation = pd.DataFrame()
 benchmark_config = portfolio_io.normalizza_benchmark(
     st.session_state.get("benchmark_config")
 )
+benchmark_label = ""
+benchmark_resolutions = {}
 if benchmark_config:
-    benchmark_resolution = registry.resolve(
-        benchmark_config["symbol"], start_date, end_date, base_ccy,
-        isin=benchmark_config.get("isin", ""),
-        preferred=benchmark_config.get("preferred_source", "") or AUTO,
-    )
-    if benchmark_resolution.ok:
-        raw_benchmark = benchmark_resolution.series.prices
-        converted_benchmark = fx.convert_currency(
-            raw_benchmark.to_frame(benchmark_config["symbol"]),
-            {benchmark_config["symbol"]: benchmark_resolution.series.currency},
-            base_ccy, start_date, end_date,
+    famous_definition = None
+    if benchmark_config.get("kind") == "portfolio":
+        famous_definition = benchmark_portfolios.get_portfolio(
+            benchmark_config.get("portfolio_id", "")
         )
-        if benchmark_config["symbol"] in converted_benchmark.prices:
-            raw_benchmark = converted_benchmark.prices[benchmark_config["symbol"]].dropna()
+        if famous_definition is None:
+            benchmark_config = None
         else:
-            raw_benchmark = pd.Series(dtype=float)
-        # Il forward-fill e' ammesso solo fra due quotazioni reali: non si
-        # prolunga il benchmark oltre l'ultima data pubblicata.
-        common_index = res.nav.index[
-            (res.nav.index >= raw_benchmark.index.min())
-            & (res.nav.index <= raw_benchmark.index.max())
-        ] if not raw_benchmark.empty else pd.DatetimeIndex([])
-        if len(common_index) >= 2:
-            benchmark_prices = raw_benchmark.reindex(common_index).ffill().dropna()
-            # Si ricrea anche il portafoglio sul calendario comune: cosi' la
-            # prima quota, le rate PAC e gli eventuali ribilanciamenti hanno
-            # esattamente gli stessi riferimenti temporali sui due lati.
-            common_prices = prices.reindex(common_index).ffill().dropna(how="any")
-            common_res = run_backtest(
-                common_prices, holdings, initial_value, rebalance, FeeMode.NET, pac
+            benchmark_label = t(famous_definition.name_key)
+            component_specs = [
+                {
+                    "symbol": component.symbol,
+                    "weight": component.weight,
+                    "isin": component.isin,
+                    "wrapper": component.wrapper,
+                    "note_key": component.note_key,
+                }
+                for component in famous_definition.executable_components
+            ]
+    else:
+        benchmark_label = benchmark_config.get("name", benchmark_config.get("symbol", ""))
+        component_specs = [{
+            "symbol": benchmark_config["symbol"],
+            "weight": 100.0,
+            "isin": benchmark_config.get("isin", ""),
+            "wrapper": "",
+            "note_key": "",
+            "preferred": benchmark_config.get("preferred_source", "") or AUTO,
+        }]
+
+if benchmark_config:
+    # Risoluzione atomica: una sleeve non puo' sparire e far rinormalizzare le
+    # altre. Il ripiego cerca solo quotazioni EUR che dichiarano lo stesso ISIN.
+    unique_specs = {}
+    for spec in component_specs:
+        unique_specs.setdefault(spec["symbol"], spec)
+    for symbol, spec in unique_specs.items():
+        resolution = registry.resolve(
+            symbol, start_date, end_date, base_ccy,
+            isin=spec.get("isin", ""), preferred=spec.get("preferred", AUTO),
+        )
+        if not resolution.ok and spec.get("isin"):
+            for quote in registry.related_quotes(spec["isin"], symbol):
+                if str(quote.currency or "").upper() != "EUR":
+                    continue
+                resolution = registry.resolve(
+                    quote.symbol, start_date, end_date, base_ccy,
+                    isin=spec["isin"], preferred=spec.get("preferred", AUTO),
+                )
+                if resolution.ok:
+                    break
+        benchmark_resolutions[symbol] = resolution
+
+    benchmark_resolution = next(iter(benchmark_resolutions.values()), None)
+    missing_components = [
+        symbol for symbol, resolution in benchmark_resolutions.items()
+        if not resolution.ok
+    ]
+    if missing_components:
+        if famous_definition is not None:
+            dettagli = ", ".join(
+                t("benchmark.famous_missing_component", symbol=symbol)
+                for symbol in missing_components
             )
-            benchmark_curve, _ = simulate(
-                benchmark_prices.to_frame("__benchmark"), {"__benchmark": 1.0},
-                initial_value, rebalance, pac,
-            )
-            benchmark_nav = nav_curve(
-                benchmark_curve,
-                contribution_schedule(benchmark_prices.index, pac),
-                initial_value,
-            )
-            benchmark_analysis = comparative.compare(
-                common_res.nav, benchmark_nav,
-            )
-            st.caption(t(
-                "benchmark.source",
-                source=i18n.etichetta_fonte(
-                    LINGUA, benchmark_resolution.series.source
-                ),
-                symbol=benchmark_config["symbol"],
-            ))
-            tentativi_benchmark = " · ".join(
+            benchmark_error = f"{t('benchmark.famous_missing_atomic')} {dettagli}"
+        else:
+            benchmark_error = " · ".join(
                 f"{i18n.etichetta_fonte(LINGUA, attempt.source)}: "
                 f"{i18n.etichetta_esito(LINGUA, attempt.outcome)}"
                 for attempt in benchmark_resolution.attempts
             )
-            if tentativi_benchmark:
-                st.caption(t("benchmark.attempts", elenco=tentativi_benchmark))
-        else:
-            benchmark_error = t("benchmark.common_period_short")
     else:
-        benchmark_error = " · ".join(
-            f"{i18n.etichetta_fonte(LINGUA, attempt.source)}: "
-            f"{i18n.etichetta_esito(LINGUA, attempt.outcome)}"
-            for attempt in benchmark_resolution.attempts
+        raw_frame = pd.DataFrame({
+            symbol: resolution.series.prices
+            for symbol, resolution in benchmark_resolutions.items()
+        }).sort_index()
+        currencies = {
+            symbol: resolution.series.currency
+            for symbol, resolution in benchmark_resolutions.items()
+        }
+        converted_benchmark = fx.convert_currency(
+            raw_frame, currencies, base_ccy, start_date, end_date,
         )
+        if converted_benchmark.failed:
+            benchmark_error = t(
+                "fx.error_failed", elenco=", ".join(converted_benchmark.failed)
+            )
+        else:
+            # Il periodo comune e' limitato a dati realmente pubblicati per
+            # ogni componente e per il portafoglio: il forward-fill colma solo
+            # buchi interni, mai l'esterno della storia osservata.
+            starts = [
+                series.dropna().index.min()
+                for _, series in raw_frame.items()
+                if not series.dropna().empty
+            ]
+            ends = [
+                series.dropna().index.max()
+                for _, series in raw_frame.items()
+                if not series.dropna().empty
+            ]
+            if starts and ends:
+                lower = max(max(starts), res.nav.index.min())
+                upper = min(min(ends), res.nav.index.max())
+                common_index = res.nav.index[
+                    (res.nav.index >= lower) & (res.nav.index <= upper)
+                ]
+            else:
+                common_index = pd.DatetimeIndex([])
+            benchmark_prices = converted_benchmark.prices.reindex(common_index).ffill()
+            common_prices = prices.reindex(common_index).ffill()
+            valid = benchmark_prices.notna().all(axis=1) & common_prices.notna().all(axis=1)
+            benchmark_prices = benchmark_prices.loc[valid]
+            common_prices = common_prices.loc[valid]
+            if len(benchmark_prices.index) >= 2:
+                common_res = run_backtest(
+                    common_prices, holdings, initial_value, rebalance, FeeMode.NET, pac
+                )
+                weights = benchmark_portfolios.executable_weights(famous_definition) \
+                    if famous_definition is not None else {
+                        component_specs[0]["symbol"]: 100.0
+                    }
+                benchmark_mode = (
+                    Rebalance.NONE
+                    if famous_definition is not None and famous_definition.is_managed
+                    else Rebalance.YEARLY
+                )
+                benchmark_curve, _ = simulate(
+                    benchmark_prices, weights, initial_value, benchmark_mode, pac,
+                )
+                benchmark_nav = nav_curve(
+                    benchmark_curve,
+                    contribution_schedule(benchmark_prices.index, pac),
+                    initial_value,
+                )
+                benchmark_analysis = comparative.compare(common_res.nav, benchmark_nav)
+                for symbol, resolution in benchmark_resolutions.items():
+                    st.caption(t(
+                        "benchmark.source",
+                        source=i18n.etichetta_fonte(LINGUA, resolution.series.source),
+                        symbol=symbol,
+                    ))
+                    tentativi = " · ".join(
+                        f"{i18n.etichetta_fonte(LINGUA, attempt.source)}: "
+                        f"{i18n.etichetta_esito(LINGUA, attempt.outcome)}"
+                        for attempt in resolution.attempts
+                    )
+                    if tentativi:
+                        st.caption(t("benchmark.attempts", elenco=tentativi))
+            else:
+                benchmark_error = t("benchmark.common_period_short")
 
 portfolio_curves = res.per_fund_nav.rename(columns=res.labels).copy()
 portfolio_curves[t("benchmark.portfolio_label")] = res.nav
 if benchmark_nav is not None:
-    portfolio_curves[benchmark_config["name"]] = benchmark_nav
+    portfolio_curves[
+        benchmark_label or benchmark_config.get("name") or t("benchmark.portfolio_label")
+    ] = benchmark_nav
 portfolio_correlation = comparative.correlation_matrix(portfolio_curves)
 if benchmark_config is None:
     benchmark_analysis = comparative.compare(res.nav)
@@ -3580,7 +3806,10 @@ with tab2:
                 t("benchmark.tracking_error"): t("nd"),
                 t("benchmark.information_ratio"): t("nd"),
             }, {
-                t("benchmark.metric"): benchmark_config["name"],
+                t("benchmark.metric"): (
+                    benchmark_label or benchmark_config.get("name")
+                    or t("benchmark.portfolio_label")
+                ),
                 t("benchmark.growth"): fmt_pct(benchmark_metrics.benchmark_total_return),
                 t("benchmark.cagr"): fmt_pct(benchmark_metrics.benchmark_cagr),
                 t("benchmark.volatility"): fmt_pct(benchmark_metrics.benchmark_volatility),
@@ -3684,7 +3913,13 @@ with tab2:
     if benchmark_curve is not None:
         fig2.add_trace(go.Scatter(
             x=benchmark_curve.index, y=benchmark_curve.values,
-            name=t("benchmark.legend", symbol=benchmark_config["symbol"]),
+            name=t(
+                "benchmark.legend",
+                symbol=(
+                    benchmark_label or benchmark_config.get("symbol")
+                    or t("benchmark.portfolio_label")
+                ),
+            ),
             line=dict(color="#7c3aed", width=2, dash="dashdot"),
             hovertemplate=f"%{{x|{FMT_DATA}}}<br>%{{y:,.0f}}<extra></extra>",
         ))

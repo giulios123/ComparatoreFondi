@@ -198,6 +198,19 @@ class TestSintassiApp(unittest.TestCase):
         holding_block = sorgente[holding_start:holding_end]
         self.assertNotIn("benchmark", holding_block.lower())
 
+    def test_portafogli_famosi_restano_un_benchmark_con_popover_e_tooltip(self):
+        sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn('benchmark_choices = ["none", "VT", "VFINX", "famous", "custom"]', sorgente)
+        self.assertIn("with st.popover(", sorgente)
+        self.assertIn("help=help_text", sorgente)
+        self.assertIn("t(definition.tooltip_key)", sorgente)
+        self.assertIn('"kind": "portfolio"', sorgente)
+        self.assertIn("benchmark_portfolios.executable_weights", sorgente)
+        holding_start = sorgente.index("holdings = [")
+        holding_end = sorgente.index("# `pac`", holding_start)
+        holding_block = sorgente[holding_start:holding_end]
+        self.assertNotIn("portfolio_id", holding_block)
+
     def test_profilo_diagnosi_e_payload_anonimo_restano_locali(self):
         sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
         self.assertIn("profile_store.load()", sorgente)

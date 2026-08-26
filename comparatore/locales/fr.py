@@ -1,6 +1,10 @@
+# ruff: noqa: E501
+
 """Catalogue français. Les clés doivent correspondre exactement à
 `comparatore.locales.it` - `tests/test_i18n.py` vérifie que les quatre
 catalogues restent synchronisés."""
+
+from comparatore.locales.en import _BENCHMARK_PORTFOLIOS_EN
 
 LINGUA = "fr"
 NOME = "Français"
@@ -696,6 +700,7 @@ MESSAGGI: dict[str, str] = {
     "benchmark.option_VT": "Actions mondiales (VT, rendement total)",
     "benchmark.option_VFINX": "S&P 500 (VFINX, rendement total)",
     "benchmark.option_custom": "Rechercher un instrument",
+    "benchmark.famous_open_button": "Ouvrir les portefeuilles célèbres",
     "benchmark.search_label": "Rechercher le benchmark",
     "benchmark.search_placeholder": "Symbole, nom ou ISIN",
     "benchmark.selected": "Benchmark sélectionné : **{symbol}**",
@@ -1153,3 +1158,34 @@ RIBILANCIAMENTO: dict[str, str] = {
     "quarterly": "Trimestriel",
     "yearly": "Annuel",
 }
+
+MESSAGGI.update({
+    "benchmark.option_famous": "Portefeuilles célèbres",
+    "benchmark.famous_search_label": "Rechercher un portefeuille célèbre",
+    "benchmark.famous_search_placeholder": "Nom ou identifiant du portefeuille",
+    "benchmark.famous_no_results": "Aucun portefeuille ne correspond à la recherche.",
+    "benchmark.famous_selected": "Portefeuille célèbre sélectionné : **{name}**",
+    "benchmark.famous_composition": "Composition",
+    "benchmark.famous_proxy_notes": "Proxy et exceptions",
+    "benchmark.famous_wrappers": "Wrapper",
+    "benchmark.famous_source": "Source de la composition : {source}",
+    "benchmark.famous_kind_composite": "Réplique composite avec des proxy cotés en EUR",
+    "benchmark.famous_kind_managed": "Instrument géré : la composition interne n'est pas reconstruite",
+    "benchmark.famous_rebalance": "Rééquilibrage du modèle : annuel, au premier jour de marché",
+    "benchmark.famous_managed_rebalance": "Rééquilibrage interne du produit géré",
+    "benchmark.famous_warning": "Avertissement : {warning}",
+    "benchmark.famous_missing_component": "Composant manquant : {symbol}",
+    "benchmark.famous_missing_atomic": "Le benchmark est indisponible car un composant manque ; votre portefeuille continue.",
+    "benchmark.note_proxy": "Proxy approximatif déclaré par le catalogue.",
+    "benchmark.note_us_sg": "US small growth approximé par US small blend.",
+    "benchmark.note_us_t": "US total approximé par 85 % large blend et 15 % small blend.",
+    "benchmark.note_gold": "Or via un ETC coté en EUR, et non un fonds actions.",
+    "benchmark.note_managed_us": "ETF américain : la devise de cotation et la source peuvent limiter l'historique.",
+    "benchmark.warning_none": "Aucun avertissement supplémentaire.",
+    "benchmark.warning_dragon": "Réplique retail approximative : KMLM, CAOS et ETC or.",
+})
+
+for _portfolio_id, (_name, _tooltip, _composition) in _BENCHMARK_PORTFOLIOS_EN.items():
+    MESSAGGI[f"benchmark.portfolio.{_portfolio_id}.name"] = _name
+    MESSAGGI[f"benchmark.portfolio.{_portfolio_id}.tooltip"] = _tooltip
+    MESSAGGI[f"benchmark.portfolio.{_portfolio_id}.composition"] = _composition
