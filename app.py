@@ -3840,6 +3840,11 @@ with tab2:
                 st.markdown(t("benchmark.correlation_header"))
                 st.dataframe(correlation.round(3), width="stretch")
             st.markdown(t("benchmark.rolling_header"))
+            benchmark_name = (
+                benchmark_label
+                or benchmark_config.get("name")
+                or t("benchmark.portfolio_label")
+            )
             rolling_rows = []
             for years, values in benchmark_analysis["rolling"].items():
                 rolling_riepilogo = comparative.rolling_summary(values)
@@ -3855,7 +3860,7 @@ with tab2:
                 rolling_riepilogo = comparative.rolling_summary(values)
                 rolling_rows.append({
                     t("benchmark.rolling_period"): (
-                        f"{benchmark_config['name']} · "
+                        f"{benchmark_name} · "
                         f"{t('benchmark.years', n=years)}"
                     ),
                     t("benchmark.rolling_worst"): fmt_pct(rolling_riepilogo["worst"]),

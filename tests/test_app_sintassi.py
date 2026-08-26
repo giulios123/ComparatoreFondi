@@ -206,6 +206,8 @@ class TestSintassiApp(unittest.TestCase):
         self.assertIn("t(definition.tooltip_key)", sorgente)
         self.assertIn('"kind": "portfolio"', sorgente)
         self.assertIn("benchmark_portfolios.executable_weights", sorgente)
+        self.assertNotIn("benchmark_config['name']", sorgente)
+        self.assertNotIn('benchmark_config["name"]', sorgente)
         holding_start = sorgente.index("holdings = [")
         holding_end = sorgente.index("# `pac`", holding_start)
         holding_block = sorgente[holding_start:holding_end]
