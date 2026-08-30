@@ -324,16 +324,18 @@ del periodo:
 > fondi reali: servono a mostrare l'interfaccia, non a suggerire un
 > investimento.
 
-Sei schede sotto il grafico principale:
+Otto schede sotto il grafico principale:
 
 | Scheda | Cosa mostra |
 |---|---|
 | 📊 Portafoglio | curva del capitale, netta e lorda (senza TER), composizione nel tempo |
 | ⚖️ Bilanciamento | ripartizione per classe di attivo, area, settore, valuta e paesi (stima) |
 | 🆚 Confronto fondi | ogni fondo preso da solo, a parità di capitale investito |
+| 📊 Analisi | heatmap dei rendimenti, finestre rolling e frontiera storica dei pesi |
 | 📉 Drawdown | perdita dal massimo storico, e rendimenti per anno solare |
 | 📋 Dati | tabella numerica scaricabile in CSV |
 | 🏦 Fondi pensione | confronto con le finestre ufficiali COVIP |
+| 🧭 Diagnosi | rilievi locali rispetto al profilo facoltativo |
 
 Ogni metrica in alto (Valore finale, CAGR, Volatilità, Max drawdown, Sharpe)
 ha un tooltip ⓘ con la spiegazione; l'expander **❓ Come si leggono queste
@@ -345,6 +347,29 @@ per riga.
 
 Il riquadro **💸 Impatto del TER** quantifica in euro quanto i costi correnti
 sono costati rispetto al fondo ipotetico senza commissioni.
+
+La scheda **📊 Analisi** ricostruisce lo storico indipendentemente dalle date
+del backtest per non perdere il pregresso necessario alle finestre lunghe. La
+**Return heatmap** mostra i mesi e il rendimento annuo composto, lasciando
+`—` dove mancano dati e marcando i periodi parziali e l'anno corrente (YTD).
+**Rolling returns** offre le modalità Continuous, Annual e Distribution per
+finestre di 1, 3, 5, 10, 15 e 20 anni e per CAGR, volatilità, Sharpe, Sortino,
+Calmar e Ulcer Index; le finestre sovrapposte della distribuzione non sono
+osservazioni indipendenti. Le serie mantengono coperture proprie e il PAC
+influisce sulla ricostruzione, mentre i rendimenti sono depurati dai
+versamenti. La scheda mostra anche la fonte effettivamente usata per ogni
+serie: provider diversi possono restituire rendimenti diversi; per un confronto
+numerico omogeneo va selezionata la stessa fonte nella composizione.
+
+La **Frontiera storica** valuta mix non negativi dei soli fondi già presenti,
+con gli stessi prezzi netti, PAC e ribilanciamento del backtest. Il campionamento
+è riproducibile (seed fisso), i limiti min/max sono editabili e i risultati sono
+presentati come *migliori mix trovati sullo storico*, non come previsioni. Un
+mix può essere esportato come variante JSON e applicato solo dopo anteprima e
+conferma; la scheda mostra fonte e copertura effettive usate dalla ricerca; il
+benchmark resta sempre esterno alle holdings. Il grafico evidenzia con stelle i
+casi migliori e con X i peggiori per CAGR, volatilità, Sharpe e drawdown; ogni
+marcatore mostra nel tooltip pesi e metriche del mix.
 
 Nella scheda 📊 Portafoglio, la curva continua è il capitale **netto** e quella
 tratteggiata il **lordo**: la distanza fra le due *è* il costo del TER. Sotto,

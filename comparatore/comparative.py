@@ -201,7 +201,13 @@ def rolling_returns(
     curve: pd.Series,
     windows: tuple[int, ...] = ROLLING_YEARS,
 ) -> dict[int, pd.Series]:
-    """Rendimento annualizzato delle finestre mensili 1/3/5/10 anni."""
+    """Rendimento annualizzato delle finestre mensili 1/3/5/10 anni.
+
+    Una finestra di dodici rendimenti richiede tredici valori: il primo e'
+    l'investimento da cui parte il rendimento del primo mese. La funzione
+    mantiene la forma storica del risultato per non rompere la scheda
+    Confronto, mentre le analisi avanzate usano il calendario giornaliero.
+    """
     values = monthly_values(_clean(curve))
     if values.empty:
         return {
@@ -217,12 +223,12 @@ def rolling_returns(
     out: dict[int, pd.Series] = {}
     for years in windows:
         months = years * MONTHS_PER_YEAR
-        if len(values) < months:
+        if len(values) <= months:
             out[years] = pd.Series(dtype=float, name=f"rolling_{years}y")
             continue
         result = pd.Series(np.nan, index=values.index, name=f"rolling_{years}y")
-        for end_pos in range(months - 1, len(values)):
-            window = values.iloc[end_pos - months + 1:end_pos + 1]
+        for end_pos in range(months, len(values)):
+            window = values.iloc[end_pos - months:end_pos + 1]
             if window.isna().any() or window.iloc[0] <= 0 or window.iloc[-1] <= 0:
                 continue
             result.iloc[end_pos] = (window.iloc[-1] / window.iloc[0]) ** (1 / years) - 1
