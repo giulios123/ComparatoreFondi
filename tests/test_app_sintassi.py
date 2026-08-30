@@ -85,6 +85,46 @@ class TestSintassiApp(unittest.TestCase):
         self.assertIn(".st-key-preset_periodo .stButton button {", sorgente)
         self.assertIn("min-width: 3ch;", sorgente)
 
+    def test_scheda_analisi_e_vista_frontiera_restano_collegate(self):
+        """La nuova scheda deve restare visibile e differire il calcolo.
+
+        Il file e' uno script Streamlit: una guardia testuale qui intercetta
+        una rimozione accidentale del tab o del pulsante di avvio senza dover
+        importare `app.py` in una sessione reale.
+        """
+        sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn('t("tab.analisi")', sorgente)
+        self.assertIn("def _render_analysis()", sorgente)
+        self.assertIn("st.segmented_control(", sorgente)
+        self.assertIn('analysis_modes = ["heatmap", "rolling", "frontier"]', sorgente)
+        self.assertIn('default="heatmap"', sorgente)
+        self.assertIn("frontier.search_frontier(", sorgente)
+        self.assertIn('t("analysis.frontier_apply_confirm")', sorgente)
+        self.assertIn("portfolio_io.dump(variant", sorgente)
+
+    def test_heatmap_mantiene_provenienza_e_colori_dei_rendimenti(self):
+        """La heatmap deve rendere verificabile la fonte e il segno dei dati.
+
+        Sono due dettagli facili da perdere in un ritocco della tabella: senza
+        la provenienza un confronto fra provider sembra un errore numerico,
+        senza lo stile il tema scuro rende positivi e negativi indistinguibili.
+        """
+        sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn('t("analysis.source_note"', sorgente)
+        self.assertIn("def _heatmap_cell_style", sorgente)
+        self.assertIn("table.style.map(_heatmap_cell_style)", sorgente)
+        self.assertIn('na_rep=t("analysis.missing_cell")', sorgente)
+        self.assertIn("effective_dates", sorgente)
+        self.assertIn("analysis.frontier_coverage", sorgente)
+        self.assertIn("percent_objectives", sorgente)
+        self.assertIn("frontier_prices = res.prices[symbols]", sorgente)
+        self.assertIn('getattr(frontier, "evaluate_weights", None)', sorgente)
+        self.assertIn("frontier._batch_metrics(", sorgente)
+        self.assertIn("extreme_specs =", sorgente)
+        self.assertIn('"analysis.frontier_extreme_tooltip"', sorgente)
+        self.assertIn('t("analysis.frontier_extreme_markers")', sorgente)
+        self.assertIn("with st.container(border=True)", sorgente)
+
     def test_etichette_preset_stanno_in_tre_caratteri(self):
         """`min-width: 3ch` protegge le etichette solo finche' restano di tre
         caratteri: una traduzione piu' lunga tornerebbe ad andare a capo, e il

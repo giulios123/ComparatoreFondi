@@ -468,3 +468,24 @@ esplicita della versione del catalogo; i JSON precedenti restano leggibili.
 
 **Traccia.** `comparatore/benchmark_portfolios.py`, `comparatore/portfolio_io.py`,
 `app.py`, spec `013`.
+
+### 28 · Le analisi storiche restano viste pure e la frontiera non modifica il portafoglio
+
+*Agosto 2026 — spec [`014-analisi-avanzate`](../spec-driven/specs/014-analisi-avanzate/spec.md)*
+
+**Scelta.** Heatmap e rolling ricostruiscono lo storico indipendentemente
+dall'intervallo del backtest, mantenendo coperture, periodi parziali e
+indisponibilita' visibili. La frontiera usa solo i fondi in holdings, gli
+stessi prezzi netti, PAC e ribilanciamento del backtest, e tratta il benchmark
+come riferimento esterno. Il simulatore batch non promette un ottimo: seed,
+vincoli, campioni e affinamento sono registrati in un fingerprint che rende
+inapplicabili i risultati superati.
+
+**Conseguenze.** Il cambio di finestra o asse non reinizializza lo storico e
+non avvia una nuova ricerca. Sortino e Ulcer Index condividono definizioni
+esplicite con il motore; il drawdown della frontiera e' una perdita positiva,
+quindi minimizzarlo riduce la perdita. L'export conserva il formato JSON
+esistente e l'applicazione dei pesi richiede anteprima e conferma.
+
+**Traccia.** `comparatore/analytics.py`, `comparatore/frontier.py`,
+`comparatore/metrics.py`, `app.py`, spec `014`.

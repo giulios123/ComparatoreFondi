@@ -60,17 +60,21 @@ def sharpe(curve: pd.Series, risk_free: float = 0.0) -> float:
 
 
 def sortino(curve: pd.Series, risk_free: float = 0.0) -> float:
-    """Like Sharpe but penalising only downside deviation."""
+    """Rapporto di Sortino con downside deviation rispetto al risk-free.
+
+    La deviazione al ribasso e' una RMS su tutte le osservazioni: i rendimenti
+    sopra soglia contribuiscono con zero, ma non vengono rimossi dal
+    denominatore. Cosi' una serie con molti giorni positivi non appare
+    artificialmente rischiosa perche' si considerano solo i pochi ribassi.
+    """
     rets = curve.pct_change().dropna()
     if len(rets) < 2:
         return float("nan")
     daily_rf = (1 + risk_free) ** (1 / TRADING_DAYS) - 1
     excess = rets - daily_rf
-    downside = excess[excess < 0]
-    if len(downside) < 2:
-        return float("nan")
-    dd = downside.std(ddof=1)
-    if dd == 0:
+    downside = np.minimum(excess.to_numpy(), 0.0)
+    dd = float(np.sqrt(np.mean(np.square(downside))))
+    if not np.isfinite(dd) or dd == 0:
         return float("nan")
     return excess.mean() / dd * np.sqrt(TRADING_DAYS)
 
@@ -80,6 +84,22 @@ def calmar(curve: pd.Series) -> float:
     if not mdd or np.isnan(mdd) or mdd == 0:
         return float("nan")
     return cagr(curve) / abs(mdd)
+
+
+def ulcer_index(curve: pd.Series) -> float:
+    """Indice Ulcer: profondita' e durata dei drawdown della curva.
+
+    Il picco e' progressivo e il valore e' la radice della media dei
+    drawdown percentuali al quadrato; il risultato e' una frazione, come le
+    altre metriche dell'applicazione.
+    """
+    if len(curve) < 2:
+        return float("nan")
+    values = pd.Series(curve, copy=False).astype(float).dropna()
+    if len(values) < 2 or (values <= 0).any():
+        return float("nan")
+    drawdowns = values / values.cummax() - 1.0
+    return float(np.sqrt(np.mean(np.square(drawdowns.to_numpy()))))
 
 
 def best_worst_year(curve: pd.Series) -> tuple[float, float]:

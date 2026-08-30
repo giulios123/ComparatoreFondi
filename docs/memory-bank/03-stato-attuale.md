@@ -1,6 +1,6 @@
 # Stato attuale
 
-*Aggiornato: 26 agosto 2026*
+*Aggiornato: 29 agosto 2026*
 
 ## Dove siamo
 
@@ -105,6 +105,21 @@ confronta con i fondi pensione COVIP.
   RPAR e TRTY sono strumenti gestiti singoli. Il JSON aggiunge
   `kind=portfolio` mantenendo compatibilità con i file precedenti. La suite
   completa conta ora 249 test.
+- **Analisi storiche avanzate** — spec
+  [`014-analisi-avanzate`](../spec-driven/specs/014-analisi-avanzate/spec.md):
+  la nuova scheda Analisi separa heatmap, rolling e frontiera dal backtest
+  principale. Le curve lunghe mantengono la copertura di ogni serie, il PAC
+  viene ricostruito senza trasformare le rate in rendimento e le finestre
+  rolling usano anni di calendario. Sortino usa la downside deviation RMS su
+  tutte le osservazioni; Ulcer Index e drawdown della frontiera hanno
+  denominatori e segni espliciti. La frontiera valuta in batch NumPy solo i
+  fondi del portafoglio, con seed fisso, vincoli min/max, Pareto, fingerprint,
+  export JSON e applicazione soltanto dopo conferma. I risultati sono i
+  migliori mix trovati sullo storico, non una previsione. La frontiera riusa il
+  frame netto effettivo del backtest, mostra fonte e copertura, e misura il
+  portafoglio corrente con lo stesso valutatore batch dei candidati; heatmap e
+  selezione serie conservano la scelta fra i run. La suite completa conta ora
+  264 test.
 
 ## Entrato di recente (continua)
 

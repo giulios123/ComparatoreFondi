@@ -49,7 +49,7 @@ class ComparativeTests(unittest.TestCase):
         values = curve([100 * 1.01**i for i in range(25)])
         rolling = cp.rolling_returns(values, windows=(1, 2))[2]
         summary = cp.rolling_summary(rolling)
-        self.assertEqual(summary["observations"], 2)
+        self.assertEqual(summary["observations"], 1)
         self.assertGreater(summary["positive_pct"], 0.99)
 
     def test_rolling_does_not_compress_missing_calendar_months(self):

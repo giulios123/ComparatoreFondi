@@ -7,17 +7,20 @@ import json
 import math
 import os
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
 from comparatore import (
     __version__,
+    analytics,
     benchmark_portfolios,
     comparative,
     covip,
     diagnostics,
     directa_io,
+    frontier,
     fx,
     i18n,
     inflation,
@@ -43,6 +46,7 @@ from comparatore.engine import (
     Holding,
     Pac,
     Rebalance,
+    adjust_for_fees,
     contribution_schedule,
     coverage_warnings,
     nav_curve,
@@ -183,6 +187,18 @@ if "composizione_rev" not in st.session_state:
     # Streamlit non riapplica un buffer di modifiche ormai superato (vedi
     # commento sulla chiave dell'editor di composizione, piu' sotto).
     st.session_state.composizione_rev = 0
+if "analysis_mode" not in st.session_state:
+    st.session_state.analysis_mode = "heatmap"
+if "analysis_rolling_start" not in st.session_state:
+    st.session_state.analysis_rolling_start = st.session_state.start_date
+if "analysis_rolling_end" not in st.session_state:
+    st.session_state.analysis_rolling_end = st.session_state.end_date
+if "analysis_show_all_years" not in st.session_state:
+    st.session_state.analysis_show_all_years = False
+if "analysis_frontier_result" not in st.session_state:
+    st.session_state.analysis_frontier_result = None
+if "analysis_frontier_context" not in st.session_state:
+    st.session_state.analysis_frontier_context = None
 
 
 def _applica_pending() -> None:
@@ -429,6 +445,784 @@ def metric_help(risk_free: float, initial_value: float, ccy: str) -> dict[str, s
         "gain": t("help.pac_guadagno"),
         "xirr": t("help.pac_xirr"),
     }
+
+
+# Alias locale: la ricostruzione lunga resta isolata dall'ordine verificato
+# della pipeline principale, dove l'export precede il backtest.
+_run_backtest_analisi = run_backtest
+
+
+def _carica_curve_analisi(
+    registry: Registry,
+    selected: list[dict],
+    holdings: list[Holding],
+    benchmark_config: dict | None,
+    benchmark_label: str,
+    base_ccy: str,
+    initial_value: float,
+    rebalance: Rebalance,
+    pac: Pac | None,
+    extend_history: bool,
+) -> tuple[
+    dict[str, pd.Series], dict[str, str],
+    dict[str, tuple[pd.Timestamp, pd.Timestamp]], list[str], dict[str, set[str]],
+]:
+    """Ricostruisce le curve lunghe solo quando la scheda Analisi e' aperta."""
+    end = dt.date.today()
+    specs = [
+        {
+            "symbol": fund["symbol"], "isin": fund.get("isin", ""),
+            "source": fund.get("source", AUTO),
+        }
+        for fund in selected
+    ]
+    frame = registry.resolve_many(specs, MIN_DATE, end, base_ccy)
+    if frame.prices.empty:
+        return {}, {}, {}, ["prices_empty"], {}
+    converted = fx.convert_currency(
+        frame.prices, frame.currencies, base_ccy, MIN_DATE, end,
+    )
+    prices_long = converted.prices.sort_index()
+    errors = [f"fx_{symbol}" for symbol in converted.failed]
+
+    # Il ripiego proxy e' lo stesso gia' opt-in della scheda principale; non
+    # viene mai attivato implicitamente per allungare un dato mancante.
+    if extend_history:
+        for fund in selected:
+            symbol = fund["symbol"]
+            proxy = px.CATALOG.get(fund.get("proxy", NO_PROXY))
+            if proxy is None or symbol not in prices_long:
+                continue
+            proxy_series, _ = px.fetch_proxy_series(proxy, MIN_DATE, end, base_ccy)
+            extension = px.extend_with_proxy(
+                prices_long[symbol].dropna(), proxy_series, proxy,
+                ter=float(fund.get("ter", 0.0)) / 100,
+            )
+            if extension is not None:
+                prices_long[symbol] = extension.series
+        prices_long = prices_long.sort_index()
+
+    curves: dict[str, pd.Series] = {}
+    labels: dict[str, str] = {}
+    coverage: dict[str, tuple[pd.Timestamp, pd.Timestamp]] = {}
+    sources: dict[str, set[str]] = {}
+    holding_by_symbol = {holding.symbol: holding for holding in holdings}
+
+    # Ogni strumento conserva il proprio inizio storico: non viene accorciato
+    # dal fondo piu' giovane presente nel portafoglio.
+    for fund in selected:
+        symbol = fund["symbol"]
+        if symbol not in prices_long:
+            errors.append(f"missing_{symbol}")
+            continue
+        raw = prices_long[symbol].dropna()
+        holding = holding_by_symbol.get(symbol)
+        if holding is None or len(raw) < 2:
+            continue
+        used = adjust_for_fees(raw.to_frame(name=symbol), [holding], FeeMode.NET)
+        value, _ = simulate(used, {symbol: 1.0}, initial_value, Rebalance.NONE, pac)
+        curve = nav_curve(value, contribution_schedule(used.index, pac), initial_value)
+        curves[symbol] = curve
+        labels[symbol] = fund.get("name") or symbol
+        if frame.sources.get(symbol):
+            sources[symbol] = {frame.sources[symbol]}
+        coverage[symbol] = (curve.index[0], curve.index[-1])
+
+    symbols = [holding.symbol for holding in holdings]
+    if all(symbol in prices_long for symbol in symbols):
+        try:
+            portfolio_result = _run_backtest_analisi(
+                prices_long[symbols], holdings, initial_value, rebalance, FeeMode.NET, pac,
+            )
+        except (BacktestInputError, ValueError):
+            portfolio_result = None
+        if portfolio_result is not None:
+            curves["portfolio"] = portfolio_result.nav
+            labels["portfolio"] = t("analysis.portfolio")
+            sources["portfolio"] = {
+                frame.sources[symbol]
+                for symbol in symbols
+                if frame.sources.get(symbol)
+            }
+            coverage["portfolio"] = (
+                portfolio_result.nav.index[0], portfolio_result.nav.index[-1],
+            )
+
+    if benchmark_config:
+        definition = None
+        if benchmark_config.get("kind") == "portfolio":
+            definition = benchmark_portfolios.get_portfolio(
+                benchmark_config.get("portfolio_id", "")
+            )
+            component_specs = [
+                {
+                    "symbol": component.symbol, "isin": component.isin,
+                    "weight": component.weight,
+                }
+                for component in (definition.executable_components if definition else ())
+            ]
+        else:
+            component_specs = [{
+                "symbol": benchmark_config.get("symbol", ""),
+                "isin": benchmark_config.get("isin", ""),
+                "weight": 100.0,
+                "source": benchmark_config.get("preferred_source", AUTO),
+            }]
+        component_specs = [spec for spec in component_specs if spec["symbol"]]
+        benchmark_frame = registry.resolve_many(component_specs, MIN_DATE, end, base_ccy)
+        if not benchmark_frame.prices.empty:
+            benchmark_fx = fx.convert_currency(
+                benchmark_frame.prices, benchmark_frame.currencies,
+                base_ccy, MIN_DATE, end,
+            )
+            if not benchmark_fx.failed:
+                benchmark_prices = benchmark_fx.prices.sort_index()
+                benchmark_prices = benchmark_prices.dropna(how="all")
+                first_valid = benchmark_prices.apply(
+                    lambda column: column.first_valid_index()
+                ).max()
+                if first_valid is not None and not pd.isna(first_valid):
+                    benchmark_prices = benchmark_prices.loc[first_valid:].ffill().dropna(how="any")
+                components = [spec["symbol"] for spec in component_specs]
+                if len(benchmark_prices) >= 2 and all(
+                    component in benchmark_prices for component in components
+                ):
+                    if definition is not None:
+                        weights = benchmark_portfolios.executable_weights(definition)
+                        benchmark_rebalance = (
+                            Rebalance.NONE if definition.is_managed else Rebalance.YEARLY
+                        )
+                    else:
+                        weights = {component_specs[0]["symbol"]: 100.0}
+                        benchmark_rebalance = Rebalance.YEARLY
+                    benchmark_value, _ = simulate(
+                        benchmark_prices, weights, initial_value, benchmark_rebalance, pac,
+                    )
+                    benchmark_curve = nav_curve(
+                        benchmark_value,
+                        contribution_schedule(benchmark_prices.index, pac),
+                        initial_value,
+                    )
+                    curves["benchmark"] = benchmark_curve
+                    labels["benchmark"] = benchmark_label or t("analysis.benchmark")
+                    sources["benchmark"] = {
+                        benchmark_frame.sources[symbol]
+                        for symbol in components
+                        if benchmark_frame.sources.get(symbol)
+                    }
+                    coverage["benchmark"] = (
+                        benchmark_curve.index[0], benchmark_curve.index[-1],
+                    )
+            else:
+                errors.extend(f"fx_benchmark_{symbol}" for symbol in benchmark_fx.failed)
+        else:
+            errors.append("benchmark_missing")
+    return curves, labels, coverage, errors, sources
+
+
+def _format_analysis_metric(value: float, kind: str) -> str:
+    if pd.isna(value):
+        return t("nd")
+    if kind in {"cagr", "volatility", "drawdown", "ulcer_index"}:
+        return fmt_pct(value)
+    return f"{value:.2f}"
+
+
+def _heatmap_cell_style(value: float) -> str:
+    """Colora i rendimenti senza dipendere dal tema chiaro/scuro."""
+    if pd.isna(value):
+        return "color: #94a3b8;"
+    if value > 0:
+        return "background-color: #d9f2e3; color: #14532d;"
+    if value < 0:
+        return "background-color: #fde0e0; color: #991b1b;"
+    return "background-color: #eef2f7; color: #334155;"
+
+
+def _render_analysis_frontier() -> None:
+    """Disegna la ricerca dei pesi sulla stessa simulazione del backtest."""
+    st.markdown(t("analysis.frontier_header"))
+    st.caption(t("analysis.frontier_caption"))
+    symbols = [holding.symbol for holding in holdings]
+    if len(symbols) < 2:
+        st.info(t("analysis.frontier_no_data"))
+        return
+
+    constraint_rows = [
+        {
+            "symbol": holding.symbol, "name": res.labels.get(holding.symbol, holding.label),
+            "min": st.session_state.get(f"analysis_min_{holding.symbol}", 0.0),
+            "max": st.session_state.get(f"analysis_max_{holding.symbol}", 100.0),
+        }
+        for holding in holdings
+    ]
+    constraints = st.data_editor(
+        pd.DataFrame(constraint_rows), hide_index=True, width="stretch",
+        key="analysis_frontier_constraints_" + "|".join(symbols),
+        disabled=["symbol", "name"],
+        column_config={
+            "symbol": t("analysis.frontier_symbol"),
+            "name": t("editor.col_fondo"),
+            "min": st.column_config.NumberColumn(
+                t("analysis.frontier_min_weight"), min_value=0.0, max_value=100.0,
+                step=1.0, format="%.2f",
+            ),
+            "max": st.column_config.NumberColumn(
+                t("analysis.frontier_max_weight"), min_value=0.0, max_value=100.0,
+                step=1.0, format="%.2f",
+            ),
+        },
+    )
+    try:
+        lower = {row.symbol: float(row.min) / 100 for row in constraints.itertuples()}
+        upper = {row.symbol: float(row.max) / 100 for row in constraints.itertuples()}
+    except (TypeError, ValueError):
+        st.warning(t("analysis.frontier_invalid"), icon="⚠️")
+        return
+    if any(lower[symbol] > upper[symbol] for symbol in symbols):
+        st.warning(t("analysis.frontier_invalid"), icon="⚠️")
+        return
+    if sum(lower.values()) > 1.0 + 1e-10 or sum(upper.values()) < 1.0 - 1e-10:
+        st.warning(t("analysis.frontier_invalid"), icon="⚠️")
+        return
+
+    col_samples, col_x, col_y = st.columns(3)
+    sample_count = col_samples.select_slider(
+        t("analysis.frontier_samples"),
+        options=list(range(frontier.MIN_SAMPLE_COUNT, frontier.MAX_SAMPLE_COUNT + 1, 1000)),
+        value=frontier.DEFAULT_SAMPLE_COUNT, key="analysis_frontier_samples",
+    )
+    objective_options = list(frontier.EXTREME_OBJECTIVES)
+    x_axis = col_x.selectbox(
+        t("analysis.frontier_axis_x"), objective_options, index=1,
+        format_func=lambda value: i18n.etichetta_metrica(LINGUA, value),
+        key="analysis_frontier_x",
+    )
+    y_axis = col_y.selectbox(
+        t("analysis.frontier_axis_y"), objective_options, index=0,
+        format_func=lambda value: i18n.etichetta_metrica(LINGUA, value),
+        key="analysis_frontier_y",
+    )
+    current_weights = {holding.symbol: holding.weight for holding in holdings}
+    # La frontiera deve usare gli stessi costi netti del backtest, ma non
+    # aggiunge il benchmark: le colonne restano i soli fondi selezionati.
+    # `res.prices` e' il frame gia' pulito e netto usato da `run_backtest`:
+    # riutilizzarlo evita che la frontiera ricostruisca un periodo comune
+    # leggermente diverso dal punto blu e dalle metriche della scheda.
+    frontier_prices = res.prices[symbols].copy().sort_index()
+    if len(frontier_prices) < 2:
+        st.info(t("analysis.frontier_no_data"))
+        return
+    source_items = []
+    for symbol in symbols:
+        source = frame.sources.get(symbol)
+        if source:
+            source_items.append(t(
+                "analysis.source_item",
+                serie=res.labels.get(symbol, symbol),
+                fonte=i18n.etichetta_fonte(LINGUA, source),
+            ))
+    if source_items:
+        st.caption(t("analysis.source_note", elenco=" · ".join(source_items)))
+    st.caption(t(
+        "analysis.frontier_coverage",
+        start=frontier_prices.index[0].strftime(FMT_DATA),
+        end=frontier_prices.index[-1].strftime(FMT_DATA),
+        n=len(frontier_prices),
+    ))
+    fingerprint = frontier.input_fingerprint(
+        frontier_prices, symbols, initial_value, rebalance, pac, risk_free,
+        lower, upper, current_weights,
+    )
+    context = (fingerprint, sample_count)
+    stored = st.session_state.analysis_frontier_result
+    if stored is not None and (
+        stored.input_fingerprint != fingerprint
+        or st.session_state.analysis_frontier_context != context
+    ):
+        st.warning(t("analysis.frontier_stale"), icon="⚠️")
+        stored = None
+
+    if st.button(t("analysis.frontier_run"), type="primary", width="stretch"):
+        progress_bar = st.progress(0.0, text=t("analysis.frontier_running"))
+        try:
+            stored = frontier.search_frontier(
+                frontier_prices, symbols, initial_value, rebalance, pac, risk_free,
+                lower, upper, sample_count=sample_count, current_weights=current_weights,
+                progress=progress_bar.progress,
+            )
+        except ValueError:
+            progress_bar.empty()
+            st.warning(
+                t("analysis.frontier_not_available", errore=t("analysis.frontier_no_data")),
+                icon="⚠️",
+            )
+            return
+        progress_bar.progress(1.0)
+        st.session_state.analysis_frontier_result = stored
+        st.session_state.analysis_frontier_context = context
+
+    if stored is None:
+        return
+    if len(stored.weights) == 1:
+        st.info(t("analysis.frontier_single"))
+    st.caption(t("analysis.frontier_evaluations", n=stored.evaluations))
+    # Il punto blu deve essere misurato sulla stessa matrice netta e sulla
+    # stessa pipeline batch dei candidati: usare `res.nav` qui lasciava spazio
+    # a differenze quando il periodo comune o la ricostruzione cambiavano.
+    evaluate_current = getattr(frontier, "evaluate_weights", None)
+    if evaluate_current is not None:
+        current_metrics = evaluate_current(
+            frontier_prices, symbols, initial_value, rebalance, pac, risk_free,
+            current_weights,
+        ).to_dict()
+    else:
+        # Un processo Streamlit gia' aperto puo' conservare il modulo prima
+        # dell'ultimo hot-reload: il valutatore batch esisteva gia' e mantiene
+        # comunque la stessa semantica del punto corrente.
+        current_vector = np.asarray([
+            float(current_weights.get(symbol, 0.0)) for symbol in symbols
+        ], dtype=float)
+        if current_vector.sum() > 0:
+            current_vector /= current_vector.sum()
+        current_metrics = frontier._batch_metrics(
+            frontier_prices, current_vector.reshape(1, -1), initial_value,
+            rebalance, pac, risk_free,
+        ).iloc[0].to_dict()
+    percent_objectives = {"cagr", "volatility", "drawdown", "ulcer_index"}
+    x_format = ".1%" if x_axis in percent_objectives else ".2f"
+    y_format = ".1%" if y_axis in percent_objectives else ".2f"
+    hover_format = f"%{{customdata}}<br>%{{x:{x_format}}} · %{{y:{y_format}}}<extra></extra>"
+    plot_metrics = stored.metrics.dropna(subset=[x_axis, y_axis])
+
+    def _extreme_tooltip(candidate_id: str, types: list[str]) -> str:
+        candidate = stored.metrics.loc[candidate_id]
+        weights_text = " · ".join(
+            f"{symbol} {fmt_pct(float(stored.weights.loc[candidate_id, symbol]))}"
+            for symbol in symbols
+        )
+        metrics_text = " · ".join(
+            f"{i18n.etichetta_metrica(LINGUA, key)} {_format_analysis_metric(candidate[key], key)}"
+            for key in ("cagr", "volatility", "sharpe", "drawdown")
+        )
+        return t(
+            "analysis.frontier_extreme_tooltip",
+            tipo=" / ".join(types), mix=t("analysis.frontier_mix", id=candidate_id),
+            pesi=weights_text, metriche=metrics_text,
+        )
+
+    figure = go.Figure()
+    figure.add_trace(go.Scattergl(
+        x=plot_metrics[x_axis], y=plot_metrics[y_axis], mode="markers",
+        name=t("analysis.frontier_metric"),
+        customdata=[t("analysis.frontier_mix", id=value) for value in plot_metrics.index],
+        marker=dict(size=6, color="#94a3b8", opacity=0.55),
+        hovertemplate=hover_format,
+    ))
+    pareto = plot_metrics.loc[plot_metrics.index.intersection(stored.pareto_ids)]
+    if not pareto.empty:
+        figure.add_trace(go.Scatter(
+            x=pareto[x_axis], y=pareto[y_axis], mode="markers",
+            name=t("analysis.frontier_pareto"), marker=dict(size=8, color="#16a34a"),
+            customdata=[t("analysis.frontier_mix", id=value) for value in pareto.index],
+            hovertemplate=hover_format,
+        ))
+
+    # Evidenzia sulla curva sia i casi migliori sia quelli peggiori. Un unico
+    # candidato puo' essere estremo per piu' metriche: in quel caso si evita di
+    # sovrapporre simboli e si riuniscono le etichette nel tooltip.
+    extreme_specs = (
+        ("cagr_max", "analysis.frontier_max_return", "#d4a72c", "star"),
+        ("cagr_min", "analysis.frontier_min_return", "#a16207", "x"),
+        ("volatility_min", "analysis.frontier_min_volatility", "#8b5cf6", "star"),
+        ("volatility_max", "analysis.frontier_max_volatility", "#7c3aed", "x"),
+        ("sharpe_max", "analysis.frontier_max_sharpe", "#16a34a", "star"),
+        ("sharpe_min", "analysis.frontier_min_sharpe", "#dc2626", "x"),
+        ("drawdown_min", "analysis.frontier_min_drawdown", "#0891b2", "star"),
+        ("drawdown_max", "analysis.frontier_max_drawdown", "#991b1b", "x"),
+    )
+    extreme_candidates: dict[str, dict[str, str]] = {}
+    for key, title_key, color, marker_symbol in extreme_specs:
+        candidate_id = stored.extrema.get(key)
+        if candidate_id not in plot_metrics.index:
+            continue
+        entry = extreme_candidates.setdefault(candidate_id, {})
+        entry.setdefault("types", []).append(t(title_key))
+        entry.setdefault("color", color)
+        entry.setdefault("symbol", marker_symbol)
+    for candidate_id, entry in extreme_candidates.items():
+        figure.add_trace(go.Scatter(
+            x=[stored.metrics.loc[candidate_id, x_axis]],
+            y=[stored.metrics.loc[candidate_id, y_axis]],
+            mode="markers", name=" / ".join(entry["types"]),
+            customdata=[_extreme_tooltip(candidate_id, entry["types"])],
+            marker=dict(
+                size=15, color=entry["color"], symbol=entry["symbol"],
+                line=dict(color="#ffffff", width=1.5),
+            ),
+            hovertemplate="%{customdata}<extra></extra>",
+            showlegend=True,
+        ))
+
+    def _current_metric(objective: str) -> float:
+        return float(current_metrics.get(objective, float("nan")))
+
+    current_x = _current_metric(x_axis)
+    current_y = _current_metric(y_axis)
+    figure.add_trace(go.Scatter(
+        x=[current_x], y=[current_y], mode="markers", name=t("analysis.frontier_current"),
+        marker=dict(size=13, color="#2563eb", symbol="diamond"),
+    ))
+    figure.update_layout(
+        height=500, margin=dict(l=0, r=0, t=20, b=0),
+        xaxis=dict(title=i18n.etichetta_metrica(LINGUA, x_axis), tickformat=x_format),
+        yaxis=dict(title=i18n.etichetta_metrica(LINGUA, y_axis), tickformat=y_format),
+        hovermode="closest", legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+    )
+    st.plotly_chart(figure, width="stretch")
+    st.caption(t("analysis.frontier_extreme_markers"))
+
+    # Riepilogo leggibile dei punti che l'utente cerca piu' spesso, nello stesso
+    # ordine della vista di riferimento: il dettaglio completo (inclusi i casi
+    # peggiori) resta sempre disponibile sui marcatori della curva.
+    card_specs = [(t("analysis.frontier_current"), current_metrics, None)]
+    for title_key, extreme_key in (
+        ("analysis.frontier_max_sharpe", "sharpe_max"),
+        ("analysis.frontier_min_volatility", "volatility_min"),
+        ("analysis.frontier_max_return", "cagr_max"),
+        ("analysis.frontier_min_drawdown", "drawdown_min"),
+    ):
+        candidate_id = stored.extrema.get(extreme_key)
+        if candidate_id in stored.metrics.index:
+            card_specs.append((
+                t(title_key), stored.metrics.loc[candidate_id], candidate_id,
+            ))
+    for offset in range(0, len(card_specs), 2):
+        row_columns = st.columns(2)
+        for column, (title, row, candidate_id) in zip(
+            row_columns, card_specs[offset:offset + 2]
+        ):
+            with column:
+                with st.container(border=True):
+                    st.markdown(f"**{title}**")
+                    if candidate_id is not None:
+                        st.caption(t("analysis.frontier_mix", id=candidate_id))
+                    metric_columns = st.columns(2)
+                    metric_columns[0].markdown(
+                        f"{i18n.etichetta_metrica(LINGUA, 'cagr')} "
+                        f"**{_format_analysis_metric(row['cagr'], 'cagr')}**"
+                    )
+                    metric_columns[1].markdown(
+                        f"{i18n.etichetta_metrica(LINGUA, 'volatility')} "
+                        f"**{_format_analysis_metric(row['volatility'], 'volatility')}**"
+                    )
+                    metric_columns[0].markdown(
+                        f"{i18n.etichetta_metrica(LINGUA, 'sharpe')} "
+                        f"**{_format_analysis_metric(row['sharpe'], 'sharpe')}**"
+                    )
+                    metric_columns[1].markdown(
+                        f"{i18n.etichetta_metrica(LINGUA, 'max_drawdown')} "
+                        f"**{_format_analysis_metric(row['drawdown'], 'drawdown')}**"
+                    )
+
+    extreme_rows = []
+    for objective in frontier.EXTREME_OBJECTIVES:
+        extreme_rows.append({
+            t("analysis.frontier_metric"): i18n.etichetta_metrica(LINGUA, objective),
+            t("analysis.frontier_min"): stored.extrema.get(f"{objective}_min", t("nd")),
+            t("analysis.frontier_max"): stored.extrema.get(f"{objective}_max", t("nd")),
+        })
+    st.dataframe(pd.DataFrame(extreme_rows), hide_index=True, width="stretch")
+    candidate_id = st.selectbox(
+        t("analysis.frontier_selected"), list(stored.weights.index),
+        format_func=lambda value: t("analysis.frontier_mix", id=value),
+        key="analysis_frontier_candidate",
+    )
+    candidate_weights = stored.weights.loc[candidate_id]
+    weight_rows = []
+    for holding in holdings:
+        weight = float(candidate_weights[holding.symbol])
+        current = holding.weight
+        weight_rows.append({
+            t("analysis.frontier_symbol"): holding.symbol,
+            t("editor.col_fondo"): holding.label,
+            t("analysis.frontier_weights"): fmt_pct(weight),
+            t("analysis.frontier_difference"): fmt_pct(weight - current),
+        })
+    st.dataframe(pd.DataFrame(weight_rows), hide_index=True, width="stretch")
+    metric_rows = [{
+        t("analysis.frontier_metric"): i18n.etichetta_metrica(LINGUA, key),
+        t("analysis.frontier_selected"): _format_analysis_metric(
+            stored.metrics.loc[candidate_id, key], key,
+        ),
+    } for key in frontier.OBJECTIVES]
+    st.dataframe(pd.DataFrame(metric_rows), hide_index=True, width="stretch")
+    st.caption(t("analysis.frontier_disclaimer"))
+
+    variant = [dict(fund) for fund in st.session_state.selected]
+    for fund in variant:
+        fund["weight"] = float(candidate_weights[fund["symbol"]]) * 100
+    variant_payload = portfolio_io.dump(variant, parametri_correnti)
+    action_col, export_col = st.columns(2)
+    export_col.download_button(
+        t("analysis.frontier_export"), variant_payload.encode("utf-8"),
+        file_name=f"portafoglio_{candidate_id}.json", mime="application/json",
+        width="stretch",
+    )
+    if action_col.checkbox(t("analysis.frontier_apply_confirm"), key="analysis_apply_confirm"):
+        if action_col.button(t("analysis.frontier_apply"), key="analysis_apply", width="stretch"):
+            for fund in st.session_state.selected:
+                fund["weight"] = float(candidate_weights[fund["symbol"]]) * 100
+            st.session_state.composizione_rev += 1
+            st.session_state.analysis_frontier_result = None
+            st.session_state.analysis_frontier_context = None
+            st.rerun()
+
+
+def _render_analysis() -> None:
+    """Controlli e grafici delle tre analisi, con calcolo costoso differito."""
+    st.caption(t("analysis.caption"))
+    analysis_modes = ["heatmap", "rolling", "frontier"]
+    if st.session_state.get("analysis_mode") not in analysis_modes:
+        st.session_state.analysis_mode = "heatmap"
+    view = st.segmented_control(
+        t("analysis.mode_label"), analysis_modes, default="heatmap",
+        format_func=lambda value: t(f"analysis.mode_{value}"),
+        key="analysis_mode", width="stretch",
+    )
+    if view == "frontier":
+        _render_analysis_frontier()
+        return
+
+    with st.spinner(t("prices.spinner")):
+        curves, labels, coverage, errors, sources = _carica_curve_analisi(
+            registry, st.session_state.selected, holdings, benchmark_config,
+            benchmark_label, base_ccy, initial_value, rebalance, pac,
+            st.session_state.extend_history,
+        )
+    if not curves:
+        st.warning(t("analysis.heatmap_unavailable"), icon="⚠️")
+        return
+    first_coverage = min(period[0] for period in coverage.values())
+    st.caption(t(
+        "analysis.reconstruction_base", capitale=fmt_money(initial_value, base_ccy),
+        data=first_coverage.strftime(FMT_DATA),
+    ))
+    if st.session_state.extend_history:
+        st.caption(t("analysis.proxy_note"))
+    if errors:
+        st.caption(t("analysis.partial_series"))
+
+    def _source_caption(series_ids: list[str]) -> None:
+        entries = []
+        for series_id in series_ids:
+            used = sources.get(series_id) or set()
+            if not used:
+                continue
+            source_labels = ", ".join(
+                i18n.etichetta_fonte(LINGUA, source) for source in sorted(used)
+            )
+            entries.append(t(
+                "analysis.source_item", serie=labels[series_id], fonte=source_labels,
+            ))
+        if entries:
+            st.caption(t("analysis.source_note", elenco=" · ".join(entries)))
+
+    options = list(curves)
+    if view == "heatmap":
+        # Al primo ingresso la serie piu' utile e' lo strumento gia' presente
+        # nella composizione; nei run successivi si conserva invece la scelta
+        # esplicita dell'utente. Senza questa normalizzazione Streamlit tende
+        # a ripartire dal portafoglio quando la scheda Analisi viene aperta.
+        selected_state = st.session_state.get("analysis_heatmap_series")
+        if selected_state not in options:
+            selected_state = next(
+                (fund["symbol"] for fund in st.session_state.selected
+                 if fund["symbol"] in options),
+                "portfolio" if "portfolio" in options else options[0],
+            )
+            st.session_state.analysis_heatmap_series = selected_state
+        selected = st.selectbox(
+            t("analysis.series_label"), options, index=options.index(selected_state),
+            format_func=lambda value: labels.get(value, value),
+            key="analysis_heatmap_series",
+        )
+        _source_caption([selected])
+        show_all = st.checkbox(t("analysis.show_all"), key="analysis_show_all_years")
+        result = analytics.calendar_heatmap(curves[selected], show_all=show_all)
+        if result.monthly.empty:
+            st.warning(t("analysis.heatmap_unavailable"), icon="⚠️")
+            return
+        st.markdown(t("analysis.heatmap_header"))
+        month_labels = [t(f"analysis.month_{month}") for month in range(1, 13)]
+        column_labels = month_labels + [t("analysis.heatmap_annual")]
+        table = result.monthly.copy()
+        table.columns = column_labels
+        styled = table.style.map(_heatmap_cell_style).format(
+            lambda value: fmt_pct(value), na_rep=t("analysis.missing_cell")
+        )
+        st.dataframe(styled, width="stretch")
+        # La quota effettiva chiarisce subito eventuali differenze rispetto a
+        # un altro provider: il dato e' l'ultima osservazione disponibile del
+        # mese, non una media e non una previsione per il mese corrente.
+        effective_dates = curves[selected].groupby(
+            curves[selected].index.to_period("M")
+        ).apply(lambda series: series.index[-1])
+        z = result.monthly.to_numpy(dtype=float) * 100
+        text = [
+            [fmt_pct(value) if np.isfinite(value) else t("analysis.missing_cell") for value in row]
+            for row in result.monthly.to_numpy(dtype=float)
+        ]
+        customdata = []
+        for year in result.monthly.index:
+            row_dates = []
+            for month in range(1, 13):
+                month_end = pd.Timestamp(year=year, month=month, day=1) + pd.offsets.MonthEnd(0)
+                effective = effective_dates.get(month_end.to_period("M"), pd.NA)
+                if pd.notna(effective) and np.isfinite(result.monthly.loc[year, month]):
+                    partial = (
+                        t("analysis.heatmap_partial_cell")
+                        if month_end in result.partial_months else ""
+                    )
+                    row_dates.append(t(
+                        "analysis.heatmap_effective", data=effective.strftime(FMT_DATA),
+                        parziale=partial,
+                    ))
+                else:
+                    row_dates.append(t("analysis.missing_cell"))
+            row_dates.append(t("analysis.heatmap_effective_year", year=year))
+            customdata.append(row_dates)
+        finite = z[np.isfinite(z)]
+        span = max(float(np.max(np.abs(finite))) if finite.size else 1.0, 1.0)
+        figure = go.Figure(go.Heatmap(
+            z=z, x=column_labels, y=result.monthly.index, text=text,
+            customdata=customdata,
+            texttemplate="%{text}", zmin=-span, zmax=span, zmid=0,
+            colorscale=[[0, "#f8caca"], [0.5, "#f8fafc"], [1, "#c9ead8"]],
+            hovertemplate="%{customdata}<br>%{text}<br>"
+            + t("analysis.heatmap_tooltip") + "<extra></extra>",
+            colorbar=dict(),
+        ))
+        figure.update_layout(
+            height=max(390, 34 * len(result.monthly.index) + 120),
+            margin=dict(l=0, r=0, t=20, b=0), xaxis=dict(side="top"),
+            yaxis=dict(autorange="reversed", title=None),
+        )
+        st.plotly_chart(figure, width="stretch")
+        if result.partial_months or result.partial_years:
+            st.caption(t("analysis.heatmap_partial"))
+        if result.end is not None and result.end.year == dt.date.today().year:
+            st.caption(t("analysis.heatmap_ytd"))
+        if result.start is not None and result.end is not None:
+            st.caption(t(
+                "analysis.rolling_coverage", start=result.start.strftime(FMT_DATA),
+                end=result.end.strftime(FMT_DATA), n=len(curves[selected]),
+            ))
+        return
+
+    selected_series = st.multiselect(
+        t("analysis.series_label"), options,
+        default=[key for key in ("portfolio", "benchmark") if key in options]
+        or options[:1],
+        format_func=lambda value: labels.get(value, value),
+        key="analysis_rolling_series",
+    )
+    _source_caption(selected_series)
+    col_mode, col_metric, col_horizon = st.columns(3)
+    mode = col_mode.selectbox(
+        t("analysis.mode_label"), ["continuous", "annual", "distribution"],
+        format_func=lambda value: t(f"analysis.mode_{value}"), key="analysis_rolling_mode",
+    )
+    metric = col_metric.selectbox(
+        t("analysis.metric_label"), list(analytics.ROLLING_METRICS),
+        format_func=lambda value: i18n.etichetta_metrica(LINGUA, value),
+        key="analysis_rolling_metric",
+    )
+    horizon = col_horizon.selectbox(
+        t("analysis.horizon_label"), list(analytics.ROLLING_HORIZONS),
+        format_func=etichetta_anni,
+        key="analysis_rolling_horizon",
+    )
+    date_col_a, date_col_b = st.columns(2)
+    rolling_start = date_col_a.date_input(
+        t("sidebar.data_inizio"), min_value=MIN_DATE, max_value=dt.date.today(),
+        format=FMT_DATA_INPUT, key="analysis_rolling_start",
+    )
+    rolling_end = date_col_b.date_input(
+        t("sidebar.data_fine"), min_value=MIN_DATE, max_value=dt.date.today(),
+        format=FMT_DATA_INPUT, key="analysis_rolling_end",
+    )
+    if rolling_start >= rolling_end:
+        st.warning(t("dates.error_order"), icon="⚠️")
+        return
+    figure = go.Figure()
+    rows = []
+    rolling_counts: dict[str, int] = {}
+    percent_metric = metric in {"cagr", "volatility", "ulcer_index"}
+    for series_id in selected_series:
+        rolling = analytics.rolling_metric(
+            curves[series_id], horizon, metric, risk_free,
+            mode=mode if mode == "annual" else "continuous",
+            start=pd.Timestamp(rolling_start), end=pd.Timestamp(rolling_end),
+        )
+        if rolling.empty:
+            continue
+        if mode == "distribution":
+            figure.add_trace(go.Histogram(
+                x=rolling * (100 if percent_metric else 1), name=labels[series_id],
+                opacity=0.65, nbinsx=30,
+            ))
+        elif mode == "annual":
+            figure.add_trace(go.Bar(
+                x=rolling.index, y=rolling.values, name=labels[series_id],
+            ))
+        else:
+            figure.add_trace(go.Scatter(
+                x=rolling.index, y=rolling.values, mode="lines",
+                name=labels[series_id],
+            ))
+        summary = analytics.rolling_summary(rolling)
+        rolling_counts[series_id] = int(summary["observations"])
+        rows.append({
+            t("analysis.series_label"): labels[series_id],
+            t("benchmark.rolling_worst"): _format_analysis_metric(summary["worst"], metric),
+            t("benchmark.rolling_median"): _format_analysis_metric(summary["median"], metric),
+            t("benchmark.rolling_best"): _format_analysis_metric(summary["best"], metric),
+            t("analysis.summary_p05"): _format_analysis_metric(summary["p05"], metric),
+            t("analysis.summary_p95"): _format_analysis_metric(summary["p95"], metric),
+            t("benchmark.rolling_observations"): summary["observations"],
+        })
+    if not rows:
+        st.warning(t("analysis.partial_series"), icon="⚠️")
+        return
+    figure.update_layout(
+        height=470, margin=dict(l=0, r=0, t=20, b=0),
+        xaxis_title=None,
+        yaxis_title=i18n.etichetta_metrica(LINGUA, metric),
+        barmode="group" if mode == "annual" else None,
+        yaxis=dict(tickformat=".1%" if percent_metric and mode != "distribution" else None),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+    )
+    st.plotly_chart(figure, width="stretch")
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    if mode == "distribution":
+        st.caption(t("analysis.rolling_distribution_note"))
+    for series_id in selected_series:
+        period = coverage.get(series_id)
+        if period:
+            st.caption(t(
+                "analysis.rolling_coverage", start=period[0].strftime(FMT_DATA),
+                end=period[1].strftime(FMT_DATA), n=rolling_counts.get(series_id, 0),
+            ))
+    periods = [coverage[series_id] for series_id in selected_series if series_id in coverage]
+    if len(periods) > 1:
+        common_start = max(period[0] for period in periods)
+        common_end = min(period[1] for period in periods)
+        if common_start <= common_end:
+            st.caption(t(
+                "analysis.rolling_common_coverage",
+                start=common_start.strftime(FMT_DATA), end=common_end.strftime(FMT_DATA),
+            ))
 
 
 def _regola_commissione(prefix: str, titolo: str) -> pic_costs.TransactionFeeRule:
@@ -3309,10 +4103,13 @@ anonymous_report = privacy.anonymize(
     diagnostic_report, diagnostic_assets, LINGUA,
 )
 
-tab1, tab_bil, tab2, tab3, tab4, tab5, tab_diagnosi = st.tabs([
-    t("tab.portafoglio"), t("tab.bilanciamento"), t("tab.confronto"),
-    t("tab.drawdown"), t("tab.dati"), t("tab.previdenza"), t("tab.diagnosi"),
-])
+tab1, tab_bil, tab2, tab_analisi, tab3, tab4, tab5, tab_diagnosi = st.tabs(
+    [
+        t("tab.portafoglio"), t("tab.bilanciamento"), t("tab.confronto"),
+        t("tab.analisi"), t("tab.drawdown"), t("tab.dati"), t("tab.previdenza"),
+        t("tab.diagnosi"),
+    ], key="results_tabs", on_change="rerun",
+)
 
 with tab1:
     fig = go.Figure()
@@ -4014,6 +4811,10 @@ with tab2:
     )
     if splice_dates:
         st.caption(t("confronto.footnote"))
+
+if tab_analisi.open:
+    with tab_analisi:
+        _render_analysis()
 
 with tab3:
     # Curve al netto dei versamenti (senza PAC sono le stesse di sempre): su
