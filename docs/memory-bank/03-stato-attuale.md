@@ -1,6 +1,6 @@
 # Stato attuale
 
-*Aggiornato: 29 agosto 2026*
+*Aggiornato: 3 settembre 2026*
 
 ## Dove siamo
 
@@ -120,6 +120,17 @@ confronta con i fondi pensione COVIP.
   portafoglio corrente con lo stesso valutatore batch dei candidati; heatmap e
   selezione serie conservano la scelta fra i run. La suite completa conta ora
   264 test.
+- **Import portafoglio Interactive Brokers** — spec
+  [`015-import-interactive-brokers`](../spec-driven/specs/015-import-interactive-brokers/spec.md):
+  l'Activity Statement CSV viene letto a sezioni da `comparatore/ibkr_io.py`,
+  mantenendo solo le posizioni long `Summary`, collegando l'anagrafica e
+  lasciando visibili i ticker senza corrispondenza. `Lot`, totali, liquidita',
+  short, derivati e valori non positivi sono esclusi con diagnosi; le valute
+  usano prima il cambio ricavabile dai totali, poi BCE/Yahoo con fonte, data,
+  override e conferma di riconciliazione. L'expander e' sotto Directa,
+  risolve anche azioni e ADR con `funds_only=False` e sostituisce lo stato in
+  modo atomico senza cambiare il JSON. La fixture e' anonima e il campione
+  reale resta esterno al repository; la suite completa conta ora 272 test.
 
 ## Entrato di recente (continua)
 

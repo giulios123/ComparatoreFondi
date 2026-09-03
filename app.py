@@ -23,6 +23,7 @@ from comparatore import (
     frontier,
     fx,
     i18n,
+    ibkr_io,
     inflation,
     licenses,
     overlap,
@@ -93,6 +94,14 @@ if "directa_file" not in st.session_state:
     st.session_state.directa_file = None
 if "directa_filename" not in st.session_state:
     st.session_state.directa_filename = ""
+if "ibkr_upload_visto" not in st.session_state:
+    st.session_state.ibkr_upload_visto = None
+if "ibkr_result" not in st.session_state:
+    st.session_state.ibkr_result = None
+if "ibkr_candidates" not in st.session_state:
+    st.session_state.ibkr_candidates = {}
+if "ibkr_fx_defaults" not in st.session_state:
+    st.session_state.ibkr_fx_defaults = {}
 if "directa_sheet" not in st.session_state:
     st.session_state.directa_sheet = "CSV"
 if "directa_header_row" not in st.session_state:
@@ -1938,10 +1947,10 @@ def _colonna_suggerita(colonne: list[str], *parole: str) -> str:
     return ""
 
 
-def _risultati_directa(posizione: directa_io.DirectaPosition) -> list[dict]:
+def _risultati_import(posizione, *, funds_only: bool) -> list[dict]:
     query = posizione.isin or posizione.ticker
     risultati = cached_search(
-        query, True, api_key("EODHD_API_KEY"), api_key("TWELVEDATA_API_KEY")
+        query, funds_only, api_key("EODHD_API_KEY"), api_key("TWELVEDATA_API_KEY")
     )
     if posizione.isin:
         esatti = [r for r in risultati if (r.get("isin") or "").upper() == posizione.isin]
@@ -1950,6 +1959,34 @@ def _risultati_directa(posizione: directa_io.DirectaPosition) -> list[dict]:
     ticker = posizione.ticker.upper()
     esatti = [r for r in risultati if (r.get("symbol") or "").upper() == ticker]
     return esatti or risultati
+
+
+def _risultati_directa(posizione: directa_io.DirectaPosition) -> list[dict]:
+    """Mantiene la selezione Directa limitata a fondi ed ETF."""
+    return _risultati_import(posizione, funds_only=True)
+
+
+def _indice_ibkr_coerente(posizione: ibkr_io.IbkrPosition, candidati: list[dict]) -> int | None:
+    """Preseleziona solo una quotazione coerente con ticker, ISIN e valuta."""
+    punteggi = []
+    for indice, candidato in enumerate(candidati):
+        punteggio = 0
+        if (candidato.get("symbol") or "").upper() == posizione.ticker.upper():
+            punteggio += 3
+        if posizione.isin and (candidato.get("isin") or "").upper() == posizione.isin:
+            punteggio += 4
+        if posizione.currency and (candidato.get("currency") or "").upper() == posizione.currency:
+            punteggio += 1
+        if posizione.exchange and (
+            candidato.get("exchange") or ""
+        ).upper() == posizione.exchange.upper():
+            punteggio += 1
+        punteggi.append(punteggio)
+    if not punteggi:
+        return None
+    massimo = max(punteggi)
+    migliori = [indice for indice, punteggio in enumerate(punteggi) if punteggio == massimo]
+    return migliori[0] if len(migliori) == 1 and massimo >= 3 else None
 
 
 def _testo_issue_directa(issue: directa_io.DirectaIssue) -> str:
@@ -1964,6 +2001,256 @@ def _testo_issue_directa(issue: directa_io.DirectaIssue) -> str:
     }
     chiave = chiavi.get(issue.code)
     return t(chiave) if chiave else issue.message
+
+
+def _testo_issue_ibkr(issue: ibkr_io.IbkrIssue) -> str:
+    """Traduce le diagnosi del parser IBKR senza portare i cataloghi nella libreria."""
+    chiave = {
+        "unsupported_detail": "ibkr.issue_unsupported_detail",
+        "missing_identifier": "ibkr.issue_missing_identifier",
+        "invalid_currency": "ibkr.issue_invalid_currency",
+        "invalid_value": "ibkr.issue_invalid_value",
+        "unsupported_short": "ibkr.issue_unsupported_short",
+        "ambiguous_instrument": "ibkr.issue_ambiguous_instrument",
+        "missing_instrument": "ibkr.issue_missing_instrument",
+        "unsupported_asset": "ibkr.issue_unsupported_asset",
+        "cash_excluded": "ibkr.issue_cash_excluded",
+    }.get(issue.code)
+    return t(chiave) if chiave else issue.message
+
+
+def _render_ibkr_import() -> None:
+    """Importa una fotografia IBKR senza confondere conti e movimenti con titoli."""
+    with st.expander(t("ibkr.expander")):
+        st.caption(t("ibkr.caption"))
+        upload = st.file_uploader(
+            t("ibkr.upload_label"), type=["csv"], key="ibkr_upload"
+        )
+        if upload is None:
+            return
+        if upload.file_id != st.session_state.ibkr_upload_visto:
+            st.session_state.ibkr_upload_visto = upload.file_id
+            st.session_state.ibkr_candidates = {}
+            st.session_state.ibkr_fx_defaults = {}
+            try:
+                st.session_state.ibkr_result = ibkr_io.parse_statement(
+                    upload.getvalue(), upload.name
+                )
+            except ibkr_io.IbkrParseError as exc:
+                st.session_state.ibkr_result = None
+                st.error(t("ibkr.file_error", errore=str(exc)))
+                return
+
+        result = st.session_state.ibkr_result
+        if result is None:
+            return
+        report_end = result.report_end
+        if report_end is None:
+            report_end = st.date_input(
+                t("ibkr.report_date_label"), value=dt.date.today(),
+                min_value=MIN_DATE, max_value=dt.date.today(),
+                format=FMT_DATA_INPUT, key=f"ibkr_report_date_{upload.file_id}",
+            )
+        base_ccy = result.base_currency
+        if base_ccy not in CURRENCIES:
+            base_options = (
+                CURRENCIES if not base_ccy else [base_ccy] + [
+                    currency for currency in CURRENCIES if currency != base_ccy
+                ]
+            )
+            base_ccy = st.selectbox(
+                t("ibkr.base_currency_label"), base_options,
+                key=f"ibkr_base_currency_{upload.file_id}",
+            )
+        st.caption(t(
+            "ibkr.summary", n=len(result.positions), base=base_ccy,
+            data=report_end.strftime(FMT_DATA),
+        ))
+        skipped_lot = result.skipped.get("lot", 0)
+        skipped_total = result.skipped.get("total", 0)
+        if skipped_lot or skipped_total:
+            st.info(t("ibkr.skipped", lot=skipped_lot, total=skipped_total), icon="ℹ️")
+        if result.issues:
+            st.warning(t("ibkr.issues", n=len(result.issues)), icon="⚠️")
+            st.dataframe(
+                pd.DataFrame([
+                    {
+                        t("ibkr.issue_row"): issue.row,
+                        t("ibkr.issue_column"): issue.column,
+                        t("ibkr.issue_message"): _testo_issue_ibkr(issue),
+                        t("ibkr.issue_status"): (
+                            t("ibkr.issue_blocking") if issue.blocking
+                            else t("ibkr.issue_warning")
+                        ),
+                    }
+                    for issue in result.issues
+                ]),
+                hide_index=True, width="stretch",
+            )
+
+        if not st.session_state.ibkr_candidates:
+            with st.spinner(t("ibkr.resolving_spinner")):
+                st.session_state.ibkr_candidates = {
+                    position.identifier: _risultati_import(position, funds_only=False)
+                    for position in result.positions
+                }
+        candidate_map = st.session_state.ibkr_candidates
+        choices: dict[str, dict] = {}
+        unresolved: list[ibkr_io.IbkrPosition] = []
+        preview_rows = []
+        for position in result.positions:
+            candidates = candidate_map.get(position.identifier, [])
+            automatic = _indice_ibkr_coerente(position, candidates)
+            if automatic is not None:
+                choices[position.identifier] = candidates[automatic]
+                stato = t("ibkr.status_resolved")
+            elif len(candidates) > 1:
+                labels = [
+                    f"{item.get('name') or item.get('symbol')} ({item.get('symbol')})"
+                    for item in candidates
+                ]
+                choice = st.selectbox(
+                    t("ibkr.instrument_label", nome=position.name or position.ticker),
+                    range(len(candidates)), format_func=lambda i, labels=labels: labels[i],
+                    key=f"ibkr_choice_{position.identifier}_{upload.file_id}",
+                )
+                choices[position.identifier] = candidates[choice]
+                stato = t("ibkr.status_manual")
+            else:
+                unresolved.append(position)
+                stato = t("ibkr.status_unresolved")
+            preview_rows.append({
+                t("ibkr.preview_identifier"): position.identifier,
+                t("ibkr.preview_name"): position.name or position.ticker,
+                t("ibkr.preview_currency"): position.currency,
+                t("ibkr.preview_value"): position.current_value,
+                t("ibkr.preview_status"): stato,
+            })
+        st.dataframe(pd.DataFrame(preview_rows), hide_index=True, width="stretch")
+
+        exclude_unresolved = st.checkbox(
+            t("ibkr.exclude_unresolved"), key=f"ibkr_exclude_{upload.file_id}"
+        )
+        if unresolved:
+            st.warning(t(
+                "ibkr.unresolved", elenco=", ".join(p.identifier for p in unresolved)
+            ), icon="🚫")
+        blocking_issues = [issue for issue in result.issues if issue.blocking]
+        acknowledge_issues = True
+        if blocking_issues:
+            acknowledge_issues = st.checkbox(
+                t("ibkr.exclude_issues"), key=f"ibkr_ack_{upload.file_id}"
+            )
+
+        foreign = sorted(
+            {position.currency for position in result.positions if position.currency != base_ccy}
+        )
+        defaults = st.session_state.ibkr_fx_defaults.setdefault(upload.file_id, {})
+        fx_values = {base_ccy: 1.0}
+        fx_ready = True
+        for currency in foreign:
+            if currency not in defaults:
+                if currency in result.fx_hints:
+                    defaults[currency] = {
+                        "rate": result.fx_hints[currency],
+                        "source": "ibkr", "date": report_end,
+                    }
+                else:
+                    quote = fx.rate_at(currency, base_ccy, report_end)
+                    defaults[currency] = {
+                        "rate": quote.rate if quote else 0.0,
+                        "source": quote.source if quote else "missing",
+                        "date": quote.date if quote else None,
+                    }
+            default = defaults[currency]
+            rate = st.number_input(
+                t("ibkr.fx_rate_label", src=currency, dst=base_ccy),
+                min_value=0.0, value=float(default.get("rate", 0.0)),
+                step=0.00001, format="%.8f",
+                key=f"ibkr_fx_{currency}_{upload.file_id}",
+            )
+            if not math.isclose(rate, float(default.get("rate", 0.0)), rel_tol=0.0, abs_tol=1e-10):
+                fonte = t("ibkr.fx_source_manual")
+            elif default.get("source") == "ibkr":
+                fonte = t("ibkr.fx_source_statement")
+            elif default.get("source") == "missing":
+                fonte = t("ibkr.fx_source_missing")
+            else:
+                fonte = t("ibkr.fx_source_market", source=default.get("source", ""))
+            data_cambio = default.get("date") or report_end
+            if not isinstance(data_cambio, dt.date):
+                data_cambio = report_end
+            st.caption(t(
+                "ibkr.fx_source_caption", source=fonte,
+                data=data_cambio.strftime(FMT_DATA),
+            ))
+            if rate <= 0:
+                fx_ready = False
+            else:
+                fx_values[currency] = rate
+
+        amounts = []
+        for position in result.positions:
+            if position.currency not in fx_values:
+                continue
+            amounts.append(position.current_value * fx_values[position.currency])
+        converted_total = sum(amounts)
+        reconciliation_ok = True
+        if result.base_total is not None:
+            difference = converted_total - result.base_total
+            if abs(difference) > 0.01:
+                reconciliation_ok = st.checkbox(
+                    t(
+                        "ibkr.reconciliation_confirm",
+                        expected=fmt_money(result.base_total, base_ccy, decimals=2),
+                        actual=fmt_money(converted_total, base_ccy, decimals=2),
+                    ),
+                    key=f"ibkr_reconcile_{upload.file_id}",
+                )
+            else:
+                st.caption(t("ibkr.reconciliation_ok"))
+        if not fx_ready:
+            st.warning(t("ibkr.fx_missing"), icon="💱")
+        pronto = bool(choices) and (not unresolved or exclude_unresolved) and (
+            not blocking_issues or acknowledge_issues
+        ) and fx_ready and reconciliation_ok
+        if st.button(t("ibkr.import_button"), disabled=not pronto, width="stretch"):
+            funds_by_symbol: dict[str, dict] = {}
+            values_by_symbol: dict[str, float] = {}
+            for position in result.positions:
+                candidate = choices.get(position.identifier)
+                if candidate is None or position.currency not in fx_values:
+                    continue
+                symbol = candidate["symbol"]
+                if symbol not in funds_by_symbol:
+                    meta = cached_metadata(
+                        symbol, position.isin or candidate.get("isin", ""),
+                        api_key("EODHD_API_KEY"), st.session_state.ter_refresh_rev,
+                        justetf=bool(st.session_state.enable_justetf),
+                    )
+                    nome = meta.get("name") or position.name or candidate.get("name", "")
+                    alloc, fonte_alloc = classifica(nome, symbol, meta)
+                    funds_by_symbol[symbol] = _fondo_da_meta(
+                        symbol, nome, position.isin or candidate.get("isin", ""), meta,
+                        proxy=px.suggest_proxy(nome, symbol), alloc=alloc,
+                        alloc_fonte=fonte_alloc,
+                    )
+                values_by_symbol[symbol] = values_by_symbol.get(symbol, 0.0) + (
+                    position.current_value * fx_values[position.currency]
+                )
+            funds = list(funds_by_symbol.values())
+            values = [values_by_symbol[fund["symbol"]] for fund in funds]
+            if funds and sum(values) > 0:
+                for fund, weight in zip(funds, pesi.rinormalizza(values)):
+                    fund["weight"] = weight
+                st.session_state._pending_state.update({
+                    "selected": funds,
+                    "initial_value": float(sum(values)),
+                    "base_ccy": base_ccy,
+                })
+                st.session_state.composizione_rev += 1
+                st.toast(t("ibkr.import_success", n=len(funds)), icon="💼")
+                st.rerun()
 
 
 def equalize_weights():
@@ -2948,6 +3235,8 @@ with st.sidebar:
                             st.session_state.composizione_rev += 1
                             st.toast(t("directa.import_success", n=len(fondi_directa)), icon="💼")
                             st.rerun()
+
+    _render_ibkr_import()
 
     with st.expander(t("portfolio_io.expander")):
         st.caption(t("portfolio_io.caption"))

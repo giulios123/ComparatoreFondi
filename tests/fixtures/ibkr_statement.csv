@@ -1,0 +1,17 @@
+Statement,Header,Nome del campo,Valore del cmapo
+Statement,Data,Periodo,"1 gennaio 2025 - 31 gennaio 2025"
+Informazioni conto,Header,Nome del campo,Valore del cmapo
+Informazioni conto,Data,Valuta di base,EUR
+Posizioni aperte,Header,DataDiscriminator,Tipo di attivo,Valuta,Simbolo,Apertura,Quantità,Molt,Costo,Prezzo di costo,Prezzo di chiusura,Valore,P/L non realizzato,Codice
+Posizioni aperte,Data,Summary,Azioni,EUR,AAA,2025-01-01,10,1,100,10,10,100,0,
+Posizioni aperte,Data,Summary,Azioni,USD,BBB,2025-01-01,20,1,180,9,10,200,20,
+Posizioni aperte,Data,Summary,Azioni,USD,CCC,2025-01-01,5,1,45,9,10,50,5,
+Posizioni aperte,Data,Lotto,Azioni,USD,BBB,2025-01-01,20,1,180,9,10,200,20,
+Posizioni aperte,Totale,,Azioni,EUR,,,,,,100,,100,0,
+Posizioni aperte,Totale,,Azioni,USD,,,,,,250,,250,25,
+Posizioni aperte,Totale,,Azioni,EUR,,,,,,325,,325,25,
+Valore patrimoniale netto,Header,Classe di asset,Totale precedente,Long attuale,Short attuale,Totale corrente,Variazione
+Valore patrimoniale netto,Data,Azioni,300,325,0,325,25
+Informazioni sullo strumento finanziario,Header,Tipo di attivo,Simbolo,Descrizione,Conid,ID titolo,Mercato finanziario,Tipo
+Informazioni sullo strumento finanziario,Data,Azioni,AAA,Azienda AAA,1,US0378331005,NYSE,COMMON
+Informazioni sullo strumento finanziario,Data,Azioni,BBB,Azienda BBB,2,IE00B3YLTY66,NASDAQ,ETF

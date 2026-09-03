@@ -23,6 +23,7 @@ copertura rispetto a prima.
 from __future__ import annotations
 
 import datetime as dt
+import math
 from dataclasses import dataclass, field
 
 import pandas as pd
@@ -132,6 +133,15 @@ class RateSeries:
     first_available: dt.date
 
 
+@dataclass(frozen=True)
+class FxQuote:
+    """Ultimo cambio disponibile non successivo alla data richiesta."""
+
+    rate: float
+    source: str
+    date: dt.date
+
+
 def rates(
     src: str, dst: str, start: dt.date, end: dt.date, use_cache: bool = True
 ) -> RateSeries | None:
@@ -167,6 +177,36 @@ def rates(
         source=source,
         first_available=series.index[0].date(),
     )
+
+
+def rate_at(
+    src: str,
+    dst: str,
+    on_date: dt.date,
+    *,
+    lookback_days: int = 7,
+    use_cache: bool = True,
+) -> FxQuote | None:
+    """Restituisce un cambio storico con data effettivamente osservata.
+
+    Il rendiconto puo' terminare in un giorno festivo o nel fine settimana:
+    si cerca quindi una finestra breve e si prende l'ultima quotazione
+    precedente, senza usare un cambio futuro o inventare un valore.
+    """
+    if lookback_days < 0:
+        raise ValueError("lookback_days non puo' essere negativo.")
+    start = on_date - dt.timedelta(days=lookback_days)
+    series = rates(src, dst, start, on_date, use_cache=use_cache)
+    if series is None or series.rates.empty:
+        return None
+    eligible = series.rates[series.rates.index <= pd.Timestamp(on_date)].dropna()
+    if eligible.empty:
+        return None
+    timestamp = eligible.index[-1]
+    value = float(eligible.iloc[-1])
+    if not math.isfinite(value) or value <= 0:
+        return None
+    return FxQuote(value, series.source, timestamp.date())
 
 
 # --------------------------------------------------------------------------

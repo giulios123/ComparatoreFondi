@@ -214,6 +214,34 @@ class TestSintassiApp(unittest.TestCase):
         self.assertIn('t("editor.col_replica")', sorgente)
         self.assertIn("_mancano_metadati_etf(fondo)", sorgente)
 
+    def test_import_ibkr_sotto_directa_esclude_cassa_e_sostituisce_stato(self):
+        """La fotografia IBKR deve avere un confine visibile e atomico.
+
+        La guardia protegge i tre contratti che non si vedono nei test della
+        libreria: posizione dell'expander, risoluzione di tutti gli attivi e
+        passaggio al portafoglio solo dopo conversione e rinormalizzazione.
+        """
+        sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn("def _render_ibkr_import()", sorgente)
+        self.assertIn("ibkr_io.parse_statement(", sorgente)
+        self.assertNotIn("st.session_state.ibkr_file", sorgente)
+        self.assertNotIn("st.session_state.ibkr_filename", sorgente)
+        self.assertIn("_risultati_import(position, funds_only=False)", sorgente)
+        self.assertIn("foreign = sorted(", sorgente)
+        self.assertIn("position.current_value * fx_values[position.currency]", sorgente)
+        self.assertIn('"cash_excluded": "ibkr.issue_cash_excluded"', sorgente)
+        self.assertIn("len(candidates) > 1", sorgente)
+        self.assertIn('t("ibkr.fx_source_manual")', sorgente)
+        self.assertIn("pesi.rinormalizza(values)", sorgente)
+        self.assertIn('"selected": funds', sorgente)
+        directa_ui = sorgente.index('    with st.expander(t("directa.expander"))')
+        ibkr_ui = sorgente.index("    _render_ibkr_import()", directa_ui)
+        portfolio_ui = sorgente.index(
+            '    with st.expander(t("portfolio_io.expander"))', ibkr_ui
+        )
+        self.assertLess(directa_ui, ibkr_ui)
+        self.assertLess(ibkr_ui, portfolio_ui)
+
     def test_scheda_strumento_e_editor_kid_restano_collegati(self):
         sorgente = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
         self.assertIn("@st.dialog(t(\"instrument.title\")", sorgente)
