@@ -489,3 +489,29 @@ esistente e l'applicazione dei pesi richiede anteprima e conferma.
 
 **Traccia.** `comparatore/analytics.py`, `comparatore/frontier.py`,
 `comparatore/metrics.py`, `app.py`, spec `014`.
+
+### 29 · L'import IBKR usa solo Summary e rende verificabile ogni cambio
+
+**Contesto.** Un Activity Statement Interactive Brokers e' un CSV a sezioni,
+con righe `Summary`, `Lot`, totali e contabili mescolate e intestazioni che
+cambiano lingua e larghezza. Directa legge invece una singola tabella e non
+puo' distinguere quei confini.
+
+**Scelta.** `comparatore.ibkr_io` riconosce strutturalmente le sezioni del
+rendiconto, conserva solo le posizioni long `Summary` e collega l'anagrafica per
+tipo di attivo e simbolo. `Lot`, totali, liquidita', short, derivati e valori
+non positivi restano esclusioni o diagnosi esplicite. L'interfaccia risolve le
+quotazioni con `funds_only=False`, mostra selettori solo quando la corrispondenza
+non e' univoca, converte le valute prima dei pesi e sostituisce il portafoglio
+solo dopo una conferma. Il cambio viene prima dai totali IBKR quando e'
+univoco, poi dall'ultima quotazione BCE/Yahoo non successiva alla data del
+rendiconto, con override manuale e riconciliazione visibile.
+
+**Conseguenze.** Il formato JSON resta invariato e il CSV, il nome del conto e
+la cronologia non vengono persistiti. Il campione reale serve solo a una
+verifica locale; nel repository restano esclusivamente fixture anonime. Flex
+Query, XML, API, operazioni e fiscalita' restano fuori scope e rimandati alle
+spec future.
+
+**Traccia.** `comparatore/ibkr_io.py`, `comparatore/fx.py`, `app.py`,
+`comparatore/locales/*.py`, spec `015-import-interactive-brokers`.
